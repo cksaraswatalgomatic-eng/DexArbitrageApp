@@ -1,0 +1,1 @@
+cd backend && npm install --save-dev @types/json2csv

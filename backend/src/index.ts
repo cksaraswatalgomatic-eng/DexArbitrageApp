@@ -6,6 +6,15 @@ import cron from 'node-cron';
 import { pollAndStoreData } from './services/polling';
 import apiRoutes from './routes';
 
+const app = express();
+const port = process.env.PORT || 8080;
+
+const logger = pino({ transport: { target: 'pino-pretty' } });
+
+// Middleware
+app.use(express.json());
+app.use(cors({ origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:5173' }));
+
 // API Routes
 app.use('/api', apiRoutes);
 app.get('/healthz', (req, res) => {

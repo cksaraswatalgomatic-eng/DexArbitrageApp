@@ -103,8 +103,7 @@ router.get('/trades/summary', async (req, res) => {
     res.json(summary);
 });
 
-import { Parser } from 'json2csv';
-import { ParquetWriter } from 'parquetjs-lite';
+
 
 // GET /api/export/portfolio.csv
 router.get('/export/portfolio.csv', async (req, res) => {
@@ -180,6 +179,13 @@ router.get('/export/trades.parquet', async (req, res) => {
     const writer = await (ParquetWriter as any).openStream(schema, res, { useDataPageV2: false });
     for (const row of data) {
         await writer.appendRow(row);
+    }
+    await writer.close();
+    res.end();
+});
+
+export default router;
+await writer.appendRow(row);
     }
     await writer.close();
     res.end();

@@ -79,6 +79,10 @@ export async function pollAndStoreData() {
 
     logger.info('Data polled and stored successfully.');
   } catch (error) {
-    logger.error('Error polling and storing data:', error);
+    if (error instanceof Error) {
+      logger.error({ msg: 'Error polling and storing data:', err: error.message, stack: error.stack });
+    } else {
+      logger.error({ msg: 'An unknown error occurred during polling and storing data', err: error });
+    }
   }
 }

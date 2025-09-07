@@ -17,6 +17,7 @@ RUN npm run build
 
 # Stage 3: Production Image
 FROM node:20-alpine
+RUN apk add openssl
 WORKDIR /app
 
 # Copy environment and dependencies

@@ -11,6 +11,7 @@ FROM node:20-alpine AS backend-builder
 WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json ./
 RUN npm install
+RUN npx prisma generate
 COPY backend/ .
 RUN npm run build
 

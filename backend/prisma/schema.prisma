@@ -9,7 +9,7 @@ datasource db {
 
 model balance_timeseries {
   id        Int      @id @default(autoincrement())
-  ts        Int
+  ts        BigInt
   exchange  String
   usdt_val  Float
   coin_val  Float
@@ -22,7 +22,7 @@ model balance_timeseries {
 
 model portfolio_timeseries {
   id             Int   @id @default(autoincrement())
-  ts             Int
+  ts             BigInt
   total_usd      Float
   exchanges_count Int
 
@@ -43,7 +43,7 @@ model trades {
   executed_profit_normalized  Float
   executed_profit             Float
   executed_gross_profit       Float
-  executed_time_ms            Int
+  executed_time_ms            BigInt
   estimated_src_price         Float
   estimated_dst_price         Float
   estimated_qty               Float
@@ -52,9 +52,9 @@ model trades {
   executed_qty_src            Float
   executed_qty_dst            Float
   props                       String
-  creation_time               Int
-  open_time                   Int
-  last_update_time            Int
+  creation_time               BigInt
+  open_time                   BigInt
+  last_update_time            BigInt
   tx_fee                      Float?
   commission_percent          Float?
   hedge                       Int?

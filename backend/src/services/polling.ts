@@ -69,11 +69,40 @@ export async function pollAndStoreData() {
       });
 
       for (const trade of validatedTrades) {
-        const { fsmType, ...restOfTrade } = trade;
+        const { fsmType, executedTime, estimated_src_price, estimated_dst_price, estimated_qty, executed_src_price, executed_dst_price, executed_qty_src, executed_qty_dst, tx_fee, commission_percent, hedge, creation_time, open_time, last_update_time, src_exchange, dst_exchange, estimated_profit_normalized, estimated_profit, estimated_gross_profit, executed_profit_normalized, executed_profit, executed_gross_profit, ...restOfTrade } = trade;
+
+        const tradeDataForPrisma = {
+          ...restOfTrade,
+          fsm_type: fsmType,
+          executed_time_ms: executedTime,
+          estimated_src_price: estimated_src_price ?? 0,
+          estimated_dst_price: estimated_dst_price ?? 0,
+          estimated_qty: estimated_qty ?? 0,
+          executed_src_price: executed_src_price ?? 0,
+          executed_dst_price: executed_dst_price ?? 0,
+          executed_qty_src: executed_qty_src ?? 0,
+          executed_qty_dst: executed_qty_dst ?? 0,
+          tx_fee: tx_fee ?? 0,
+          commission_percent: commission_percent ?? 0,
+          hedge: hedge ? 1 : 0,
+          creation_time: creation_time ?? 0,
+          open_time: open_time ?? 0,
+          last_update_time: last_update_time ?? 0,
+          src_exchange: src_exchange ?? "",
+          dst_exchange: dst_exchange ?? "",
+          estimated_profit_normalized: estimated_profit_normalized ?? 0,
+          estimated_profit: estimated_profit ?? 0,
+          estimated_gross_profit: estimated_gross_profit ?? 0,
+          executed_profit_normalized: executed_profit_normalized ?? 0,
+          executed_profit: executed_profit ?? 0,
+          executed_gross_profit: executed_gross_profit ?? 0,
+          raw_json: JSON.stringify(trade),
+        };
+
         await tx.trades.upsert({
           where: { id: trade.id },
-          update: { ...restOfTrade, fsm_type: fsmType, raw_json: JSON.stringify(trade) },
-          create: { ...restOfTrade, fsm_type: fsmType, raw_json: JSON.stringify(trade) },
+          update: tradeDataForPrisma,
+          create: tradeDataForPrisma,
         });
       }
     });

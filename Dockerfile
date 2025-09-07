@@ -17,6 +17,7 @@ RUN npm run build
 
 # Stage 3: Production Image
 FROM node:20
+RUN apt-get update && apt-get install -y sqlite3
 WORKDIR /app
 
 # Copy environment and dependencies
@@ -29,9 +30,13 @@ COPY --from=backend-builder /app/backend/prisma ./backend/prisma
 COPY --from=backend-builder /app/backend/node_modules/.prisma ./backend/node_modules/.prisma
 COPY --from=backend-builder /app/backend/node_modules/@prisma/client ./backend/node_modules/@prisma/client
 
+ENV DATABASE_URL="file:/app/backend/prisma/dev.db"
+# Apply migrations during build
+RUN cd backend && npx prisma migrate deploy
+
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Expose port and run
 EXPOSE ${PORT}
-CMD ["node", "backend/dist/index.js"]
+CMD ["sh", "-c", "cd backend && npx prisma db push && node dist/index.js"]

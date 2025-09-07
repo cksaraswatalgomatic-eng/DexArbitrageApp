@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { PrismaClient } from '@prisma/client';
-import { BalanceSchema, CompletedTradesSchema } from './schemas';
+import { BalanceSchema, CompletedTradesSchema } from '../schemas';
 import pino from 'pino';
 
 const logger = pino({ transport: { target: 'pino-pretty' } });

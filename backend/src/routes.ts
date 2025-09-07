@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient, balance_timeseries } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { Parser } from 'json2csv';
 import { ParquetWriter } from 'parquetjs-lite';

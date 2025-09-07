@@ -42,7 +42,7 @@ export async function pollAndStoreData() {
     const ts = Date.now();
     let portfolioTotalUsd = 0;
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       for (const exchange in validatedBalances) {
         const balance = validatedBalances[exchange];
         const total_usd = (balance.usdtVal || 0) + (balance.coinVal || 0);

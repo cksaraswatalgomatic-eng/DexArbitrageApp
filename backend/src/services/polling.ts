@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { BalanceSchema, CompletedTradesSchema } from '../schemas';
 import pino from 'pino';
 
@@ -42,7 +42,7 @@ export async function pollAndStoreData() {
     const ts = Date.now();
     let portfolioTotalUsd = 0;
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">) => {
       for (const exchange in validatedBalances) {
         const balance = validatedBalances[exchange];
         const total_usd = (balance.usdtVal || 0) + (balance.coinVal || 0);

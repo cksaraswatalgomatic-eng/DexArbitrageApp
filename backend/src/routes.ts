@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Balance_timeseries } from '@prisma/client';
 import { z } from 'zod';
 import { Parser } from 'json2csv';
 import { ParquetWriter } from 'parquetjs-lite';
@@ -23,7 +23,7 @@ router.get('/snapshot', async (req: Request, res: Response) => {
 
   res.json({
     ts: lastPortfolioTime.ts,
-    exchanges: lastBalances.map(b => ({ exchange: b.exchange, usdtVal: b.usdt_val, coinVal: b.coin_val, totalUsd: b.total_usd })),
+        exchanges: lastBalances.map(b => ({ exchange: b.exchange, usdtVal: b.usdt_val, coinVal: b.coin_val, totalUsd: b.total_usd })),
     portfolioTotalUsd: lastPortfolioTime.total_usd,
   });
 });

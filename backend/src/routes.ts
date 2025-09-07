@@ -7,6 +7,8 @@ import { ParquetWriter } from 'parquetjs-lite';
 const router = Router();
 const prisma = new PrismaClient();
 
+type BalanceTimeseries = Awaited<ReturnType<typeof prisma.balance_timeseries.findMany>>[number];
+
 // GET /api/snapshot
 router.get('/snapshot', async (req: Request, res: Response) => {
   const lastPortfolioTime = await prisma.portfolio_timeseries.findFirst({
@@ -23,7 +25,7 @@ router.get('/snapshot', async (req: Request, res: Response) => {
 
   res.json({
     ts: lastPortfolioTime.ts,
-        exchanges: lastBalances.map((b: Prisma.Balance_timeseriesGetPayload<{}>) => ({ exchange: b.exchange, usdtVal: b.usdt_val, coinVal: b.coin_val, totalUsd: b.total_usd })),
+        exchanges: lastBalances.map((b: BalanceTimeseries) => ({ exchange: b.exchange, usdtVal: b.usdt_val, coinVal: b.coin_val, totalUsd: b.total_usd })),
     portfolioTotalUsd: lastPortfolioTime.total_usd,
   });
 });

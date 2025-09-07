@@ -7,7 +7,7 @@ COPY frontend/ .
 RUN npm run build
 
 # Stage 2: Build Backend
-FROM node:20-alpine AS backend-builder
+FROM node:20 AS backend-builder
 WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json ./
 RUN npm install
@@ -16,8 +16,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # Stage 3: Production Image
-FROM node:20-alpine
-RUN apk add compat-openssl11
+FROM node:20
 WORKDIR /app
 
 # Copy environment and dependencies

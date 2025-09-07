@@ -35,7 +35,7 @@ export async function pollAndStoreData() {
       fetchWithRetry(TRADES_URL),
     ]);
 
-    // Validate data
+    // Validate data before processing
     const validatedBalances = BalanceSchema.parse(balanceData);
     const validatedTrades = CompletedTradesSchema.parse(tradesData);
 

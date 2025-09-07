@@ -26,6 +26,8 @@ RUN cd backend && npm install --production
 # Copy built backend and prisma schema
 COPY --from=backend-builder /app/backend/dist ./backend/dist
 COPY --from=backend-builder /app/backend/prisma ./backend/prisma
+COPY --from=backend-builder /app/backend/node_modules/.prisma ./backend/node_modules/.prisma
+COPY --from=backend-builder /app/backend/node_modules/@prisma/client ./backend/node_modules/@prisma/client
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist

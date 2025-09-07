@@ -69,10 +69,11 @@ export async function pollAndStoreData() {
       });
 
       for (const trade of validatedTrades) {
+        const { fsmType, ...restOfTrade } = trade;
         await tx.trades.upsert({
           where: { id: trade.id },
-          update: { ...trade, raw_json: JSON.stringify(trade) },
-          create: { ...trade, raw_json: JSON.stringify(trade) },
+          update: { ...restOfTrade, fsm_type: fsmType, raw_json: JSON.stringify(trade) },
+          create: { ...restOfTrade, fsm_type: fsmType, raw_json: JSON.stringify(trade) },
         });
       }
     });

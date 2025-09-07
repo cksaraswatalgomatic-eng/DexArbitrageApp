@@ -181,14 +181,4 @@ router.get('/export/trades.parquet', async (req, res) => {
         await writer.appendRow(row);
     }
     await writer.close();
-    res.end();
-});
-
-export default router;
-await writer.appendRow(row);
-    }
-    await writer.close();
-    res.end();
-});
-
-export default router;
+    

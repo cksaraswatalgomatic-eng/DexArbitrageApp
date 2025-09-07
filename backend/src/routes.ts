@@ -1,12 +1,14 @@
-import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Router, Request, Response } from 'express';
+import { PrismaClient, balance_timeseries } from '@prisma/client';
 import { z } from 'zod';
+import { Parser } from 'json2csv';
+import { ParquetWriter } from 'parquetjs-lite';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // GET /api/snapshot
-router.get('/snapshot', async (req, res) => {
+router.get('/snapshot', async (req: Request, res: Response) => {
   const lastPortfolioTime = await prisma.portfolio_timeseries.findFirst({
     orderBy: { ts: 'desc' },
   });
@@ -21,7 +23,7 @@ router.get('/snapshot', async (req, res) => {
 
   res.json({
     ts: lastPortfolioTime.ts,
-    exchanges: lastBalances.map(b => ({ exchange: b.exchange, usdtVal: b.usdt_val, coinVal: b.coin_val, totalUsd: b.total_usd })),
+    exchanges: lastBalances.map((b: balance_timeseries) => ({ exchange: b.exchange, usdtVal: b.usdt_val, coinVal: b.coin_val, totalUsd: b.total_usd })),
     portfolioTotalUsd: lastPortfolioTime.total_usd,
   });
 });
@@ -32,7 +34,7 @@ const seriesQuerySchema = z.object({
 });
 
 // GET /api/portfolio/series
-router.get('/portfolio/series', async (req, res) => {
+router.get('/portfolio/series', async (req: Request, res: Response) => {
     const query = seriesQuerySchema.safeParse(req.query);
     if (!query.success) {
         return res.status(400).json(query.error);
@@ -52,7 +54,7 @@ router.get('/portfolio/series', async (req, res) => {
 });
 
 // GET /api/exchange/series/:exchange
-router.get('/exchange/series/:exchange', async (req, res) => {
+router.get('/exchange/series/:exchange', async (req: Request, res: Response) => {
     const { exchange } = req.params;
     const query = seriesQuerySchema.safeParse(req.query);
     if (!query.success) {
@@ -74,7 +76,7 @@ router.get('/exchange/series/:exchange', async (req, res) => {
 });
 
 // GET /api/trades/summary
-router.get('/trades/summary', async (req, res) => {
+router.get('/trades/summary', async (req: Request, res: Response) => {
     const query = seriesQuerySchema.safeParse(req.query);
     if (!query.success) {
         return res.status(400).json(query.error);
@@ -103,10 +105,8 @@ router.get('/trades/summary', async (req, res) => {
     res.json(summary);
 });
 
-
-
 // GET /api/export/portfolio.csv
-router.get('/export/portfolio.csv', async (req, res) => {
+router.get('/export/portfolio.csv', async (req: Request, res: Response) => {
     const data = await prisma.portfolio_timeseries.findMany();
     const parser = new Parser();
     const csv = parser.parse(data);
@@ -116,7 +116,7 @@ router.get('/export/portfolio.csv', async (req, res) => {
 });
 
 // GET /api/export/trades.csv
-router.get('/export/trades.csv', async (req, res) => {
+router.get('/export/trades.csv', async (req: Request, res: Response) => {
     const data = await prisma.trades.findMany();
     const parser = new Parser();
     const csv = parser.parse(data);
@@ -126,7 +126,7 @@ router.get('/export/trades.csv', async (req, res) => {
 });
 
 // GET /api/export/portfolio.parquet
-router.get('/export/portfolio.parquet', async (req, res) => {
+router.get('/export/portfolio.parquet', async (req: Request, res: Response) => {
     const data = await prisma.portfolio_timeseries.findMany();
     const schema = new (ParquetWriter as any).ParquetSchema({
         id: { type: 'INT32' },
@@ -143,7 +143,7 @@ router.get('/export/portfolio.parquet', async (req, res) => {
 });
 
 // GET /api/export/trades.parquet
-router.get('/export/trades.parquet', async (req, res) => {
+router.get('/export/trades.parquet', async (req: Request, res: Response) => {
     const data = await prisma.trades.findMany();
     const schema = new (ParquetWriter as any).ParquetSchema({
         id: { type: 'INT32' },
@@ -181,4 +181,7 @@ router.get('/export/trades.parquet', async (req, res) => {
         await writer.appendRow(row);
     }
     await writer.close();
-    
+    res.end();
+});
+
+export default router;

@@ -1,0 +1,15 @@
+# .gemini/config.yaml (Example structure)
+
+# This section tells the Gemini agent which tools it can use.
+tools:
+  - name: "shell"
+    enabled: true
+    description: "Execute system shell commands (e.g., npm test, git status)."
+
+# This section enables file system awareness.
+# It is usually implicitly enabled by the CLI's core functionality,
+# but can sometimes be seen explicitly or managed via .geminiignore
+context:
+  file_system:
+    enabled: true
+    ignore_files: [ 'node_modules', 'dist', '.git' ] # Mirrors .gitignore

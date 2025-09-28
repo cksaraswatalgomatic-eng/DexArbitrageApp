@@ -1,0 +1,21 @@
+{
+  "name": "dex-arbitrage-app",
+  "version": "1.0.0",
+  "description": "Simple web app to fetch balances and trades, store in SQLite, and display charts.",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "db:inspect": "node scripts/inspect-db.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "better-sqlite3": "^12.2.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

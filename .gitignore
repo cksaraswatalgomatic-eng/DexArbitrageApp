@@ -1,0 +1,13 @@
+node_modules/
+data-*.sqlite
+data-*.sqlite-shm
+data-*.sqlite-wal
+*.log
+npm-debug.log*
+.env
+.DS_Store
+build/
+dist/
+tmp/
+users.json
+trade_model.joblib

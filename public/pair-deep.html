@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pair Deep Dive - Dex Arbitrage</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
+  </head>
+  <body>
+    <header>
+      <div id="brand">
+        <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
+        <h1>Pair Deep Dive</h1>
+      </div>
+      <div class="controls">
+        <label style="color:var(--muted);font-size:12px">Server:
+          <select id="serverSelect" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text)"></select>
+        </label>
+        <a class="nav-link" href="/">Dashboard</a>
+        <a class="nav-link" href="/modern.html">Modern</a>
+        <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
+        <a class="nav-link" href="/docs.html">Docs</a>
+        <a class="nav-link" href="/servers.html" title="Server settings" aria-label="Server settings">⚙️</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>Pair Selection & Configuration</h2>
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+          <label>Search Pair:
+            <input id="pairSearch" type="text" placeholder="Search pairs..." style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text);width:200px" />
+          </label>
+          <label>Select Pair:
+            <select id="pair" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text);min-width:200px">
+              <option value="">-- Select a Pair --</option>
+            </select>
+          </label>
+          <label>Limit: 
+            <select id="limit" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text)">
+              <option>100</option><option selected>1000</option><option>2000</option><option>5000</option>
+            </select>
+          </label>
+          <label>X Variable: 
+            <select id="varX" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text)"></select>
+          </label>
+          <button id="run" class="btn-orange">Analyze</button>
+          <span id="status" class="muted"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Cumulative Net Profit Over Time <button class="info-btn" data-help="cum-gp">i</button></h2>
+        <div class="chart-container" style="height:380px"><canvas id="cumChart"></canvas></div>
+      </section>
+
+      <div class="grid-2">
+        <section class="card">
+          <h2>Net Profit Distribution <button class="info-btn" data-help="hist-gp">i</button></h2>
+          <div class="chart-container" style="height:360px"><canvas id="histChart"></canvas></div>
+        </section>
+        <section class="card">
+          <h2>Scatter: X vs Net Profit <button class="info-btn" data-help="scatter-deep">i</button></h2>
+          <div class="chart-container" style="height:360px"><canvas id="scatterChart"></canvas></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Additional Analysis</h2>
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+          <button id="netProfitBtn" class="btn">Show Net Profit per Trade</button>
+          <button id="exportBtn" class="btn">Export Data</button>
+        </div>
+        <div id="additionalCharts" style="margin-top: 20px; display: none;">
+          <section class="card">
+            <h3>Net Profit per Trade</h3>
+            <div class="chart-container" style="height:360px"><canvas id="netProfitChart"></canvas></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <small>Explore a single pair over time and by features. Use Ctrl+drag to zoom, Ctrl+shift+drag to pan.</small>
+    </footer>
+
+    <script src="/pair-deep.js"></script>
+    <script src="/servers-client.js"></script>
+    <script src="/help.js"></script>
+  </body>
+  </html>

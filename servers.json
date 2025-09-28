@@ -1,0 +1,49 @@
+{
+  "activeId": "base",
+  "servers": [
+    {
+      "id": "bnb",
+      "label": "BNB",
+      "baseUrl": "http://195.201.178.120:3001",
+      "balancesPath": "/balance",
+      "completedPath": "/completed",
+      "contractAddress": "",
+      "explorerSite": "https://bscscan.com",
+      "explorerApiBase": "https://api.bscscan.com",
+      "explorerApiKey": ""
+    },
+    {
+      "id": "arbitrum",
+      "label": "ARBITRUM",
+      "baseUrl": "http://168.119.69.230:3001",
+      "balancesPath": "/balance",
+      "completedPath": "/completed",
+      "contractAddress": "",
+      "explorerSite": "https://arbiscan.io",
+      "explorerApiBase": "https://api.arbiscan.io",
+      "explorerApiKey": ""
+    },
+    {
+      "id": "base",
+      "label": "BASE",
+      "baseUrl": "http://95.216.27.101:3001",
+      "balancesPath": "/balance",
+      "completedPath": "/completed",
+      "contractAddress": "0x3bb0247bb33bc50ab831a11d9d825138c2fe5853",
+      "explorerSite": "https://basescan.org",
+      "explorerApiBase": "https://api.basescan.org",
+      "explorerApiKey": "WYES7TD22MCZ9MINPBVTM6SKBTHBMBGR43"
+    },
+    {
+      "id": "polygonhttp-116-202-118-60-3001--mfxq1p4y",
+      "label": "POLYGON",
+      "baseUrl": "http://116.202.118.60:3001",
+      "balancesPath": "/balance",
+      "completedPath": "/completed",
+      "contractAddress": "",
+      "explorerSite": "https://polygonscan.com",
+      "explorerApiBase": "https://api.polygonscan.com",
+      "explorerApiKey": ""
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ML Analysis - Dex Arbitrage</title>
+    <script src="/auth-check.js"></script>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <header>
+      <div id="brand">
+        <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
+        <h1>ML Analysis</h1>
+      </div>
+      <div class="controls">
+        <label>Server:
+          <select id="serverSelect"></select>
+        </label>
+        <a class="nav-link" href="/">Dashboard</a>
+        <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
+        <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
+        <a class="nav-link" href="/diff-analysis.html">Diff Analysis</a>
+        <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
+        <a class="nav-link" href="/docs.html">Docs</a>
+        <a class="nav-link" href="/servers.html" title="Server settings" aria-label="Server settings">⚙️</a>
+      </div>
+    </header>
+
+    <main>
+        <section class="card">
+            <h2>Trade Success Prediction</h2>
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+                <label>Select Token:
+                    <select id="tokenSelect" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text);min-width:200px">
+                      <option value="">-- Select a Token --</option>
+                    </select>
+                  </label>
+                  <button id="trainModelBtn" class="btn-orange">Train Model</button>
+                  <span id="trainingStatus" class="muted"></span>
+            </div>
+            <div class="table-wrap" style="margin-top: 20px;">
+                <table id="predictionTable">
+                  <thead>
+                    <tr>
+                      <th>Token</th>
+                      <th>Buy Diff Bps</th>
+                      <th>Sell Diff Bps</th>
+                      <th>Diff</th>
+                      <th>DexSlip</th>
+                      <th>CexSlip</th>
+                      <th>Actions</th>
+                      <th>Success Probability</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+        </section>
+    </main>
+
+    <footer>
+      <small>Predict the success of a trade based on historical data.</small>
+    </footer>
+
+    <script src="/ml-analysis.js"></script>
+    <script src="/servers-client.js"></script>
+    <script src="/help.js"></script>
+  </body>
+</html>

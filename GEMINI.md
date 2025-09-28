@@ -1,127 +1,90 @@
-### Project Overview
+# GEMINI.md
 
-This is a full-stack monorepo application designed for monitoring cryptocurrency arbitrage opportunities between DEX and CEX platforms. It consists of a Node.js/TypeScript backend and a React/TypeScript frontend.
+## Project Overview
 
-**Backend:**
+This is a Node.js application designed for cryptocurrency arbitrage analysis. It periodically fetches balance, trade, and status data from remote DEX/CEX endpoints, stores the information in a local SQLite database, and serves a web-based user interface for data visualization and analysis.
 
-- **Framework:** Express.js
-- **Database:** SQLite with Prisma as the ORM.
-- **Core Logic:** A cron job (`node-cron`) runs every two minutes to poll two external HTTP endpoints for balance and trade data.
-- **Data Handling:** Fetched JSON data is validated using Zod, then stored in the SQLite database. The database schema includes tables for `balance_timeseries`, `portfolio_timeseries`, and `trades`.
-- **API:** Exposes a REST API for the frontend to consume, providing data for snapshots, time-series charts, and trade analytics. It also includes endpoints for exporting data to CSV and Parquet formats.
-- **Serving:** The Express server is also configured to serve the built frontend static files.
+The application is built with:
+-   **Backend:** Node.js and Express.js for the web server and API endpoints.
+-   **Database:** `better-sqlite3` for storing time-series data of balances, trades, and other metrics.
+-   **Task Scheduling:** `node-cron` is used to fetch data from the remote services every two minutes.
+-   **HTTP Client:** `axios` is used to perform HTTP requests to the remote data sources.
+-   **Frontend:** The UI is composed of static HTML, JavaScript, and CSS files located in the `public` directory. It includes several pages for different types of analysis.
 
-**Frontend:**
+The application supports multiple server configurations, which are managed through the `servers.json` file, allowing it to connect to different data sources for BNB, Arbitrum, and Base networks.
 
-- **Framework:** React with Vite and TypeScript.
-- **UI:** A simple dashboard interface with routing provided by `react-router-dom`.
-- **Visualization:** Uses `chart.js` and `react-chartjs-2` to display portfolio value over time.
-- **Data Fetching:** A custom hook `useData` fetches data from the backend API every 30 seconds.
+## Features
 
-**Containerization:**
+### Main Dashboard (`index.html`)
 
-- A multi-stage `Dockerfile` builds both the frontend and backend, creating a single production-ready Node.js image.
-- `docker-compose.yml` orchestrates the application, mounting a volume for the SQLite database to ensure data persistence.
+-   **Server Status:** Displays real-time information about the connected server, including uptime, `Mindiff`, `MaxOrderSize`, and token-specific parameters. It also shows profit and trade statistics for various time windows (1h, 4h, 8h, 12h, 24h).
+-   **DEX vs CEX Comparison:** A table that compares the "Total USDT" values of matching tokens between DEX and CEX exchanges.
+-   **Completed Trades:** A table of recent completed trades with details like "% Profit", "Net Profit", and other relevant information.
+-   **DEX and CEX Balances:** Tables showing the token balances on DEX and CEX exchanges.
 
-### Building and Running
+### Analysis Page (`analysis.html`)
 
-**With Docker (Recommended):**
+-   **Time Series Charts:** Visualizes the history of "Total USDT Balance" and "Trading Volume".
+-   **Profitability Analysis:** Provides insights into the profitability of trades.
 
-1.  Ensure you have a `.env` file in the root directory (you can copy `.env.example`).
-2.  Run the following command to build and start the container in detached mode:
+### Pair Analysis Page (`pair-analysis.html`)
+
+-   **Individual Pair Profitability Analysis:** Provides a detailed breakdown of profitability for a selected pair based on its attributes, including `Diff`, `DexSlip`, `CexSlip`, and execution type.
+-   **Top Winners and Losers:** Lists the most and least profitable pairs.
+
+### Token Analysis Page (`token-analysis.html`)
+
+-   **Token-level Analytics:** Aggregates and displays trade statistics (wins, losses, net profit) for each token.
+-   **Time-based Patterns:** Shows profitability patterns for a selected token by hour of the day and day of the week.
+-   **Time Series Data:** Displays a time series of net profit, average buy price, and average sell price for a selected token.
+
+### Contract Analysis Page (`contract-analysis.html`)
+
+-   **Transaction Monitoring:** Fetches and displays recent transactions for a configured smart contract.
+-   **Failure Analysis:** Identifies failed transactions and attempts to determine the reason for failure by scraping the block explorer.
+-   **Success/Failure Rates:** Shows transaction success and failure rates over various time periods.
+
+### Other Pages
+
+-   **Login (`login.html`):** A simple login page for authentication.
+-   **Servers (`servers.html`):** A page for managing server configurations (adding, editing, deleting servers).
+-   **Docs (`docs.html`):** Documentation page.
+-   **Pair Deep Dive (`pair-deep.html`):** A more detailed analysis page for individual pairs.
+
+## Authentication
+
+The application includes a basic authentication mechanism with a login page. User credentials are stored in `users.json`. **This implementation is insecure (stores passwords in plain text) and should not be used in a production environment.**
+
+## Building and Running
+
+To get the application running, follow these steps:
+
+1.  **Install Dependencies:**
     ```bash
-    docker-compose up -d --build
-    ```
-3.  The application will be available at `http://localhost:8080` (or the port specified in your `.env` file).
-
-**Without Docker:**
-
-1.  **Backend:**
-    ```bash
-    cd backend
     npm install
-    # For development with auto-reloading
-    npm run dev
-    # For production
-    npm run build
+    ```
+2.  **Run the Application:**
+    ```bash
     npm start
     ```
-2.  **Frontend:**
-    ```bash
-    cd frontend
-    npm install
-    npm run dev
-    ```
+The server will start on `http://localhost:3000` by default.
 
-### Deploying to a Linux (Ubuntu) VM
+### Configuration
 
-Since the application is fully containerized with Docker, porting it to a Linux VM is straightforward.
+The application can be configured using environment variables:
+-   `PORT`: The port for the web server (default: `3000`).
+-   `BALANCES_URL`: The URL for the balances endpoint.
+-   `TRADES_URL`: The URL for the completed trades endpoint.
 
-**1. Prepare the VM:**
+The active data source can be switched through the application's UI, which updates the `servers.json` file. The `servers.json` file also supports additional fields for contract analysis, such as `contractAddress`, `explorerSite`, `explorerApiBase`, and `explorerApiKey`.
 
-- **Install Git, Docker, and Docker Compose:** Connect to your Ubuntu VM and run the following commands:
-  ```bash
-  # Update package lists
-  sudo apt update
+User authentication is managed via the `users.json` file.
 
-  # Install Git
-  sudo apt install git -y
+## Development Conventions
 
-  # Install Docker Engine
-  sudo apt install docker.io -y
-
-  # Install Docker Compose
-  sudo apt install docker-compose -y
-
-  # Add your user to the docker group to run docker without sudo (optional)
-  sudo usermod -aG docker ${USER}
-  # You will need to log out and log back in for this to take effect.
-  ```
-
-**2. Deploy the Application:**
-
-- **Clone the repository:**
-  ```bash
-  git clone <your-repository-url>
-  cd DexArbitrageApp
-  ```
-
-- **Configure the environment:** Create a `.env` file from the example. The default values are likely fine for a server environment, but you may need to adjust `CORS_ORIGINS` if your frontend is served from a different domain.
-  ```bash
-  cp .env.example .env
-  ```
-
-- **Build and run with Docker Compose:**
-  ```bash
-  docker-compose up -d --build
-  ```
-
-**3. Verify and Access:**
-
-- **Check running containers:**
-  ```bash
-  docker ps
-  ```
-  You should see the `dexarbitrageapp_app` container running.
-
-- **View logs:**
-  ```bash
-  docker-compose logs -f
-  ```
-
-- **Access the application:** The application will be accessible at `http://<your-vm-ip-address>:8080` (or the port you specified in `.env`).
-
-- **Firewall Configuration:** If you have a firewall like `ufw` enabled, you'll need to allow traffic on the application's port:
-  ```bash
-  sudo ufw allow 8080/tcp
-  ```
-
-### Development Conventions
-
-- **Monorepo Structure:** Code is separated into `backend` and `frontend` directories.
-- **TypeScript:** Both the backend and frontend are written in TypeScript, enforcing type safety.
-- **Database Management:** Prisma is used for database schema definition, migrations, and as the query client. Migrations are managed via the `prisma migrate` commands.
-- **API-Driven Frontend:** The frontend is decoupled from the backend and interacts with it solely through the defined REST API.
-- **Environment Configuration:** Application configuration is managed through environment variables, with an `.env.example` file provided as a template.
-- **Linting:** The frontend includes a basic ESLint setup. The backend does not have an explicit linting step in its `package.json` scripts, but one could be added.
-- **Testing:** The backend `package.json` includes a `test` script using Jest, but no test files have been implemented yet. This is a TODO for improving project stability.
+-   The main server logic is contained in `app.js`.
+-   The frontend is composed of static files and is located in the `public` directory.
+-   Database-related scripts, such as for inspecting the database, are in the `scripts` directory.
+-   The application uses separate SQLite database files for each configured server (e.g., `data-bnb.sqlite`, `data-arbitrum.sqlite`).
+-   API endpoints are defined in `app.js` and provide data for the frontend charts and tables.
+-   The application has a modular structure for fetching and storing data for different servers.

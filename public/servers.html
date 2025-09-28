@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Servers - Trading Monitor</title>
+    <script src="/auth-check.js"></script>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <header>
+      <div id="brand"><img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" /><h1>Servers</h1></div>
+      <div class="controls">
+        <a class="nav-link" href="/">Dashboard</a>
+        <a class="nav-link" href="/analysis.html">ML Analysis</a>
+        <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
+        <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
+        <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
+        <a class="nav-link" href="/docs.html">Docs</a>
+      </div>
+    </header>
+
+    <main style="max-width:1024px;margin:0 auto;padding:16px">
+      <section class="card">
+        <h2>Configured Servers</h2>
+        <div class="table-wrap">
+          <table id="srvTable">
+            <thead><tr><th>Label</th><th>Base URL</th><th>Paths</th><th>Contract</th><th>Explorer</th><th>Active</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 id="formTitle">Add Server</h2>
+        <form id="srvForm">
+          <input type="hidden" id="srvId" />
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <label>Label <input id="label" required></label>
+            <label>Base URL <input id="baseUrl" required placeholder="http://x.x.x.x:3001"></label>
+            <label>Balances Path <input id="balancesPath" value="/balance"></label>
+            <label>Completed Path <input id="completedPath" value="/completed"></label>
+            <label>Contract Address <input id="contractAddress" placeholder="0x..."></label>
+            <label>Explorer Site <input id="explorerSite" placeholder="https://basescan.org"></label>
+            <label>Explorer API Base <input id="explorerApiBase" placeholder="https://api.basescan.org"></label>
+            <label>Explorer API Key <input id="explorerApiKey" placeholder="(optional)"></label>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn-orange" type="submit">Save</button>
+            <button class="btn" type="button" id="resetBtn">Reset</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      async function loadServers(){
+        const cfg = await (await fetch('/servers')).json();
+        const tb = document.querySelector('#srvTable tbody'); tb.innerHTML='';
+        for (const s of cfg.servers){
+          const tr = document.createElement('tr');
+          const caddr = s.contractAddress || '';
+          const explorerSite = s.explorerSite || '';
+          const link = caddr ? (explorerSite.replace(/\/?$/, '') + '/txs?a=' + caddr) : '';
+          const contractHtml = caddr ? `<a href="${link}" target="_blank" rel="noopener">${caddr.slice(0,6)}…${caddr.slice(-4)}</a>` : '';
+          tr.innerHTML = `<td>${s.label}</td><td>${s.baseUrl}</td><td>${s.balancesPath||'/balance'} | ${s.completedPath||'/completed'}</td><td>${contractHtml}</td><td>${explorerSite}</td><td>${cfg.activeId===s.id?'✓':''}</td>
+          <td>
+            <button class="btn" data-action="select" data-id="${s.id}">Select</button>
+            <button class="btn" data-action="edit" data-id="${s.id}">Edit</button>
+            <button class="btn" data-action="delete" data-id="${s.id}">Delete</button>
+          </td>`;
+          tb.appendChild(tr);
+        }
+        tb.querySelectorAll('button').forEach(b=> b.addEventListener('click', onAction));
+      }
+
+      async function onAction(e){
+        const id = e.target.dataset.id; const action = e.target.dataset.action;
+        if (action==='delete'){ if(!confirm('Delete this server config?')) return; await fetch('/servers/'+encodeURIComponent(id),{method:'DELETE'}); await loadServers(); return; }
+        if (action==='select'){ await fetch('/servers/'+encodeURIComponent(id)+'/select',{method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}); await loadServers(); return; }
+        if (action==='edit'){
+          const cfg = await (await fetch('/servers')).json();
+          const s = cfg.servers.find(x=>x.id===id); if (!s) return;
+          document.getElementById('formTitle').textContent='Edit Server';
+          document.getElementById('srvId').value = s.id;
+          document.getElementById('label').value = s.label;
+          document.getElementById('baseUrl').value = s.baseUrl;
+          document.getElementById('balancesPath').value = s.balancesPath||'/balance';
+          document.getElementById('completedPath').value = s.completedPath||'/completed';
+          document.getElementById('contractAddress').value = s.contractAddress||'';
+          document.getElementById('explorerSite').value = s.explorerSite||'';
+          document.getElementById('explorerApiBase').value = s.explorerApiBase||'';
+          document.getElementById('explorerApiKey').value = s.explorerApiKey||'';
+        }
+      }
+
+      document.getElementById('srvForm').addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const id = document.getElementById('srvId').value.trim();
+        const payload = {
+          label: document.getElementById('label').value.trim(),
+          baseUrl: document.getElementById('baseUrl').value.trim(),
+          balancesPath: document.getElementById('balancesPath').value.trim(),
+          completedPath: document.getElementById('completedPath').value.trim(),
+          contractAddress: document.getElementById('contractAddress').value.trim(),
+          explorerSite: document.getElementById('explorerSite').value.trim(),
+          explorerApiBase: document.getElementById('explorerApiBase').value.trim(),
+          explorerApiKey: document.getElementById('explorerApiKey').value.trim(),
+        };
+        if (id) await fetch('/servers/'+encodeURIComponent(id), { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        else await fetch('/servers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        e.target.reset(); document.getElementById('formTitle').textContent='Add Server';
+        await loadServers();
+      });
+      document.getElementById('resetBtn').addEventListener('click', (e)=>{ document.getElementById('srvForm').reset(); document.getElementById('srvId').value=''; document.getElementById('formTitle').textContent='Add Server'; });
+
+      loadServers();
+    </script>
+  </body>
+  </html>
+

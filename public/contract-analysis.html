@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Contract Analysis - Dex Arbitrage</title>
+    <script src="/auth-check.js"></script>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <header>
+      <div id="brand">
+        <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
+        <h1>Contract Analysis</h1>
+      </div>
+      <div class="controls">
+        <label>Server:
+          <select id="serverSelect"></select>
+        </label>
+        <a class="nav-link" href="/">Dashboard</a>
+        <a class="nav-link" href="/ml-analysis.html">ML Analysis</a>
+        <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
+        <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
+        <a class="nav-link" href="/servers.html">Servers</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="card">
+        <div class="chart-header">
+          <h2>Summary <button class="info-btn" data-help="contract-summary">i</button></h2>
+          <div class="chart-nav">
+            <button id="reloadBtn" class="btn">Reload</button>
+          </div>
+        </div>
+        <div id="summary"></div>
+      </section>
+
+      <section class="card">
+        <h2>Failed Transactions (last 24h) <button class="info-btn" data-help="contract-failed">i</button></h2>
+        <input id="failedSearch" placeholder="Search by hash or reason..." />
+        <div class="table-wrap">
+          <table id="failedTbl"><thead>
+            <tr><th>Time (UTC)</th><th>Tx Hash</th><th>Reason</th></tr>
+          </thead><tbody></tbody></table>
+        </div>
+      </section>
+    </main>
+
+    <script src="/contract-analysis.js"></script>
+    <script src="/servers-client.js"></script>
+    <script src="/help.js"></script>
+  </body>
+  </html>
+

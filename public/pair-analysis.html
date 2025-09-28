@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pair Analysis - Dex Arbitrage</title>
+    <script src="/auth-check.js"></script>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
+  </head>
+  <body>
+    <header>
+      <div id="brand">
+        <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
+        <h1>Pair Analysis</h1>
+      </div>
+      <div class="controls">
+        <label>Server:
+          <select id="serverSelect"></select>
+        </label>
+        <a class="nav-link" href="/">Dashboard</a>
+        <a class="nav-link" href="/ml-analysis.html">ML Analysis</a>
+        <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
+        <a class="nav-link" href="/docs.html">Docs</a>
+        <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
+        <a class="nav-link" href="/servers.html" title="Server settings" aria-label="Server settings">⚙️</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>Overview</h2>
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+          <label>Limit: <select id="limit">
+            <option>100</option><option>500</option><option selected>1000</option><option>2000</option><option>5000</option><option>10000</option>
+          </select></label>
+          <button id="reloadBtn" class="btn-orange">Reload</button>
+          <button id="visualizeBtn" class="btn">Visualize Tables</button>
+          <a href="/pair-deep.html" class="btn">Pair Deep Dive</a>
+          <span id="status" class="muted"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Bar Chart: Total Net Profit by Pair <button class="info-btn" data-help="bar-total-profit">i</button></h2>
+        <div class="chart-container" style="height:420px">
+          <canvas id="barChart"></canvas>
+        </div>
+      </section>
+
+      <div class="grid-2">
+        <section class="card">
+          <h2>Win Rate (Top Winners) <button class="info-btn" data-help="winners-rate">i</button></h2>
+          <div class="chart-container" style="height:360px">
+            <canvas id="winnersWinRate"></canvas>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Total Loss (Top Losers) <button class="info-btn" data-help="losers-loss">i</button></h2>
+          <div class="chart-container" style="height:360px">
+            <canvas id="losersLoss"></canvas>
+          </div>
+        </section>
+      </div>
+
+      <div class="grid-2">
+        <section class="card">
+          <h2>Top Profitable Pairs</h2>
+          <input id="winnersSearch" placeholder="Search winners..." style="margin-bottom:8px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text);width:220px" />
+          <div class="table-wrap">
+            <table id="winnersTbl"><thead>
+              <tr><th>Pair</th><th>Trades</th><th>Win%</th><th>Total Net Profit</th><th>Avg Net Profit</th></tr>
+            </thead><tbody></tbody></table>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Top Losing Pairs</h2>
+          <input id="losersSearch" placeholder="Search losers..." style="margin-bottom:8px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text);width:220px" />
+          <div class="table-wrap">
+            <table id="losersTbl"><thead>
+              <tr><th>Pair</th><th>Trades</th><th>Win%</th><th>Total Net Profit</th><th>Avg Net Profit</th></tr>
+            </thead><tbody></tbody></table>
+          </div>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Individual Pair Profitability Analysis</h2>
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+          <label>Search Pair:
+            <input type="text" id="pairSearchInput" placeholder="Type to filter pairs..." style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text);width:200px" />
+          </label>
+          <label>Select Pair:
+            <select id="pairSearchSelect" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text);min-width:200px">
+              <option value="">-- Select a Pair --</option>
+            </select>
+          </label>
+        </div>
+        <div id="individualPairCharts" style="margin-top: 20px;">
+          <section class="card">
+            <h3>Time-wise Net Profit Distribution</h3>
+            <div class="chart-container" style="height:360px"><canvas id="netProfitDistributionChart"></canvas></div>
+          </section>
+          <section class="card">
+            <h3>Net Profit Correlation</h3>
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom: 10px;">
+              <label>Correlate with:
+                <select id="correlationAttributeSelect" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text)">
+                  <option value="Diff">Diff</option>
+                  <option value="DexSlip">DexSlip</option>
+                  <option value="CexSlip">CexSlip</option>
+                </select>
+              </label>
+            </div>
+            <div class="chart-container" style="height:360px"><canvas id="netProfitCorrelationChart"></canvas></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Pair Feature Differences (Wins vs Losses) <button class="info-btn" data-help="features-table">i</button></h2>
+        <input id="featuresSearch" placeholder="Search features..." style="margin-bottom:8px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text);width:260px" />
+        <div class="table-wrap">
+          <table id="featuresTbl"><thead>
+            <tr>
+              <th>Pair</th>
+              <th>Trades</th>
+              <th>Total Profit</th>
+              <th>Diff (win)</th>
+              <th>Diff (loss)</th>
+              <th>DexSlip (win)</th>
+              <th>DexSlip (loss)</th>
+              <th>CexSlip (win)</th>
+              <th>CexSlip (loss)</th>
+              <th>CexSlip (avg)</th>
+            </tr>
+          </thead><tbody></tbody></table>
+        </div>
+      </section>
+
+    </main>
+
+    <footer>
+      <small>Aggregated from completed trades. Use ML Analysis for scatter/regression.</small>
+    </footer>
+
+    <script src="/pair-analysis.js"></script>
+    <script src="/servers-client.js"></script>
+    <script src="/help.js"></script>
+  </body>
+  </html>

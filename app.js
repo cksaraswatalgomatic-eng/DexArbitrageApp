@@ -14,6 +14,13 @@ const BALANCES_URL = process.env.BALANCES_URL || 'http://195.201.178.120:3001/ba
 const TRADES_URL = process.env.TRADES_URL || 'http://195.201.178.120:3001/completed';
 const SERVERS_FILE = path.join(__dirname, 'servers.json');
 
+let etherscanBase = process.env.ETHERSCAN_API_URL || 'https://api.etherscan.io/v2';
+if (etherscanBase) {
+  while (etherscanBase.endsWith('/')) etherscanBase = etherscanBase.slice(0, -1);
+}
+const ETHERSCAN_API_URL = etherscanBase;
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || '';
+
 // App setup
 const app = express();
 app.use(cors()); // Allow all origins
@@ -1199,11 +1206,21 @@ app.get('/servers', (req, res) => { res.json(loadServers()); });
 app.get('/servers/active', (req, res) => { res.json(getActiveServer()); });
 app.post('/servers', (req, res) => {
   try {
-    const { label, baseUrl, balancesPath = '/balance', completedPath = '/completed', contractAddress, explorerSite, explorerApiBase, explorerApiKey, id } = req.body || {};
+    const { label, baseUrl, balancesPath = '/balance', completedPath = '/completed', contractAddress, explorerSite, explorerApiBase, explorerApiKey, chainId, id } = req.body || {};
     if (!label || !baseUrl) return res.status(400).json({ error: 'label and baseUrl required' });
+
+    let parsedChainId;
+    if (chainId !== undefined && chainId !== null && String(chainId).trim() !== '') {
+      const n = Number(chainId);
+      if (!Number.isFinite(n)) return res.status(400).json({ error: 'chainId must be a number' });
+      parsedChainId = n;
+    }
+
     const cfg = loadServers();
     const newId = id || label.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now().toString(36);
-    cfg.servers.push({ id: newId, label, baseUrl, balancesPath, completedPath, contractAddress, explorerSite, explorerApiBase, explorerApiKey });
+    const entry = { id: newId, label, baseUrl, balancesPath, completedPath, contractAddress, explorerSite, explorerApiBase, explorerApiKey };
+    if (parsedChainId !== undefined) entry.chainId = parsedChainId;
+    cfg.servers.push(entry);
     if (!cfg.activeId) cfg.activeId = newId;
     saveServers(cfg);
     res.json({ ok: true, id: newId });
@@ -1215,7 +1232,7 @@ app.put('/servers/:id', (req, res) => {
     const i = cfg.servers.findIndex(s => s.id === req.params.id);
     if (i < 0) return res.status(404).json({ error: 'not found' });
     const s = cfg.servers[i];
-    const { label, baseUrl, balancesPath, completedPath, contractAddress, explorerSite, explorerApiBase, explorerApiKey } = req.body || {};
+    const { label, baseUrl, balancesPath, completedPath, contractAddress, explorerSite, explorerApiBase, explorerApiKey, chainId } = req.body || {};
     if (label != null) s.label = label;
     if (baseUrl != null) s.baseUrl = baseUrl;
     if (balancesPath != null) s.balancesPath = balancesPath;
@@ -1224,6 +1241,15 @@ app.put('/servers/:id', (req, res) => {
     if (explorerSite != null) s.explorerSite = explorerSite;
     if (explorerApiBase != null) s.explorerApiBase = explorerApiBase;
     if (explorerApiKey != null) s.explorerApiKey = explorerApiKey;
+    if (chainId !== undefined) {
+      if (chainId === null || String(chainId).trim() === '') {
+        delete s.chainId;
+      } else {
+        const n = Number(chainId);
+        if (!Number.isFinite(n)) return res.status(400).json({ error: 'chainId must be a number' });
+        s.chainId = n;
+      }
+    }
     cfg.servers[i] = s; saveServers(cfg);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1463,6 +1489,18 @@ app.get('/status/server', async (req, res) => {
 });
 
 // --- Throttled Etherscan Client ---
+function maskEtherscanUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.searchParams.has('apikey')) {
+      u.searchParams.set('apikey', '***');
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 const etherscanQueue = [];
 let isEtherscanProcessing = false;
 
@@ -1471,10 +1509,14 @@ async function processEtherscanQueue() {
   isEtherscanProcessing = true;
 
   const { url, resolve, reject } = etherscanQueue.shift();
+  const masked = maskEtherscanUrl(url);
   try {
+    console.log('[etherscan] ->', masked);
     const resp = await axios.get(url, { timeout: 15000 });
+    console.log('[etherscan] <-', masked, 'status', resp.status, 'keys', Object.keys(resp.data || {}));
     resolve(resp.data);
   } catch (error) {
+    console.error('[etherscan] x', masked, error.message);
     reject(error);
   }
 
@@ -1498,25 +1540,78 @@ app.get('/contracts/analysis', async (req, res) => {
     const cfg = loadServers();
     const s = cfg.servers.find(x => x.id === serverId) || cfg.servers.find(x => x.id === cfg.activeId) || cfg.servers[0];
     if (!s) return res.status(404).json({ error: 'No server configured' });
-    if (!s.contractAddress || !s.explorerApiBase) {
-      return res.status(400).json({ error: 'Server missing contractAddress or explorerApiBase' });
+    if (!s.contractAddress) {
+      return res.status(400).json({ error: 'Server missing contractAddress' });
     }
 
-    const api = s.explorerApiBase.replace(/\/?$/, '');
     const addr = s.contractAddress;
-    const key = s.explorerApiKey || '';
-    const url = `${api}/api?module=account&action=txlist&address=${encodeURIComponent(addr)}&sort=desc&page=1&offset=1000${key ? `&apikey=${encodeURIComponent(key)}` : ''}`;
+    const chainId = Number(s.chainId);
+    const apiKey = (s.explorerApiKey || ETHERSCAN_API_KEY || '').trim();
+    const useUnifiedApi = Number.isFinite(chainId) && chainId > 0 && apiKey;
+    console.log('[contracts/analysis] server', serverId, 'address', addr, 'chainId', chainId, 'useUnified', useUnifiedApi);
+
+    const extractTxs = (payload) => {
+      if (!payload) return [];
+      if (Array.isArray(payload.result)) return payload.result;
+      if (Array.isArray(payload.data)) return payload.data;
+      if (payload.result && Array.isArray(payload.result.transactions)) return payload.result.transactions;
+      return [];
+    };
+
+    const fetchLegacy = async () => {
+      if (!s.explorerApiBase) return [];
+      const legacyApi = s.explorerApiBase.replace(/\/?$/, '');
+      const legacyUrl = `${legacyApi}/api?module=account&action=txlist&address=${encodeURIComponent(addr)}&sort=desc&page=1&offset=1000${s.explorerApiKey ? `&apikey=${encodeURIComponent(s.explorerApiKey)}` : ''}`;
+      console.log('[contracts/analysis] legacy fetch', maskEtherscanUrl(legacyUrl));
+      const data = await fetchThrottledEtherscan(legacyUrl);
+      if (typeof (data && data.result) === 'string' && data.result.toLowerCase().includes('max rate limit')) {
+        throw new Error(data.result);
+      }
+      const txs = extractTxs(data);
+      console.log('[contracts/analysis] legacy results', Array.isArray(txs) ? txs.length : 0);
+      return txs;
+    };
 
     let txs = [];
     try {
-      const data = await fetchThrottledEtherscan(url);
-      if (data && data.status !== '0' && Array.isArray(data.result)) {
-        txs = data.result;
+      if (useUnifiedApi) {
+        const params = new URLSearchParams({
+          chainid: String(chainId),
+          module: 'account',
+          action: 'txlist',
+          address: addr,
+          sort: 'desc',
+          page: '1',
+          offset: '1000'
+        });
+        if (apiKey) params.append('apikey', apiKey);
+        const unifiedUrl = `${ETHERSCAN_API_URL}/api?${params.toString()}`;
+        const data = await fetchThrottledEtherscan(unifiedUrl);
+        if (typeof (data && data.result) === 'string' && data.result.toLowerCase().includes('max rate limit')) {
+          throw new Error(data.result);
+        }
+        txs = extractTxs(data);
+        if ((!txs || txs.length === 0) && s.explorerApiBase && data && ((data.status === '0' && data.result) || data.message === 'NOTOK')) {
+          txs = await fetchLegacy();
+        }
+      } else {
+        txs = await fetchLegacy();
       }
     } catch (e) {
-      console.error('[contracts/analysis] fetch error:', e.message);
-      return res.status(502).json({ error: 'Failed to fetch transactions from Etherscan API' });
+      console.error('[contracts/analysis] unified fetch error:', e.message);
+      if (useUnifiedApi && s.explorerApiBase) {
+        try {
+          txs = await fetchLegacy();
+        } catch (fallbackErr) {
+          console.error('[contracts/analysis] legacy fallback error:', fallbackErr.message);
+          return res.status(502).json({ error: 'Failed to fetch transactions from explorer API' });
+        }
+      } else {
+        return res.status(502).json({ error: 'Failed to fetch transactions from explorer API' });
+      }
     }
+
+    console.log('[contracts/analysis] tx count', txs.length);
 
     const since24h = Date.now() - (24 * 60 * 60 * 1000);
     const recent = txs.filter(t => {
@@ -1525,7 +1620,7 @@ app.get('/contracts/analysis', async (req, res) => {
     });
 
     function isSuccess(t) {
-      return String(t.isError || '0').trim() === '0';
+      return String(t.isError || t.errorCode || '0').trim() === '0';
     }
 
     const buckets = [1, 4, 8, 12, 24];
@@ -1544,14 +1639,18 @@ app.get('/contracts/analysis', async (req, res) => {
 
     const failed = recent.filter(t => !isSuccess(t)).slice(0, 100);
 
-    const failedWithReasons = failed.map(t => ({
-      hash: t.hash,
-      time: new Date(Number(t.timeStamp) * 1000).toISOString(),
-      reason: t.txreceipt_status === '0' ? 'Reverted' : (t.errDescription || 'Unknown'),
-      link: (s.explorerSite || '').replace(/\/?$/, '') + '/tx/' + t.hash
-    }));
+    const failedWithReasons = failed.map(t => {
+      const ts = Number(t.timeStamp) * 1000;
+      const reason = t.txreceipt_status === '0' ? 'Reverted' : (t.errDescription || t.revertReason || 'Unknown');
+      return {
+        hash: t.hash,
+        time: Number.isFinite(ts) ? new Date(ts).toISOString() : '',
+        reason,
+        link: (s.explorerSite || '').replace(/\/?$/, '') + '/tx/' + t.hash
+      };
+    });
 
-    res.json({ serverId, address: addr, periods, failed: failedWithReasons, totalAnalyzed: recent.length });
+    res.json({ serverId, address: addr, periods, failed: failedWithReasons, totalAnalyzed: recent.length, chainId: Number.isFinite(chainId) ? chainId : undefined });
   } catch (err) {
     console.error('[api:/contracts/analysis] error:', err.message);
     res.status(500).json({ error: 'Internal server error' });

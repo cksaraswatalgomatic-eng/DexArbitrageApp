@@ -7,14 +7,18 @@ async function fetchJSON(url) { const r = await fetch(url); if (!r.ok) throw new
 
 function fmtNum(n, d=2) { if (!isFinite(n)) return '-'; return Number(n).toLocaleString(undefined,{maximumFractionDigits:d}); }
 
-function renderSummary(periods) {
+function renderSummary(periods, meta = {}) {
   const keys = ['1h','4h','8h','12h','24h'];
-  let html = '<div class="table-wrap"><table><thead><tr><th>Period</th><th>Success</th><th>Fail</th><th>Success Rate</th></tr></thead><tbody>';
+  const parts = [];
+  if (meta.address) parts.push(`Contract: <code>${meta.address}</code>`);
+  if (meta.chainId) parts.push(`Chain ID: ${meta.chainId}`);
+  const header = parts.length ? `<p class="muted">${parts.join(' • ')}</p>` : '';
+  let html = `${header}<div class="table-wrap"><table><thead><tr><th>Period</th><th>Success</th><th>Fail</th><th>Success Rate</th></tr></thead><tbody>`;
   for (const k of keys) {
-    const p = periods[k] || {success:0, fail:0};
-    const total = (p.success||0)+(p.fail||0);
-    const rate = total ? ((p.success/total)*100) : 0;
-    html += `<tr><td>${k}</td><td class="text-pos">${p.success||0}</td><td class="${(p.fail||0)>0?'text-neg':''}">${p.fail||0}</td><td>${fmtNum(rate,1)}%</td></tr>`;
+    const p = periods[k] || { success: 0, fail: 0 };
+    const total = (p.success || 0) + (p.fail || 0);
+    const rate = total ? ((p.success / total) * 100) : 0;
+    html += `<tr><td>${k}</td><td class="text-pos">${p.success || 0}</td><td class="${(p.fail || 0) > 0 ? 'text-neg' : ''}">${p.fail || 0}</td><td>${fmtNum(rate, 1)}%</td></tr>`;
   }
   html += '</tbody></table></div>';
   summaryEl.innerHTML = html;
@@ -34,7 +38,7 @@ async function loadData() {
     const cfg = await (await fetch('/servers')).json();
     const sid = cfg.activeId;
     const data = await fetchJSON(`/contracts/analysis?serverId=${encodeURIComponent(sid)}&hours=24`);
-    renderSummary(data.periods||{});
+    renderSummary(data.periods||{}, { address: data.address, chainId: data.chainId });
 
     for (const f of (data.failed||[])) {
       const tr = document.createElement('tr');

@@ -42,6 +42,8 @@ Open the UI at http://localhost:3000 and use the JSON endpoints below.
 - `DB_PATH` (optional): path to the SQLite file (default `./data.sqlite`).
 - `BALANCES_URL` (optional): remote balances endpoint. If empty, the balances fetcher is disabled.
 - `TRADES_URL` (optional): remote completed trades endpoint. If empty, the trades fetcher is disabled.
+- `ETHERSCAN_API_KEY` (optional but recommended): unified Etherscan V2 API key used by the contract analysis view when a server is configured with a `chainId`.
+- `ETHERSCAN_API_URL` (optional): override for the unified API base (default `https://api.etherscan.io/v2`).
 
 To point the app at different sources, set environment variables before starting the app.
 
@@ -59,6 +61,12 @@ If the balances endpoint is not available yet or returns 404, you can disable it
 Remove-Item Env:BALANCES_URL  # or: $env:BALANCES_URL = ''
 npm start
 ```
+
+### Contract Analysis Setup
+
+- Add a `chainId` property to any entry in `servers.json` (or through the Servers admin page) to identify the target EVM chain.
+- When a `chainId` is present and an API key is available (`explorerApiKey` on the server or the global `ETHERSCAN_API_KEY`), the app calls the unified Etherscan V2 endpoint.
+- If no `chainId` is provided, the server will continue using the legacy per-chain explorer base URL (`explorerApiBase`).
 
 ## API Endpoints
 

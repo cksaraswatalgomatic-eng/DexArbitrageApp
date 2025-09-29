@@ -28,7 +28,7 @@
         <h2>Configured Servers</h2>
         <div class="table-wrap">
           <table id="srvTable">
-            <thead><tr><th>Label</th><th>Base URL</th><th>Paths</th><th>Contract</th><th>Explorer</th><th>Active</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Label</th><th>Base URL</th><th>Paths</th><th>Contract</th><th>Chain ID</th><th>Explorer</th><th>Active</th><th>Actions</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -43,6 +43,7 @@
             <label>Balances Path <input id="balancesPath" value="/balance"></label>
             <label>Completed Path <input id="completedPath" value="/completed"></label>
             <label>Contract Address <input id="contractAddress" placeholder="0x..."></label>
+            <label>Chain ID <input id="chainId" placeholder="e.g. 8453"></label>
             <label>Explorer Site <input id="explorerSite" placeholder="https://basescan.org"></label>
             <label>Explorer API Base <input id="explorerApiBase" placeholder="https://api.basescan.org"></label>
             <label>Explorer API Key <input id="explorerApiKey" placeholder="(optional)"></label>
@@ -64,7 +65,9 @@
           const explorerSite = s.explorerSite || '';
           const link = caddr ? (explorerSite.replace(/\/?$/, '') + '/txs?a=' + caddr) : '';
           const contractHtml = caddr ? `<a href="${link}" target="_blank" rel="noopener">${caddr.slice(0,6)}…${caddr.slice(-4)}</a>` : '';
-          tr.innerHTML = `<td>${s.label}</td><td>${s.baseUrl}</td><td>${s.balancesPath||'/balance'} | ${s.completedPath||'/completed'}</td><td>${contractHtml}</td><td>${explorerSite}</td><td>${cfg.activeId===s.id?'✓':''}</td>
+          const chainIdText = s.chainId != null ? s.chainId : '';
+          const activeMark = cfg.activeId === s.id ? '&#10003;' : '';
+          tr.innerHTML = `<td>${s.label}</td><td>${s.baseUrl}</td><td>${s.balancesPath||'/balance'} | ${s.completedPath||'/completed'}</td><td>${contractHtml}</td><td>${chainIdText}</td><td>${explorerSite}</td><td>${activeMark}</td>
           <td>
             <button class="btn" data-action="select" data-id="${s.id}">Select</button>
             <button class="btn" data-action="edit" data-id="${s.id}">Edit</button>
@@ -88,6 +91,7 @@
           document.getElementById('balancesPath').value = s.balancesPath||'/balance';
           document.getElementById('completedPath').value = s.completedPath||'/completed';
           document.getElementById('contractAddress').value = s.contractAddress||'';
+          document.getElementById('chainId').value = s.chainId != null ? s.chainId : '';
           document.getElementById('explorerSite').value = s.explorerSite||'';
           document.getElementById('explorerApiBase').value = s.explorerApiBase||'';
           document.getElementById('explorerApiKey').value = s.explorerApiKey||'';
@@ -105,6 +109,7 @@
           explorerSite: document.getElementById('explorerSite').value.trim(),
           explorerApiBase: document.getElementById('explorerApiBase').value.trim(),
           explorerApiKey: document.getElementById('explorerApiKey').value.trim(),
+          chainId: document.getElementById('chainId').value.trim(),
         };
         if (id) await fetch('/servers/'+encodeURIComponent(id), { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
         else await fetch('/servers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });

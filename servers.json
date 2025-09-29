@@ -32,7 +32,8 @@
       "contractAddress": "0x3bb0247bb33bc50ab831a11d9d825138c2fe5853",
       "explorerSite": "https://basescan.org",
       "explorerApiBase": "https://api.basescan.org",
-      "explorerApiKey": "WYES7TD22MCZ9MINPBVTM6SKBTHBMBGR43"
+      "explorerApiKey": "WYES7TD22MCZ9MINPBVTM6SKBTHBMBGR43",
+      "chainId": 8453
     },
     {
       "id": "polygonhttp-116-202-118-60-3001--mfxq1p4y",

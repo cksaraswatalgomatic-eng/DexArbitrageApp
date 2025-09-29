@@ -1,3 +1,16 @@
+﻿const zoomPlugin =
+  window.ChartZoom ||
+  (window['chartjs-plugin-zoom'] && (window['chartjs-plugin-zoom'].default || window['chartjs-plugin-zoom'])) ||
+  null;
+
+if (window.Chart && zoomPlugin && !window.__chartZoomRegistered) {
+  Chart.register(zoomPlugin);
+  window.__chartZoomRegistered = true;
+} else if (window.Chart && !zoomPlugin && !window.__chartZoomWarned) {
+  console.warn('Chart.js zoom plugin not found; zoom interactions disabled.');
+  window.__chartZoomWarned = true;
+}
+
 const pairEl = document.getElementById('pair');
 const pairSearchEl = document.getElementById('pairSearch');
 const limitEl = document.getElementById('limit');
@@ -83,6 +96,10 @@ function calculateNetProfit(trade) {
 
 // Render net profit per trade chart (using scatter plot for better time-based representation)
 function renderNetProfitPerTradeChart(rows) {
+  const gridColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#30363D';
+  const textColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim() || '#9ca3af';
+  const tooltipBg = getComputedStyle(document.body).getPropertyValue('--bg-color').trim() || '#161B22';
+
   // Filter out trades without valid timestamps
   const validRows = rows.filter(t => {
     const timestamp = t.lastUpdateTime || t.creationTime;
@@ -136,29 +153,36 @@ function renderNetProfitPerTradeChart(rows) {
                 day: 'MMM d'
               }
             },
-            ticks: { color: '#9ca3af' },
+            ticks: { color: textColor },
+            grid: { color: gridColor },
             title: {
               display: true,
               text: 'Time',
-              color: '#9ca3af'
+              color: textColor
             }
           },
           y: { 
-            ticks: { color: '#9ca3af' },
+            ticks: { color: textColor },
+            grid: { color: gridColor },
             title: {
               display: true,
               text: 'Net Profit (USDT)',
-              color: '#9ca3af'
+              color: textColor
             }
           }
         },
         plugins: {
-          legend: { labels: { color: '#e5e7eb' } },
+          legend: { labels: { color: textColor } },
           zoom: {
             pan: { enabled: true, mode: 'x', modifierKey: 'ctrl' },
             zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true }, mode: 'x' }
           },
           tooltip: {
+            backgroundColor: tooltipBg,
+            titleColor: textColor,
+            bodyColor: textColor,
+            borderColor: gridColor,
+            borderWidth: 1,
             callbacks: {
               label: function(context) {
                 return `Net Profit: ${context.parsed.y.toFixed(2)} USDT`;
@@ -229,6 +253,10 @@ function exportDataAsCSV(rows) {
 }
 
 async function run(){
+  const gridColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#30363D';
+  const textColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim() || '#9ca3af';
+  const tooltipBg = getComputedStyle(document.body).getPropertyValue('--bg-color').trim() || '#161B22';
+
   const pair = pairEl.value; 
   const limit = parseInt(limitEl.value,10)||1000; 
   const xKey = varXEl.value;
@@ -291,29 +319,36 @@ async function run(){
                 day: 'MMM d'
               }
             },
-            ticks: { color: '#9ca3af' },
+            ticks: { color: textColor },
+            grid: { color: gridColor },
             title: {
               display: true,
               text: 'Time',
-              color: '#9ca3af'
+              color: textColor
             }
           },
           y: { 
-            ticks: { color: '#9ca3af' },
+            ticks: { color: textColor },
+            grid: { color: gridColor },
             title: {
               display: true,
               text: 'Cumulative Net Profit (USDT)',
-              color: '#9ca3af'
+              color: textColor
             }
           }
         },
         plugins: {
-          legend: { labels: { color: '#e5e7eb' } },
+          legend: { labels: { color: textColor } },
           zoom: {
             pan: { enabled: true, mode: 'x', modifierKey: 'ctrl' },
             zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true }, mode: 'x' }
           },
           tooltip: {
+            backgroundColor: tooltipBg,
+            titleColor: textColor,
+            bodyColor: textColor,
+            borderColor: gridColor,
+            borderWidth: 1,
             callbacks: {
               label: function(context) {
                 return `Cumulative Net Profit: ${context.parsed.y.toFixed(2)} USDT`;
@@ -347,25 +382,32 @@ async function run(){
         maintainAspectRatio: false, 
         scales: { 
           x: { 
-            ticks: { color: '#9ca3af' },
+            ticks: { color: textColor },
+            grid: { color: gridColor },
             title: {
               display: true,
               text: 'Net Profit (USDT)',
-              color: '#9ca3af'
+              color: textColor
             }
           }, 
           y: { 
-            ticks: { color: '#9ca3af' },
+            ticks: { color: textColor },
+            grid: { color: gridColor },
             title: {
               display: true,
               text: 'Frequency',
-              color: '#9ca3af'
+              color: textColor
             }
           } 
         }, 
         plugins: { 
-          legend: { labels: { color: '#e5e7eb' } },
+          legend: { labels: { color: textColor } },
           tooltip: {
+            backgroundColor: tooltipBg,
+            titleColor: textColor,
+            bodyColor: textColor,
+            borderColor: gridColor,
+            borderWidth: 1,
             callbacks: {
               label: function(context) {
                 return `Frequency: ${context.parsed.y} trades`;
@@ -420,29 +462,36 @@ async function run(){
         maintainAspectRatio: false, 
         scales: { 
           x: { 
-            ticks: { color: '#9ca3af' },
+            ticks: { color: textColor },
+            grid: { color: gridColor },
             title: {
               display: true,
               text: xKey,
-              color: '#9ca3af'
+              color: textColor
             }
           }, 
           y: { 
-            ticks: { color: '#9ca3af' },
+            ticks: { color: textColor },
+            grid: { color: gridColor },
             title: {
               display: true,
               text: 'Net Profit (USDT)',
-              color: '#9ca3af'
+              color: textColor
             }
           } 
         }, 
         plugins: { 
-          legend: { labels: { color: '#e5e7eb' } }, 
+          legend: { labels: { color: textColor } }, 
           zoom: { 
             pan:{enabled:true, mode:'xy', modifierKey:'ctrl'}, 
             zoom:{wheel:{enabled:true}, pinch:{enabled:true}, drag:{enabled:true}, mode:'xy'} 
           },
           tooltip: {
+            backgroundColor: tooltipBg,
+            titleColor: textColor,
+            bodyColor: textColor,
+            borderColor: gridColor,
+            borderWidth: 1,
             callbacks: {
               label: function(context) {
                 return `Net Profit: ${context.parsed.y.toFixed(2)} USDT`;
@@ -471,6 +520,10 @@ async function run(){
 
 // Event listeners
 runBtn.addEventListener('click', run);
+
+document.getElementById('theme-switcher').addEventListener('click', () => {
+  run();
+});
 
 pairSearchEl.addEventListener('input', (e)=>{ 
   renderPairOptions(e.target.value); 

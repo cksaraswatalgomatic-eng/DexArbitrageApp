@@ -1,3 +1,16 @@
+﻿const zoomPlugin =
+  window.ChartZoom ||
+  (window['chartjs-plugin-zoom'] && (window['chartjs-plugin-zoom'].default || window['chartjs-plugin-zoom'])) ||
+  null;
+
+if (window.Chart && zoomPlugin && !window.__chartZoomRegistered) {
+  Chart.register(zoomPlugin);
+  window.__chartZoomRegistered = true;
+} else if (window.Chart && !zoomPlugin && !window.__chartZoomWarned) {
+  console.warn('Chart.js zoom plugin not found; zoom interactions disabled.');
+  window.__chartZoomWarned = true;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Element selectors
   const limitEl = document.getElementById('limit');
@@ -125,32 +138,65 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Chart Rendering Functions ---
-  function getChartBaseOptions() {
+  function getChartBaseOptions(yLabel) {
+    const gridColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#30363D';
+    const textColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim() || '#C9D1D9';
+    const tooltipBg = getComputedStyle(document.body).getPropertyValue('--bg-color').trim() || '#161B22';
+
     return {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: '#C9D1D9' } },
+        legend: { display: false },
         tooltip: {
-          backgroundColor: '#161B22',
-          titleColor: '#C9D1D9',
-          bodyColor: '#C9D1D9',
-          borderColor: '#30363D',
-          borderWidth: 1,
+          backgroundColor: tooltipBg,
+          titleColor: textColor,
+          bodyColor: textColor,
+          borderColor: gridColor,
+          borderWidth: 1
+        },
+        zoom: {
+            pan: { enabled: true, mode: 'x', modifierKey: 'ctrl' },
+            zoom: {
+              wheel: { enabled: true },
+              pinch: { enabled: true },
+              drag: { enabled: true },
+              mode: 'x'
+            }
         }
       },
       scales: {
         x: {
-          ticks: { color: '#8B949E' },
-          grid: { color: '#30363D' }
+          ticks: { color: textColor },
+          grid: { color: gridColor }
         },
         y: {
-          ticks: { color: '#8B949E' },
-          grid: { color: '#30363D' }
+          ticks: { color: textColor },
+          grid: { color: gridColor },
+          title: {
+            display: true,
+            text: yLabel,
+            color: textColor
+          }
         }
       }
     };
   }
+
+  document.getElementById('theme-switcher').addEventListener('click', () => {
+    if (window.timeSeriesChart) {
+        window.timeSeriesChart.destroy();
+        loadTokenTimeSeries(tokenSelect.value);
+    }
+    if(window.hourlyChart) {
+        window.hourlyChart.destroy();
+        loadTimePatterns(tokenSelect.value);
+    }
+    if(window.dailyChart) {
+        window.dailyChart.destroy();
+        loadTimePatterns(tokenSelect.value);
+    }
+  });
 
   function renderMainBarChart(tokens) {
     const top20 = [...tokens].sort((a,b)=> b.totalNetProfit-a.totalNetProfit).slice(0,20);
@@ -159,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const backgroundColors = values.map(val => val >= 0 ? 'rgba(57, 255, 20, 0.6)' : 'rgba(255, 0, 255, 0.6)');
     const ctx = document.getElementById('barChart').getContext('2d');
     if (!barChart) {
-      barChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Total Net Profit', data: values, backgroundColor: backgroundColors }] }, options: getChartBaseOptions() });
+      barChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Total Net Profit', data: values, backgroundColor: backgroundColors }] }, options: getChartBaseOptions('Total Net Profit') });
     } else {
       barChart.data.labels = labels; barChart.data.datasets[0].data = values; barChart.data.datasets[0].backgroundColor = backgroundColors; barChart.update();
     }
@@ -171,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const wRates = topW.map(p=> (p.winRate||0)*100);
     const winRateCtx = document.getElementById('winnersWinRate').getContext('2d');
     if (!winnersWinRateChart) {
-        winnersWinRateChart = new Chart(winRateCtx, { type:'bar', data:{ labels:wLabels, datasets:[{ label:'Win %', data:wRates, backgroundColor:'rgba(0, 229, 255, 0.6)'}] }, options: getChartBaseOptions() });
+        winnersWinRateChart = new Chart(winRateCtx, { type:'bar', data:{ labels:wLabels, datasets:[{ label:'Win %', data:wRates, backgroundColor:'rgba(0, 229, 255, 0.6)'}] }, options: getChartBaseOptions('Win Rate (%)') });
     } else { winnersWinRateChart.data.labels=wLabels; winnersWinRateChart.data.datasets[0].data=wRates; winnersWinRateChart.update(); }
   }
 
@@ -181,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lLosses = topL.map(p=> Math.abs(p.totalNetProfit||0));
     const losersLossCtx = document.getElementById('losersLoss').getContext('2d');
     if (!losersLossChart) {
-        losersLossChart = new Chart(losersLossCtx, { type:'bar', data:{ labels:lLabels, datasets:[{ label:'Total Loss (abs)', data:lLosses, backgroundColor:'rgba(255, 0, 255, 0.6)'}] }, options: getChartBaseOptions() });
+        losersLossChart = new Chart(losersLossCtx, { type:'bar', data:{ labels:lLabels, datasets:[{ label:'Total Loss (abs)', data:lLosses, backgroundColor:'rgba(255, 0, 255, 0.6)'}] }, options: getChartBaseOptions('Total Loss (abs)') });
     } else { losersLossChart.data.labels=lLabels; losersLossChart.data.datasets[0].data=lLosses; losersLossChart.update(); }
   }
 
@@ -195,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const ctx = document.getElementById('tokenProfitChart').getContext('2d');
       if (tokenProfitChart) tokenProfitChart.destroy();
       const baseOptions = getChartBaseOptions();
-      tokenProfitChart = new Chart(ctx, { type: 'bar', data: { labels: labels, datasets: [ { label: 'Total Net Profit', data: profits, backgroundColor: profits.map(p => p >= 0 ? 'rgba(57, 255, 20, 0.6)' : 'rgba(255, 0, 255, 0.6)'), yAxisID: 'yProfit', }, { label: 'Buy Value', data: buyValues, borderColor: '#00E5FF', type: 'line', yAxisID: 'yBuySell', tension: 0.2 }, { label: 'Sell Value', data: sellValues, borderColor: '#FF8C00', type: 'line', yAxisID: 'yBuySell', tension: 0.2 } ] }, options: { ...baseOptions, scales: { ...baseOptions.scales, yProfit: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Total Net Profit', color: '#C9D1D9' }, ticks: { color: '#8B949E' } }, yBuySell: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Buy/Sell Values', color: '#C9D1D9' }, grid: { drawOnChartArea: false, }, ticks: { color: '#8B949E' } } } } });
+      tokenProfitChart = new Chart(ctx, { type: 'bar', data: { labels: labels, datasets: [ { label: 'Total Net Profit', data: profits, backgroundColor: profits.map(p => p >= 0 ? 'rgba(57, 255, 20, 0.6)' : 'rgba(255, 0, 255, 0.6)'), yAxisID: 'yProfit', }, { label: 'Buy Value', data: buyValues, borderColor: '#00E5FF', type: 'line', yAxisID: 'yBuySell', tension: 0.2 }, { label: 'Sell Value', data: sellValues, borderColor: '#FF8C00', type: 'line', yAxisID: 'yBuySell', tension: 0.2 } ] }, options: { ...baseOptions, scales: { ...baseOptions.scales, yProfit: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Total Net Profit', color: baseOptions.scales.y.ticks.color }, ticks: { color: baseOptions.scales.y.ticks.color } }, yBuySell: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Buy/Sell Values', color: baseOptions.scales.y.ticks.color }, grid: { drawOnChartArea: false, }, ticks: { color: baseOptions.scales.y.ticks.color } } } } });
   }
 
   async function loadIndividualTokenCharts() {
@@ -220,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (netProfitDistributionChart) netProfitDistributionChart.destroy();
       const ctx = document.getElementById('netProfitDistributionChart').getContext('2d');
       const baseOptions = getChartBaseOptions();
-      netProfitDistributionChart = new Chart(ctx, { type: 'bar', data: { labels: data.map(d => new Date(d.timestamp)), datasets: [ { label: 'Net Profit', data: data.map(d => d.netProfit), backgroundColor: data.map(d => d.netProfit >= 0 ? 'rgba(57, 255, 20, 0.7)' : 'rgba(255, 0, 255, 0.7)'), yAxisID: 'yProfit', }, { label: 'Avg Buy Diff', data: data.map(d => d.avgBuy), borderColor: '#00E5FF', type: 'line', yAxisID: 'yBuySell', tension: 0.2 }, { label: 'Avg Sell Diff', data: data.map(d => d.avgSell), borderColor: '#FF8C00', type: 'line', yAxisID: 'yBuySell', tension: 0.2 } ] }, options: { ...baseOptions, plugins: { ...baseOptions.plugins, zoom: { pan: { enabled: true, mode: 'x', }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true }, mode: 'x' } } }, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, type: 'time' }, yProfit: { type: 'linear', position: 'left', title: { display: true, text: 'Net Profit', color: '#C9D1D9' } }, yBuySell: { type: 'linear', position: 'right', title: { display: true, text: 'Buy/Sell Price', color: '#C9D1D9' }, grid: { drawOnChartArea: false } } } } });
+      netProfitDistributionChart = new Chart(ctx, { type: 'bar', data: { labels: data.map(d => new Date(d.timestamp)), datasets: [ { label: 'Net Profit', data: data.map(d => d.netProfit), backgroundColor: data.map(d => d.netProfit >= 0 ? 'rgba(57, 255, 20, 0.7)' : 'rgba(255, 0, 255, 0.7)'), yAxisID: 'yProfit', }, { label: 'Avg Buy Diff', data: data.map(d => d.avgBuy), borderColor: '#00E5FF', type: 'line', yAxisID: 'yBuySell', tension: 0.2 }, { label: 'Avg Sell Diff', data: data.map(d => d.avgSell), borderColor: '#FF8C00', type: 'line', yAxisID: 'yBuySell', tension: 0.2 } ] }, options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, type: 'time' }, yProfit: { type: 'linear', position: 'left', title: { display: true, text: 'Net Profit', color: baseOptions.scales.y.ticks.color } }, yBuySell: { type: 'linear', position: 'right', title: { display: true, text: 'Buy/Sell Price', color: baseOptions.scales.y.ticks.color }, grid: { drawOnChartArea: false } } } } });
   }
 
   function renderProfitByHourChart(data, dateStr) {
@@ -228,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
       dayDisplay.textContent = dateStr;
       const ctx = document.getElementById('profitByHourChart').getContext('2d');
       const baseOptions = getChartBaseOptions();
-      profitByHourChart = new Chart(ctx, { type: 'bar', data: { labels: data.map(d => d.hour), datasets: [ { label: 'Total Net Profit', data: data.map(d => d.netProfit), backgroundColor: data.map(d => d.netProfit >= 0 ? 'rgba(57, 255, 20, 0.6)' : 'rgba(255, 0, 255, 0.6)'), yAxisID: 'yProfit', }, { label: 'Avg CexSlip', data: data.map(d => d.avgCexSlip), borderColor: '#FF8C00', type: 'line', yAxisID: 'ySlip', tension: 0.2 }, { label: 'Avg DexSlip', data: data.map(d => d.avgDexSlip), borderColor: '#00E5FF', type: 'line', yAxisID: 'ySlip', tension: 0.2 } ] }, options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, title: { display: true, text: 'Hour of Day (UTC)', color: '#8B949E' } }, yProfit: { type: 'linear', position: 'left', title: { display: true, text: 'Net Profit', color: '#C9D1D9' } }, ySlip: { type: 'linear', position: 'right', title: { display: true, text: 'Avg Slip', color: '#C9D1D9' }, grid: { drawOnChartArea: false } } } } });
+      profitByHourChart = new Chart(ctx, { type: 'bar', data: { labels: data.map(d => d.hour), datasets: [ { label: 'Total Net Profit', data: data.map(d => d.netProfit), backgroundColor: data.map(d => d.netProfit >= 0 ? 'rgba(57, 255, 20, 0.6)' : 'rgba(255, 0, 255, 0.6)'), yAxisID: 'yProfit', }, { label: 'Avg CexSlip', data: data.map(d => d.avgCexSlip), borderColor: '#FF8C00', type: 'line', yAxisID: 'ySlip', tension: 0.2 }, { label: 'Avg DexSlip', data: data.map(d => d.avgDexSlip), borderColor: '#00E5FF', type: 'line', yAxisID: 'ySlip', tension: 0.2 } ] }, options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, title: { display: true, text: 'Hour of Day (UTC)', color: baseOptions.scales.x.ticks.color } }, yProfit: { type: 'linear', position: 'left', title: { display: true, text: 'Net Profit', color: baseOptions.scales.y.ticks.color } }, ySlip: { type: 'linear', position: 'right', title: { display: true, text: 'Avg Slip', color: baseOptions.scales.y.ticks.color }, grid: { drawOnChartArea: false } } } } });
   }
 
   function renderProfitByDayChart(data, weekStart, weekEnd) {
@@ -237,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const ctx = document.getElementById('profitByDayChart').getContext('2d');
       const baseOptions = getChartBaseOptions();
-      profitByDayChart = new Chart(ctx, { type: 'bar', data: { labels: data.map(d => dayLabels[d.day]), datasets: [ { label: 'Total Net Profit', data: data.map(d => d.netProfit), backgroundColor: data.map(d => d.netProfit >= 0 ? 'rgba(57, 255, 20, 0.6)' : 'rgba(255, 0, 255, 0.6)'), yAxisID: 'yProfit', }, { label: 'Avg CexSlip', data: data.map(d => d.avgCexSlip), borderColor: '#FF8C00', type: 'line', yAxisID: 'ySlip', tension: 0.2 }, { label: 'Avg DexSlip', data: data.map(d => d.avgDexSlip), borderColor: '#00E5FF', type: 'line', yAxisID: 'ySlip', tension: 0.2 } ] }, options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, title: { display: true, text: 'Day of Week (UTC)', color: '#8B949E' } }, yProfit: { type: 'linear', position: 'left', title: { display: true, text: 'Net Profit', color: '#C9D1D9' } }, ySlip: { type: 'linear', position: 'right', title: { display: true, text: 'Avg Slip', color: '#C9D1D9' }, grid: { drawOnChartArea: false } } } } });
+      profitByDayChart = new Chart(ctx, { type: 'bar', data: { labels: data.map(d => dayLabels[d.day]), datasets: [ { label: 'Total Net Profit', data: data.map(d => d.netProfit), backgroundColor: data.map(d => d.netProfit >= 0 ? 'rgba(57, 255, 20, 0.6)' : 'rgba(255, 0, 255, 0.6)'), yAxisID: 'yProfit', }, { label: 'Avg CexSlip', data: data.map(d => d.avgCexSlip), borderColor: '#FF8C00', type: 'line', yAxisID: 'ySlip', tension: 0.2 }, { label: 'Avg DexSlip', data: data.map(d => d.avgDexSlip), borderColor: '#00E5FF', type: 'line', yAxisID: 'ySlip', tension: 0.2 } ] }, options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, title: { display: true, text: 'Day of Week (UTC)', color: baseOptions.scales.x.ticks.color } }, yProfit: { type: 'linear', position: 'left', title: { display: true, text: 'Net Profit', color: baseOptions.scales.y.ticks.color } }, ySlip: { type: 'linear', position: 'right', title: { display: true, text: 'Avg Slip', color: baseOptions.scales.y.ticks.color }, grid: { drawOnChartArea: false } } } } });
   }
 
   // --- Event Listeners ---

@@ -1,0 +1,91 @@
+body.light-theme {
+    --background-primary: #F6F8FA;
+    --background-panel: #FFFFFF;
+    --border-color: #D0D7DE;
+    --text-primary: #1F2328;
+    --text-muted: #57606A;
+    --accent-cyan: #0366D6;
+    --accent-green: #1A7F37;
+    --accent-red: #D1242F;
+    --accent-orange: #D97706;
+    --accent-blue: #0969DA;
+
+    --bg-color: #FFFFFF;
+    --text-color: #333333;
+    --card-bg: #F5F5F5;
+    --border: #DDDDDD;
+    --link-color: #007BFF;
+    --header-bg: #F8F9FA;
+}
+
+.light-theme .chart-container {
+    background-color: #FFFFFF;
+}
+
+.light-theme #diffChart {
+    background-color: #FFFFFF;
+}
+
+.light-theme .card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+}
+
+.light-theme h1, .light-theme h2, .light-theme h3, .light-theme h4, .light-theme h5, .light-theme h6 {
+    color: var(--text-color);
+}
+
+.light-theme p, .light-theme td, .light-theme th, .light-theme li, .light-theme label, .light-theme select, .light-theme input {
+    color: var(--text-color);
+}
+
+.light-theme a {
+    color: var(--link-color);
+}
+
+.light-theme header {
+    background-color: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+}
+
+.light-theme #brand h1 {
+    color: var(--text-color);
+}
+
+.light-theme .nav-link {
+    color: var(--link-color);
+}
+
+.light-theme .nav-link:hover {
+    color: #0056b3;
+}
+
+.light-theme #serverSelect {
+    background: #FFFFFF;
+    border: 1px solid var(--border);
+    color: var(--text-color);
+}
+
+.light-theme input[type='search'],
+.light-theme input[type='text'],
+.light-theme input[type='number'],
+.light-theme input[type='password'],
+.light-theme select,
+.light-theme .controls input[type='search'],
+.light-theme .controls input[type='text'],
+.light-theme .controls input[type='number'],
+.light-theme .controls input[type='password'],
+.light-theme .controls select,
+.light-theme .card input[type='search'],
+.light-theme .card input[type='text'],
+.light-theme .card input[type='number'],
+.light-theme .card input[type='password'],
+.light-theme .card select {
+    background-color: #FFFFFF;
+    border: 1px solid var(--border);
+    color: var(--text-color);
+}
+
+.light-theme footer {
+    color: #6c757d;
+}

@@ -1,3 +1,16 @@
+﻿const zoomPlugin =
+  window.ChartZoom ||
+  (window['chartjs-plugin-zoom'] && (window['chartjs-plugin-zoom'].default || window['chartjs-plugin-zoom'])) ||
+  null;
+
+if (window.Chart && zoomPlugin && !window.__chartZoomRegistered) {
+  Chart.register(zoomPlugin);
+  window.__chartZoomRegistered = true;
+} else if (window.Chart && !zoomPlugin && !window.__chartZoomWarned) {
+  console.warn('Chart.js zoom plugin not found; zoom interactions disabled.');
+  window.__chartZoomWarned = true;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const tokenSelectEl = document.getElementById('tokenSelect');
   const diffTableBody = document.querySelector('#diffTable tbody');
@@ -28,16 +41,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function getChartBaseOptions() {
+    const gridColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#30363D';
+    const textColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim() || '#C9D1D9';
+    const tooltipBg = getComputedStyle(document.body).getPropertyValue('--bg-color').trim() || '#161B22';
+
     return {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: '#C9D1D9' } },
+        legend: { labels: { color: textColor } },
         tooltip: {
-          backgroundColor: '#161B22',
-          titleColor: '#C9D1D9',
-          bodyColor: '#C9D1D9',
-          borderColor: '#30363D',
+          backgroundColor: tooltipBg,
+          titleColor: textColor,
+          bodyColor: textColor,
+          borderColor: gridColor,
           borderWidth: 1,
           callbacks: {
             label: function(context) {
@@ -69,12 +86,12 @@ document.addEventListener('DOMContentLoaded', () => {
       scales: {
         x: {
           type: 'time',
-          ticks: { color: '#8B949E' },
-          grid: { color: '#30363D' }
+          ticks: { color: textColor },
+          grid: { color: gridColor }
         },
         y: {
-          ticks: { color: '#8B949E' },
-          grid: { color: '#30363D' }
+          ticks: { color: textColor },
+          grid: { color: gridColor }
         },
         y2: {
           type: 'linear',
@@ -275,6 +292,13 @@ document.addEventListener('DOMContentLoaded', () => {
   resetZoomBtn.addEventListener('click', () => {
     if (diffChart) {
       diffChart.resetZoom();
+    }
+  });
+
+  document.getElementById('theme-switcher').addEventListener('click', () => {
+    if (diffChart) {
+        diffChart.destroy();
+        loadChart();
     }
   });
 

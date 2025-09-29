@@ -11,18 +11,21 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/light-theme.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
   </head>
   <body>
     <header>
       <div id="brand">
         <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
-        <h1>Dex Arbitrage Dashboard</h1>
+        <h1>DEX Arbitrage</h1>
       </div>
       <div class="controls">
-        <label style="color:var(--muted);font-size:12px">Server:
+        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
+        <a class="icon-btn" href="/servers.html" title="Server settings" aria-label="Server settings">⚙️</a>
+        <label>Server:
           <select id="serverSelect"></select>
         </label>
         <a class="nav-link" href="/ml-analysis.html">ML Analysis</a>
@@ -31,13 +34,11 @@
         <a class="nav-link" href="/diff-analysis.html">Diff Analysis</a>
         <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
         <a class="nav-link" href="/docs.html">Docs</a>
-        <a class="nav-link" href="/servers.html" title="Server settings" aria-label="Server settings">Settings</a>
         <button id="refreshBtn" class="btn-orange" title="Refresh now">Refresh</button>
         <button id="resetZoomBtn" class="btn" title="Reset zoom">Reset Zoom</button>
         <span id="lastUpdated">—</span>
       </div>
     </header>
-
     <main>
       <div class="grid-2">
         <section class="card">
@@ -60,7 +61,6 @@
           <div id="totalBalanceSummary" class="muted" style="margin-top:8px"></div>
         </section>
       </div>
-
       <div class="grid-2">
         <section class="card">
           <h2>DEX Exchange Balances <button class="info-btn" data-help="dex-table">i</button></h2>
@@ -81,7 +81,6 @@
             </table>
           </div>
         </section>
-
         <section class="card">
           <h2>BinanceF (CEX) Balances <button class="info-btn" data-help="cex-table">i</button></h2>
           <div id="cexSummary" class="muted"></div>
@@ -103,7 +102,6 @@
           </div>
         </section>
       </div>
-
       <section class="card">
         <h2>DEX vs CEX Comparison</h2>
         <div class="table-wrap">
@@ -120,7 +118,6 @@
           </table>
         </div>
       </section>
-
       <section class="card">
         <h2>Completed Trades <button class="info-btn" data-help="trades-table">i</button></h2>
         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
@@ -160,13 +157,12 @@
         </div>
       </section>
     </main>
-
     <footer>
       <small>Auto-refresh every 2 minutes. Data stored locally in SQLite.</small>
     </footer>
-
     <script src="/script.js"></script>
     <script src="/help.js"></script>
     <script src="/servers-client.js"></script>
+    <script src="/theme-switcher.js"></script>
   </body>
 </html>

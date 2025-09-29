@@ -9,20 +9,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/light-theme.css" />
   </head>
   <body>
     <header>
-      <div id="brand"><img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" /><h1>Servers</h1></div>
+      <div id="brand">
+        <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
+        <h1>Servers</h1>
+      </div>
       <div class="controls">
+        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
         <a class="nav-link" href="/">Dashboard</a>
-        <a class="nav-link" href="/analysis.html">ML Analysis</a>
-        <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
-        <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
-        <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
         <a class="nav-link" href="/docs.html">Docs</a>
       </div>
     </header>
-
     <main style="max-width:1024px;margin:0 auto;padding:16px">
       <section class="card">
         <h2>Configured Servers</h2>
@@ -33,7 +33,6 @@
           </table>
         </div>
       </section>
-
       <section class="card">
         <h2 id="formTitle">Add Server</h2>
         <form id="srvForm">
@@ -55,7 +54,6 @@
         </form>
       </section>
     </main>
-
     <script>
       async function loadServers(){
         const cfg = await (await fetch('/servers')).json();
@@ -76,7 +74,6 @@
         }
         tb.querySelectorAll('button').forEach(b=> b.addEventListener('click', onAction));
       }
-
       async function onAction(e){
         const id = e.target.dataset.id; const action = e.target.dataset.action;
         if (action==='delete'){ if(!confirm('Delete this server config?')) return; await fetch('/servers/'+encodeURIComponent(id),{method:'DELETE'}); await loadServers(); return; }
@@ -96,7 +93,6 @@
           document.getElementById('explorerApiKey').value = s.explorerApiKey||'';
         }
       }
-
       document.getElementById('srvForm').addEventListener('submit', async (e)=>{
         e.preventDefault();
         const id = document.getElementById('srvId').value.trim();
@@ -116,9 +112,9 @@
         await loadServers();
       });
       document.getElementById('resetBtn').addEventListener('click', (e)=>{ document.getElementById('srvForm').reset(); document.getElementById('srvId').value=''; document.getElementById('formTitle').textContent='Add Server'; });
-
       loadServers();
     </script>
+    <script src="/servers-client.js"></script>
+    <script src="/theme-switcher.js"></script>
   </body>
   </html>
-

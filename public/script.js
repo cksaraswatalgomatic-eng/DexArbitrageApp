@@ -1,4 +1,4 @@
-const lastUpdatedEl = document.getElementById('lastUpdated');
+﻿const lastUpdatedEl = document.getElementById('lastUpdated');
 const refreshBtn = document.getElementById('refreshBtn');
 const tradesTableBody = document.querySelector('#tradesTable tbody');
 const dexTableBody = document.querySelector('#dexBalancesTable tbody');
@@ -10,6 +10,20 @@ const tradesLimitEl = document.getElementById('tradesLimit');
 let chart;
 let userZoomed = false;
 let allBalanceData = []; // Global array to store all fetched balance data
+
+// Register Chart.js zoom plugin when available
+const zoomPlugin =
+  window.ChartZoom ||
+  (window['chartjs-plugin-zoom'] && (window['chartjs-plugin-zoom'].default || window['chartjs-plugin-zoom'])) ||
+  null;
+
+if (window.Chart && zoomPlugin && !window.__chartZoomRegistered) {
+  Chart.register(zoomPlugin);
+  window.__chartZoomRegistered = true;
+} else if (window.Chart && !zoomPlugin && !window.__chartZoomWarned) {
+  console.warn('Chart.js zoom plugin not found; zoom interactions disabled.');
+  window.__chartZoomWarned = true;
+}
 
 function normalizePropsFront(raw) {
   try {
@@ -106,31 +120,52 @@ async function fetchJSON(url) {
 }
 
 function getChartBaseOptions() {
+  const gridColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#30363D';
+  const textColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim() || '#C9D1D9';
+  const tooltipBg = getComputedStyle(document.body).getPropertyValue('--bg-color').trim() || '#161B22';
+
   return {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { labels: { color: '#C9D1D9' } },
+      legend: { labels: { color: textColor } },
       tooltip: {
-        backgroundColor: '#161B22',
-        titleColor: '#C9D1D9',
-        bodyColor: '#C9D1D9',
-        borderColor: '#30363D',
+        backgroundColor: tooltipBg,
+        titleColor: textColor,
+        bodyColor: textColor,
+        borderColor: gridColor,
         borderWidth: 1,
+      },
+      zoom: {
+        pan: { enabled: true, mode: 'x', modifierKey: 'ctrl' },
+        zoom: {
+          wheel: { enabled: true },
+          pinch: { enabled: true },
+          drag: { enabled: true },
+          mode: 'x'
+        }
       }
     },
     scales: {
       x: {
-        ticks: { color: '#8B949E' },
-        grid: { color: '#30363D' }
+        ticks: { color: textColor },
+        grid: { color: gridColor }
       },
       y: {
-        ticks: { color: '#8B949E' },
-        grid: { color: '#30363D' }
+        ticks: { color: textColor },
+        grid: { color: gridColor }
       }
     }
   };
 }
+
+document.getElementById('theme-switcher').addEventListener('click', () => {
+    if (chart) {
+        chart.destroy();
+        chart = null;
+        loadBalancesHistory();
+    }
+});
 
 async function loadBalancesHistory(beforeTimestamp = null) {
   let url = '/balances/history?limit=5000';
@@ -232,14 +267,8 @@ async function loadBalancesHistory(beforeTimestamp = null) {
         plugins: {
           ...baseOptions.plugins,
           zoom: {
+            ...baseOptions.plugins.zoom,
             limits: { x: {min: xBounds.min, max: xBounds.max} },
-            pan: { enabled: true, mode: 'x', modifierKey: 'ctrl' },
-            zoom: {
-              wheel: { enabled: true },
-              pinch: { enabled: true },
-              drag: { enabled: true },
-              mode: 'x'
-            },
             onZoomComplete: ({ chart }) => {
               userZoomed = true;
               const { min } = chart.scales.x;
@@ -703,3 +732,4 @@ function exportToExcel() {
 document.getElementById('exportTradesBtn').addEventListener('click', exportToExcel);
 
 tradesLimitEl.addEventListener('change', loadTrades);
+

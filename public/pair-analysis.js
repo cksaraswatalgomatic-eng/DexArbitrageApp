@@ -1,3 +1,16 @@
+﻿const zoomPlugin =
+  window.ChartZoom ||
+  (window['chartjs-plugin-zoom'] && (window['chartjs-plugin-zoom'].default || window['chartjs-plugin-zoom'])) ||
+  null;
+
+if (window.Chart && zoomPlugin && !window.__chartZoomRegistered) {
+  Chart.register(zoomPlugin);
+  window.__chartZoomRegistered = true;
+} else if (window.Chart && !zoomPlugin && !window.__chartZoomWarned) {
+  console.warn('Chart.js zoom plugin not found; zoom interactions disabled.');
+  window.__chartZoomWarned = true;
+}
+
 const limitEl = document.getElementById('limit');
 const reloadBtn = document.getElementById('reloadBtn');
 const statusEl = document.getElementById('status');
@@ -14,31 +27,48 @@ let netProfitDistributionChart, netProfitCorrelationChart;
 let allPairsList = []; // Store all pairs for filtering
 
 function getChartBaseOptions() {
+  const gridColor = getComputedStyle(document.body).getPropertyValue('--border').trim() || '#30363D';
+  const textColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim() || '#C9D1D9';
+  const tooltipBg = getComputedStyle(document.body).getPropertyValue('--bg-color').trim() || '#161B22';
+
   return {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { labels: { color: '#C9D1D9' } },
+      legend: { labels: { color: textColor } },
       tooltip: {
-        backgroundColor: '#161B22',
-        titleColor: '#C9D1D9',
-        bodyColor: '#C9D1D9',
-        borderColor: '#30363D',
+        backgroundColor: tooltipBg,
+        titleColor: textColor,
+        bodyColor: textColor,
+        borderColor: gridColor,
         borderWidth: 1,
+      },
+      zoom: {
+        pan: { enabled: true, mode: 'x', modifierKey: 'ctrl' },
+        zoom: {
+          wheel: { enabled: true },
+          pinch: { enabled: true },
+          drag: { enabled: true },
+          mode: 'x'
+        }
       }
     },
     scales: {
       x: {
-        ticks: { color: '#8B949E' },
-        grid: { color: '#30363D' }
+        ticks: { color: textColor },
+        grid: { color: gridColor }
       },
       y: {
-        ticks: { color: '#8B949E' },
-        grid: { color: '#30363D' }
+        ticks: { color: textColor },
+        grid: { color: gridColor }
       }
     }
   };
 }
+
+document.getElementById('theme-switcher').addEventListener('click', () => {
+    load();
+});
 
 // Table utilities: sort on header click, filter with search input
 function enableTableFeaturesById(tableId, searchId) {
@@ -255,7 +285,7 @@ function renderNetProfitDistributionChart(trades) {
     netProfitDistributionChart = new Chart(ctx, {
         type: 'bar',
         data: { datasets: [{ label: 'Net Profit', data: chartData, backgroundColor: backgroundColors }] },
-        options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, type: 'time', time: { unit: 'hour' } } }, plugins: { ...baseOptions.plugins, zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, mode: 'x' } }, tooltip: { callbacks: { label: (ctx) => [`Net Profit: ${ctx.raw.y.toFixed(2)}`, `Trades: ${ctx.raw.tradeCount}`] } } } }
+        options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, type: 'time', time: { unit: 'hour' } } }, plugins: { ...baseOptions.plugins, tooltip: { callbacks: { label: (ctx) => [`Net Profit: ${ctx.raw.y.toFixed(2)}`, `Trades: ${ctx.raw.tradeCount}`] } } } }
     });
 }
 
@@ -272,7 +302,7 @@ function renderNetProfitCorrelationChart(trades, attribute) {
     netProfitCorrelationChart = new Chart(ctx, {
         type: 'scatter',
         data: { datasets: [{ label: `Net Profit vs ${attribute}`, data: dataPoints, backgroundColor: dataPoints.map(p => p.y >= 0 ? 'rgba(57, 255, 20, 0.7)' : 'rgba(255, 0, 255, 0.7)') }] },
-        options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, title: { display: true, text: attribute, color: '#8B949E' } }, y: { ...baseOptions.scales.y, title: { display: true, text: 'Net Profit', color: '#8B949E' } } }, plugins: { ...baseOptions.plugins, zoom: { pan: { enabled: true, mode: 'xy' }, zoom: { wheel: { enabled: true }, mode: 'xy' } }, tooltip: { callbacks: { label: (ctx) => [`${attribute}: ${ctx.parsed.x.toFixed(4)}`, `Net Profit: ${ctx.parsed.y.toFixed(2)}`] } } } }
+        options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, title: { display: true, text: attribute, color: '#8B949E' } }, y: { ...baseOptions.scales.y, title: { display: true, text: 'Net Profit', color: '#8B949E' } } }, plugins: { ...baseOptions.plugins, tooltip: { callbacks: { label: (ctx) => [`${attribute}: ${ctx.parsed.x.toFixed(4)}`, `Net Profit: ${ctx.parsed.y.toFixed(2)}`] } } } }
     });
 }
 

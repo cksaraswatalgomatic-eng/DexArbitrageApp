@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -11,9 +11,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/light-theme.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
   </head>
   <body>
     <header>
@@ -22,6 +23,8 @@
         <h1>Diff Analysis</h1>
       </div>
       <div class="controls">
+        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
+        <a class="icon-btn" href="/servers.html" title="Server settings" aria-label="Server settings">⚙️</a>
         <label>Server:
           <select id="serverSelect"></select>
         </label>
@@ -31,16 +34,14 @@
         <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
         <a class="nav-link" href="/docs.html">Docs</a>
         <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
-        <a class="nav-link" href="/servers.html" title="Server settings" aria-label="Server settings">⚙️</a>
       </div>
     </header>
-
     <main>
       <section class="card">
         <h2>Arbitrage Opportunity Analysis</h2>
         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
             <label>Select Token:
-                <select id="tokenSelect" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text);min-width:200px">
+                <select id="tokenSelect" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--background-panel);color:var(--text-primary);min-width:200px">
                   <option value="">-- Select a Token --</option>
                 </select>
               </label>
@@ -89,13 +90,12 @@
           </div>
       </section>
     </main>
-
     <footer>
       <small>Data updated every 2 minutes.</small>
     </footer>
-
     <script src="/diff-analysis.js"></script>
     <script src="/servers-client.js"></script>
     <script src="/help.js"></script>
+    <script src="/theme-switcher.js"></script>
   </body>
 </html>

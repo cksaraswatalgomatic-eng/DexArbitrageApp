@@ -7,11 +7,21 @@
     <link rel="icon" href="/favicon.ico">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/light-theme.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
   </head>
   <body>
+    <header>
+      <div id="brand">
+        <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
+        <h1>Login</h1>
+      </div>
+      <div class="controls">
+        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
+      </div>
+    </header>
     <main class="login-container">
       <section class="card login-card">
         <div class="brand-login">
@@ -34,5 +44,6 @@
     </main>
 
     <script src="/login.js"></script>
+    <script src="/theme-switcher.js"></script>
   </body>
 </html>

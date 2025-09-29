@@ -22,13 +22,15 @@
       </div>
       <div class="controls">
         <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
-        <a class="icon-btn" href="/servers.html" title="Server settings" aria-label="Server settings">⚙️</a>
         <a class="nav-link" href="/">Dashboard</a>
         <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
         <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
         <a class="nav-link" href="/diff-analysis.html">Diff Analysis</a>
         <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
         <a class="nav-link" href="/docs.html">Docs</a>
+
+        <a class="icon-btn requires-admin" href="/servers.html" data-requires-role="admin" title="Server settings" aria-label="Server settings">&#9881;</a>
+        <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
       </div>
     </header>
     <main>
@@ -67,5 +69,6 @@
     </footer>
     <script src="/ml-analysis.js"></script>
     <script src="/theme-switcher.js"></script>
+    <script src="/logout.js"></script>
   </body>
 </html>

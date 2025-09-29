@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -24,7 +24,6 @@
       </div>
       <div class="controls">
         <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
-        <a class="icon-btn" href="/servers.html" title="Server settings" aria-label="Server settings">⚙️</a>
         <label>Server:
           <select id="serverSelect"></select>
         </label>
@@ -37,6 +36,9 @@
         <button id="refreshBtn" class="btn-orange" title="Refresh now">Refresh</button>
         <button id="resetZoomBtn" class="btn" title="Reset zoom">Reset Zoom</button>
         <span id="lastUpdated">—</span>
+
+        <a class="icon-btn requires-admin" href="/servers.html" data-requires-role="admin" title="Server settings" aria-label="Server settings">&#9881;</a>
+        <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
       </div>
     </header>
     <main>
@@ -164,5 +166,6 @@
     <script src="/help.js"></script>
     <script src="/servers-client.js"></script>
     <script src="/theme-switcher.js"></script>
+    <script src="/logout.js"></script>
   </body>
 </html>

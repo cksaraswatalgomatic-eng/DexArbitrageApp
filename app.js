@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const cron = require('node-cron');
@@ -1320,6 +1320,13 @@ app.get('/health', (req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
+app.post('/logout', (req, res) => {
+  res.clearCookie('loggedIn');
+  res.clearCookie('username');
+  res.clearCookie('userRole');
+  res.json({ success: true });
+});
+
 // WARNING: Storing passwords in plain text is highly insecure and should NEVER be used in a production environment.
 // This is implemented solely for demonstration purposes as per user request.
 app.post('/login', (req, res) => {
@@ -1328,8 +1335,12 @@ app.post('/login', (req, res) => {
     const users = JSON.parse(fs.readFileSync(SERVERS_FILE.replace('servers.json', 'users.json'), 'utf8'));
     if (users[username] === password) {
       // Insecure: For demonstration only. In production, use secure, signed, HTTP-only cookies.
-      res.cookie('loggedIn', 'true', { httpOnly: false, secure: false, maxAge: 3600000 }); // 1 hour
-      res.json({ success: true });
+      const role = username === 'admin' ? 'admin' : 'user';
+      const cookieOptions = { httpOnly: false, secure: false, maxAge: 3600000 };
+      res.cookie('loggedIn', 'true', cookieOptions); // 1 hour
+      res.cookie('username', username, cookieOptions);
+      res.cookie('userRole', role, cookieOptions);
+      res.json({ success: true, role });
     } else {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
     }

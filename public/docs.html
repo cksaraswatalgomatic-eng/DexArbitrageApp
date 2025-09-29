@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -21,7 +21,9 @@
         <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
         <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
         <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
-        <a class="icon-btn" href="/servers.html" title="Server settings" aria-label="Server settings">⚙️</a>
+
+        <a class="icon-btn requires-admin" href="/servers.html" data-requires-role="admin" title="Server settings" aria-label="Server settings">&#9881;</a>
+        <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
       </div>
     </header>
     <main>
@@ -101,5 +103,6 @@
     </footer>
     <script src="/help.js"></script>
     <script src="/theme-switcher.js"></script>
+    <script src="/logout.js"></script>
   </body>
   </html>

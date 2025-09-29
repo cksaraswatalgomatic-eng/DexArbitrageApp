@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -23,7 +23,6 @@
       </div>
       <div class="controls">
         <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
-        <a class="icon-btn" href="/servers.html" title="Server settings" aria-label="Server settings">⚙️</a>
         <label>Server:
           <select id="serverSelect"></select>
         </label>
@@ -31,6 +30,9 @@
         <a class="nav-link" href="/ml-analysis.html">ML Analysis</a>
         <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
         <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
+
+        <a class="icon-btn requires-admin" href="/servers.html" data-requires-role="admin" title="Server settings" aria-label="Server settings">&#9881;</a>
+        <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
       </div>
     </header>
     <main>
@@ -57,5 +59,6 @@
     <script src="/servers-client.js"></script>
     <script src="/help.js"></script>
     <script src="/theme-switcher.js"></script>
+    <script src="/logout.js"></script>
   </body>
   </html>

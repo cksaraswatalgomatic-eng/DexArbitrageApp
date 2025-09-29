@@ -48,6 +48,27 @@
             <button id="loadMoreBtn" class="btn-orange">Load More</button>
         </div>
         <div id="diffChartContainer" style="margin-top: 20px;">
+          <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom: 10px;">
+            <label>Min Buy Diff Bps:
+              <input type="number" id="minBuyDiffBps" value="-100" step="1" style="width: 80px;" />
+            </label>
+            <label>Max Buy Diff Bps:
+              <input type="number" id="maxBuyDiffBps" value="100" step="1" style="width: 80px;" />
+            </label>
+            <label>Min Sell Diff Bps:
+              <input type="number" id="minSellDiffBps" value="-100" step="1" style="width: 80px;" />
+            </label>
+            <label>Max Sell Diff Bps:
+              <input type="number" id="maxSellDiffBps" value="100" step="1" style="width: 80px;" />
+            </label>
+            <label>Min Net Profit:
+              <input type="number" id="minNetProfit" value="-100" step="0.1" style="width: 80px;" />
+            </label>
+            <label>Max Net Profit:
+              <input type="number" id="maxNetProfit" value="100" step="0.1" style="width: 80px;" />
+            </label>
+            <button id="applyFiltersBtn" class="btn-orange">Apply Filters</button>
+          </div>
           <div class="chart-container" style="height:420px">
             <canvas id="diffChart"></canvas>
           </div>
@@ -60,6 +81,7 @@
                   <th>Timestamp</th>
                   <th>Buy Diff Bps</th>
                   <th>Sell Diff Bps</th>
+                  <th>CEX Volume</th>
                 </tr>
               </thead>
               <tbody></tbody>

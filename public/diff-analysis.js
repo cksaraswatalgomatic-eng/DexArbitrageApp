@@ -8,6 +8,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const limit = 5000;
   let allDiffData = [];
 
+  function normalizePropsFront(raw) {
+    try {
+      const p = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+      const out = {};
+
+      if (p.Dex != null) out.Dex = String(p.Dex);
+      if (p.Diff != null) out.Diff = Number(p.Diff);
+      if (p.DexSlip != null) out.DexSlip = Number(p.DexSlip);
+      if (p.CexSlip != null) out.CexSlip = Number(p.CexSlip);
+      if (p.Exec != null) out.Exec = String(p.Exec);
+
+      return out;
+    } catch { return {}; }
+  }
+
   async function fetchJSON(url) {
     const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json();
   }
@@ -24,6 +39,22 @@ document.addEventListener('DOMContentLoaded', () => {
           bodyColor: '#C9D1D9',
           borderColor: '#30363D',
           borderWidth: 1,
+          callbacks: {
+            label: function(context) {
+              let label = context.dataset.label || '';
+              if (label) {
+                label += ': ';
+              }
+              if (context.dataset.label === 'Trades (Net Profit)') {
+                const trade = context.raw;
+                const dex = trade.dex || 'N/A';
+                label += `Net Profit: ${trade.y.toFixed(2)} (Dex: ${dex})`;
+              } else {
+                label += context.formattedValue;
+              }
+              return label;
+            }
+          }
         },
         zoom: {
             pan: { enabled: true, mode: 'x', modifierKey: 'ctrl' },
@@ -55,6 +86,17 @@ document.addEventListener('DOMContentLoaded', () => {
             text: 'Net Profit',
             color: '#FFD700'
           }
+        },
+        y3: {
+            type: 'linear',
+            position: 'right',
+            ticks: { color: '#00FF00' },
+            grid: { drawOnChartArea: false },
+            title: {
+                display: true,
+                text: 'CEX Volume',
+                color: '#00FF00'
+            }
         }
       }
     };
@@ -85,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <td>${new Date(d.ts).toLocaleString()}</td>
             <td>${d.buyDiffBps}</td>
             <td>${d.sellDiffBps}</td>
+            <td>${d.cexVol}</td>
         `;
         diffTableBody.appendChild(tr);
     }
@@ -94,9 +137,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const curId = tokenSelectEl.value;
     if (!curId) return;
 
+    const minBuyDiffBps = document.getElementById('minBuyDiffBps').value;
+    const maxBuyDiffBps = document.getElementById('maxBuyDiffBps').value;
+    const minSellDiffBps = document.getElementById('minSellDiffBps').value;
+    const maxSellDiffBps = document.getElementById('maxSellDiffBps').value;
+    const minNetProfit = document.getElementById('minNetProfit').value;
+    const maxNetProfit = document.getElementById('maxNetProfit').value;
+
     try {
         const tokenName = curId.split('_')[1];
-        const diffHistory = await fetchJSON(`/diffdata/history?curId=${curId}&limit=${limit}&offset=${currentOffset}`);
+        const diffHistory = await fetchJSON(`/diffdata/history?curId=${curId}&limit=${limit}&offset=${currentOffset}&minBuyDiffBps=${minBuyDiffBps}&maxBuyDiffBps=${maxBuyDiffBps}&minSellDiffBps=${minSellDiffBps}&maxSellDiffBps=${maxSellDiffBps}`);
 
         const { diffData, serverToken } = diffHistory;
 
@@ -110,7 +160,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const startTime = allDiffData.length > 0 ? allDiffData[0].ts : null;
         const endTime = allDiffData.length > 0 ? allDiffData[allDiffData.length - 1].ts : null;
 
-        const tradesHistory = await fetchJSON(`/trades/history?token=${tokenName}&startTime=${startTime}&endTime=${endTime}`);
+        const tradesHistory = await fetchJSON(`/trades/history?token=${tokenName}&startTime=${startTime}&endTime=${endTime}&minNetProfit=${minNetProfit}&maxNetProfit=${maxNetProfit}`);
+
+        // Process trades to extract Dex and assign colors
+        const processedTrades = tradesHistory.map(t => {
+          const props = normalizePropsFront(t.props);
+          const dex = props.Dex || 'N/A';
+          let color;
+          if (t.netProfit >= 0) {
+            color = (dex === 'BUY') ? '#006400' : '#ADFF2F'; // Dark Green / Light Green
+          } else {
+            color = (dex === 'BUY') ? '#8B0000' : '#FF6347'; // Dark Red / Light Red
+          }
+          return { x: new Date(t.lastUpdateTime), y: t.netProfit, dex: dex, backgroundColor: color };
+        });
 
         renderDiffTable(allDiffData);
 
@@ -120,8 +183,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 {
                     label: 'Buy Diff',
                     data: allDiffData.map(d => d.buyDiffBps / 100),
-                                                    borderColor: '#00E5FF',
-                                                    backgroundColor: 'rgba(0, 229, 255, 0.1)',                    borderWidth: 2,
+                    borderColor: '#00E5FF',
+                    backgroundColor: 'rgba(0, 229, 255, 0.1)',
+                    tension: 0.25,
+                    borderWidth: 2,
                     pointRadius: 0,
                     yAxisID: 'y'
                 },
@@ -133,6 +198,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     borderWidth: 1.5,
                     pointRadius: 0,
                     yAxisID: 'y'
+                },
+                {
+                    label: 'CEX Volume',
+                    data: allDiffData.map(d => d.cexVol),
+                    borderColor: '#00FF00',
+                    backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    yAxisID: 'y3'
                 }
             ]
         };
@@ -158,12 +232,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        if (tradesHistory.length > 0) {
+        if (processedTrades.length > 0) {
             chartData.datasets.push({
                 label: 'Trades (Net Profit)',
-                data: tradesHistory.map(t => ({ x: new Date(t.lastUpdateTime), y: t.netProfit })),
+                data: processedTrades,
                 type: 'scatter',
-                backgroundColor: tradesHistory.map(t => t.netProfit >= 0 ? '#39FF14' : '#FF00FF'), // Green for positive, Red for negative
+                backgroundColor: processedTrades.map(t => t.backgroundColor),
+                pointRadius: 5,
+                pointHoverRadius: 7,
                 yAxisID: 'y2'
             });
         }
@@ -191,6 +267,11 @@ document.addEventListener('DOMContentLoaded', () => {
     loadChart(); 
   });
   loadMoreBtn.addEventListener('click', () => loadChart());
+  document.getElementById('applyFiltersBtn').addEventListener('click', () => { 
+    currentOffset = 0;
+    allDiffData = [];
+    loadChart(); 
+  });
   resetZoomBtn.addEventListener('click', () => {
     if (diffChart) {
       diffChart.resetZoom();

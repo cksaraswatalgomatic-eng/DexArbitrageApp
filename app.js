@@ -128,6 +128,7 @@ function ensureDb(serverId) {
       ts INTEGER NOT NULL,
       buyDiffBps INTEGER,
       sellDiffBps INTEGER,
+      cexVol REAL,
       UNIQUE(curId, ts)
     );
   `);
@@ -144,7 +145,7 @@ async function fetchDiffDataAndStoreFor(server) {
     if (!Array.isArray(data)) return;
 
     const db = ensureDb(server.id);
-    const stmt = db.prepare('INSERT OR IGNORE INTO diff_history (curId, ts, buyDiffBps, sellDiffBps) VALUES (@curId, @ts, @buyDiffBps, @sellDiffBps)');
+    const stmt = db.prepare('INSERT OR IGNORE INTO diff_history (curId, ts, buyDiffBps, sellDiffBps, cexVol) VALUES (@curId, @ts, @buyDiffBps, @sellDiffBps, @cexVol)');;
     db.transaction((items) => {
       for (const item of items) stmt.run(item);
     })(data);
@@ -212,6 +213,7 @@ function normalizePropsRaw(input) {
   try {
     const p = typeof input === 'string' ? JSON.parse(input) : (input || {});
     const out = {};
+
     // Direct keys
     if (p && (p.Diff != null || p.DexSlip != null || p.CexSlip != null || p.Dex != null || p.Exec != null)) {
       if (p.Diff != null) out.Diff = Number(p.Diff);
@@ -224,9 +226,12 @@ function normalizePropsRaw(input) {
       // Exec key is one of these, value is CexSlip
       const execKey = ['Market','Limit','PostOnly','IOC','FOK'].find(k => Object.prototype.hasOwnProperty.call(p, k));
       if (execKey) { out.Exec = execKey; const v = Number(p[execKey]); if (Number.isFinite(v)) out.CexSlip = v; }
-      // Find Dex as value of any *_link_* key
+      // Find Dex as value of any key whose value is 'BUY' or 'SELL'
       for (const [k, v] of Object.entries(p)) {
-        if (/[_-]link[_-]/i.test(k)) { out.Dex = String(v); break; }
+        if (v === 'BUY' || v === 'SELL') {
+          out.Dex = String(v);
+          break;
+        }
       }
       // Find numeric key/value pair -> key = Diff, value = DexSlip
       for (const [k, v] of Object.entries(p)) {
@@ -235,7 +240,10 @@ function normalizePropsRaw(input) {
       }
     }
     return out;
-  } catch { return {}; }
+  } catch (e) {
+    console.error('normalizePropsRaw - error:', e);
+    return {};
+  }
 }
 
 async function fetchBalancesAndStoreFor(server) {
@@ -414,12 +422,14 @@ app.get('/trades/history', (req, res) => {
     const token = req.query.token;
     const startTime = req.query.startTime;
     const endTime = req.query.endTime;
+    const minNetProfit = req.query.minNetProfit ? parseFloat(req.query.minNetProfit) : null;
+    const maxNetProfit = req.query.maxNetProfit ? parseFloat(req.query.maxNetProfit) : null;
 
     if (!token) {
       return res.status(400).json({ error: 'token parameter is required' });
     }
 
-    let query = 'SELECT lastUpdateTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades WHERE pair LIKE ?';
+    let query = 'SELECT lastUpdateTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, props FROM completed_trades WHERE pair LIKE ?';
     const params = [`%${token}%`];
 
     if (startTime && endTime) {
@@ -433,8 +443,18 @@ app.get('/trades/history', (req, res) => {
       const netProfit = (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
       return {
         lastUpdateTime: t.lastUpdateTime,
-        netProfit: netProfit
+        netProfit: netProfit,
+        props: t.props
       };
+    }).filter(t => {
+      let include = true;
+      if (minNetProfit !== null && t.netProfit < minNetProfit) {
+        include = false;
+      }
+      if (maxNetProfit !== null && t.netProfit > maxNetProfit) {
+        include = false;
+      }
+      return include;
     });
 
     res.json(tradesWithNetProfit);
@@ -459,14 +479,41 @@ app.get('/diffdata/history', (req, res) => {
   try {
     const db = getDbFromReq(req);
     const curId = req.query.curId;
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 5000, 5000));
+    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+    const minBuyDiffBps = req.query.minBuyDiffBps ? parseFloat(req.query.minBuyDiffBps) : null;
+    const maxBuyDiffBps = req.query.maxBuyDiffBps ? parseFloat(req.query.maxBuyDiffBps) : null;
+    const minSellDiffBps = req.query.minSellDiffBps ? parseFloat(req.query.minSellDiffBps) : null;
+    const maxSellDiffBps = req.query.maxSellDiffBps ? parseFloat(req.query.maxSellDiffBps) : null;
+
     if (!curId) {
       return res.status(400).json({ error: 'curId parameter is required' });
     }
 
-    const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 5000, 5000));
-    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+    let query = 'SELECT *, cexVol FROM diff_history WHERE curId = ?'; // Added cexVol
+    const params = [curId];
 
-    const diffRows = db.prepare('SELECT * FROM diff_history WHERE curId = ? ORDER BY ts DESC LIMIT ? OFFSET ?').all(curId, limit, offset);
+    if (minBuyDiffBps !== null) {
+      query += ' AND buyDiffBps >= ?';
+      params.push(minBuyDiffBps);
+    }
+    if (maxBuyDiffBps !== null) {
+      query += ' AND buyDiffBps <= ?';
+      params.push(maxBuyDiffBps);
+    }
+    if (minSellDiffBps !== null) {
+      query += ' AND sellDiffBps >= ?';
+      params.push(minSellDiffBps);
+    }
+    if (maxSellDiffBps !== null) {
+      query += ' AND sellDiffBps <= ?';
+      params.push(maxSellDiffBps);
+    }
+
+    query += ' ORDER BY ts DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const diffRows = db.prepare(query).all(params);
 
     const tokenName = curId.split('_')[1];
     const serverToken = db.prepare('SELECT buy, sell FROM server_tokens WHERE name = ? ORDER BY timestamp DESC LIMIT 1').get(tokenName);

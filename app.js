@@ -1852,11 +1852,14 @@ app.get('/contracts/analysis', async (req, res) => {
     const failedWithReasons = failed.map(t => {
       const ts = Number(t.timeStamp) * 1000;
       const reason = t.txreceipt_status === '0' ? 'Reverted' : (t.errDescription || t.revertReason || 'Unknown');
+      const explorerBase = (s.explorerSite || '').replace(/\/?$/, '');
+      const traceUrl = explorerBase ? `${explorerBase}/vmtrace?txhash=${t.hash}&type=gethtrace2` : null;
       return {
         hash: t.hash,
         time: Number.isFinite(ts) ? new Date(ts).toISOString() : '',
         reason,
-        link: (s.explorerSite || '').replace(/\/?$/, '') + '/tx/' + t.hash
+        link: explorerBase ? `${explorerBase}/tx/${t.hash}` : null,
+        traceUrl
       };
     });
 

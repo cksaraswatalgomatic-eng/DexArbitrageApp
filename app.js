@@ -7,6 +7,21 @@ const path = require('path');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
 
+let ethPrice = null;
+async function getEthPrice() {
+  try {
+    const response = await axios.get('https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT');
+    ethPrice = parseFloat(response.data.price);
+  } catch (error) {
+    console.error('Error fetching ETH price:', error.message);
+  }
+}
+
+// Fetch the ETH price once on startup
+getEthPrice();
+// And then every 5 minutes
+cron.schedule('*/5 * * * *', getEthPrice);
+
 // Configuration
 const PORT = process.env.PORT || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.sqlite');
@@ -151,6 +166,7 @@ function ensureDb(serverId) {
       timestamp INTEGER NOT NULL,
       isError INTEGER NOT NULL,
       reason TEXT,
+      ethPrice REAL,
       raw_data TEXT,
       PRIMARY KEY (serverId, hash)
     );
@@ -694,8 +710,8 @@ async function fetchContractTxsAndStoreFor(server) {
 
     if (txs.length > 0) {
       const stmt = db.prepare(`
-        INSERT OR IGNORE INTO contract_transactions (hash, serverId, timestamp, isError, reason, raw_data)
-        VALUES (@hash, @serverId, @timestamp, @isError, @reason, @raw_data)
+        INSERT OR IGNORE INTO contract_transactions (hash, serverId, timestamp, isError, reason, ethPrice, raw_data)
+        VALUES (@hash, @serverId, @timestamp, @isError, @reason, @ethPrice, @raw_data)
       `);
 
       db.transaction((items) => {
@@ -708,6 +724,7 @@ async function fetchContractTxsAndStoreFor(server) {
             timestamp: Number(t.timeStamp) * 1000,
             isError: isError ? 1 : 0,
             reason: isError ? reason : null,
+            ethPrice: ethPrice,
             raw_data: JSON.stringify(t)
           });
         }
@@ -1873,13 +1890,17 @@ app.get('/contracts/analysis', async (req, res) => {
       const l1Fee = raw ? safeNumber(raw.L1FeesPaid) : 0;
       const gasFee = (gasPrice * gasUsed) + l1Fee;
 
+      const gasFeeInEth = gasFee / 1e18;
+      const price = t.ethPrice || ethPrice;
+      const gasFeeInUsdt = price ? gasFeeInEth * price : 0;
+
       const explorerBase = (server.explorerSite || '').replace(/\/?$/, '');
       const traceUrl = explorerBase ? `${explorerBase}/vmtrace?txhash=${t.hash}&type=gethtrace2` : null;
       return {
         hash: t.hash,
         time: new Date(t.timestamp).toISOString(),
         reason: t.reason,
-        gasFee: gasFee,
+        gasFee: gasFeeInUsdt,
         link: explorerBase ? `${explorerBase}/tx/${t.hash}` : null,
         traceUrl
       };

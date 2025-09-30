@@ -1,60 +1,35 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- Backend: `app.js` (Express API, cron jobs, SQLite access via `better-sqlite3`).
-- Frontend: static files under `public/` (e.g., `index.html`, `styles.css`, `script.js`, analysis pages like `pair-analysis.html/js`).
-- Scripts: utility tasks in `scripts/` (e.g., `scripts/inspect-db.js`).
-- Data: SQLite files at repo root (e.g., `data.sqlite`, `data-*.sqlite`), plus WAL/SHM.
-- Config/runtime: `servers.json` (auto-created/updated), `users.json` (demo-only auth), `package.json`.
+- Backend logic lives in `app.js`, wiring Express routes, cron jobs, and SQLite access.
+- Frontend assets are under `public/` (e.g., `index.html`, `contract-analysis.js`, `styles.css`).
+- Utility scripts for inspection live in `scripts/` (for example, `scripts/inspect-db.js`).
+- SQLite data files (`data-*.sqlite` plus WAL/SHM) sit at the repository root.
+- Runtime configuration persists in `servers.json`; demo credentials are in `users.json`.
 
 ## Build, Test, and Development Commands
-- `npm start` — run the server locally on `http://localhost:3000`.
-- `npm run db:inspect` — print quick DB stats and recent records.
-- Examples:
-  - `curl http://localhost:3000/health`
-  - `curl "http://localhost:3000/balances/history?limit=500"`
-
-Env vars (PowerShell examples):
-- `$env:PORT=4000; npm start`
-- `$env:DB_PATH="D:\\tmp\\dex.sqlite"; npm start`
+- `npm install` — install dependencies for Node 18+.
+- `npm start` — run the Express server on `http://localhost:3000` with cron jobs active.
+- `npm run db:inspect` — print recent SQLite stats via `scripts/inspect-db.js`.
+- Quick checks: `curl http://localhost:3000/health` or `curl "http://localhost:3000/balances/history?limit=500"`.
 
 ## Coding Style & Naming Conventions
-- JavaScript (Node 18+). Use 2-space indentation and semicolons; prefer `camelCase` for variables/functions.
-- File names: backend `lowercase-with-dashes.js`; frontend assets in `public/` mirror page names (e.g., `token-analysis.html/js`).
-- No linter configured. Keep changes consistent with existing code style; optional Prettier (2 spaces) is welcome but do not reformat unrelated files.
+- JavaScript code uses 2-space indentation, semicolons, and trailing commas where sensible.
+- Prefer `camelCase` for variables and functions; keep filenames in `public/` as `lowercase-with-dashes.js`.
+- Match existing HTML/JS formatting; avoid wholesale reformatting unrelated sections.
 
 ## Testing Guidelines
-- No formal test framework yet. Use:
-  - Runtime checks via curl/browser against local server.
-  - `npm run db:inspect` to validate tables, counts, and latest snapshots.
-- If adding tests, create `tests/` with lightweight Node scripts or Jest; prefer fast, deterministic checks around parsing, analytics, and SQL queries.
+- No formal framework yet; validate changes by exercising endpoints locally.
+- Use browser tools or `curl` to confirm analytics output and new API responses.
+- For complex logic, add ad hoc Node scripts (e.g., under a `tests/` folder) and document sample inputs.
+- Ensure schema or data migrations are reversible before committing.
 
 ## Commit & Pull Request Guidelines
-- Git history shows brief `fix:` messages (e.g., `fix:18`). Prefer Conventional Commits: `feat:`, `fix:`, `chore:`, with an imperative subject.
-- PRs must include: purpose/summary, linked issues, testing steps (commands/curls), screenshots for UI changes, and notes for DB/schema or env var changes.
+- Follow short Conventional Commit messages (`feat:`, `fix:`, `chore:`); example: `fix: align contract summary headers`.
+- Pull requests should explain the change, link issues where relevant, list verification steps (`npm start`, `curl …`), and include screenshots for UI updates.
+- Call out database or environment variable changes so reviewers can update local setups.
 
 ## Security & Configuration Tips
-- Do not commit secrets. `users.json` is demo-only and insecure; replace with proper auth if needed.
-- Large `*.sqlite` files and their `-wal/-shm` companions can bloat PRs; avoid committing regenerated data unless required.
-- Configure sources via env vars: `BALANCES_URL`, `TRADES_URL`, `DB_PATH`, `PORT`.
-
-## API Endpoints & Route Naming
-- Naming: lowercase nouns, hyphenated segments; collections plural. Analytics live under `/trades/analytics/*`, diagnostics under `/analysis/*`, health/status under `/health` and `/status/*`.
-- Common query: most endpoints accept `serverId` to select the active SQLite (e.g., `?serverId=bnb`).
-- GET
-  - `/balances` — latest snapshot.
-  - `/balances/history?limit=500&before_timestamp=ISO` — time series (oldest→newest).
-  - `/balances/exchanges` — per-exchange (DEX vs BinanceF) breakdown.
-  - `/trades?limit=1000&pair=SYMBOL` — recent trades.
-  - `/trades/pairs` — distinct pairs.
-  - `/trades/analytics/pairs?limit=5000` — per-pair KPIs.
-  - `/trades/analytics/tokens?limit=5000` — per-token KPIs.
-  - `/analysis/server-tokens` — combine latest buy/sell with net profit by token.
-  - `/analysis/token-time-patterns?token=eth&targetDate=YYYY-MM-DD` — intra-day/week patterns.
-  - `/analysis/token-time-series?token=eth` — time series by token.
-  - `/servers` and `/servers/active` — multi-server config.
-  - `/status/summary`, `/status/server` — server diagnostics.
-  - `/health` — liveness.
-- POST
-  - `/servers` — persist server config; `/servers/:id/select` — set active server.
-  - `/login` — demo-only cookie auth (do not use in production).
+- Never commit real secrets; `users.json` is placeholder data only.
+- Large SQLite files inflate diffs; avoid re-committing unless schema updates require it.
+- Configure remote sources via env vars: `BALANCES_URL`, `TRADES_URL`, `DB_PATH`, `PORT`, `ETHERSCAN_API_KEY`, `ETHERSCAN_API_URL`.

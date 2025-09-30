@@ -52,6 +52,7 @@ function saveServers(cfg) { fs.writeFileSync(SERVERS_FILE, JSON.stringify(cfg, n
 function getActiveServer() { const cfg = loadServers(); return cfg.servers.find(s => s.id === cfg.activeId) || cfg.servers[0]; }
 
 const dbCache = new Map();
+const initialTradesSynced = new Set();
 function dbPathFor(serverId) {
   if (serverId === 'default' && fs.existsSync(DB_PATH)) return DB_PATH;
   return path.join(__dirname, `data-${serverId}.sqlite`);
@@ -136,11 +137,32 @@ function ensureDb(serverId) {
       buyDiffBps INTEGER,
       sellDiffBps INTEGER,
       cexVol REAL,
+      serverBuy REAL,
+      serverSell REAL,
+      dexVolume REAL,
+      rejectReason TEXT,
       UNIQUE(curId, ts)
     );
   `);
+  ensureDiffHistoryColumns(_db);
   dbCache.set(serverId, _db);
   return _db;
+}
+
+function ensureDiffHistoryColumns(db) {
+  const columns = new Set(db.prepare('PRAGMA table_info(diff_history)').all().map(col => col.name));
+  const migrations = [];
+  if (!columns.has('serverBuy')) migrations.push('ALTER TABLE diff_history ADD COLUMN serverBuy REAL');
+  if (!columns.has('serverSell')) migrations.push('ALTER TABLE diff_history ADD COLUMN serverSell REAL');
+  if (!columns.has('dexVolume')) migrations.push('ALTER TABLE diff_history ADD COLUMN dexVolume REAL');
+  if (!columns.has('rejectReason')) migrations.push('ALTER TABLE diff_history ADD COLUMN rejectReason TEXT');
+  for (const sql of migrations) {
+    try {
+      db.exec(sql);
+    } catch (err) {
+      console.error('[db] diff_history migration failed:', err.message);
+    }
+  }
 }
 
 async function fetchDiffDataAndStoreFor(server) {
@@ -152,11 +174,64 @@ async function fetchDiffDataAndStoreFor(server) {
     if (!Array.isArray(data)) return;
 
     const db = ensureDb(server.id);
-    const stmt = db.prepare('INSERT OR IGNORE INTO diff_history (curId, ts, buyDiffBps, sellDiffBps, cexVol) VALUES (@curId, @ts, @buyDiffBps, @sellDiffBps, @cexVol)');;
+    const lookupStmt = db.prepare('SELECT buy, sell FROM server_tokens WHERE name = ? ORDER BY timestamp DESC LIMIT 1');
+    const tokenCache = new Map();
+
+    const rows = data.map((raw) => {
+      if (!raw || raw.curId == null || raw.ts == null) return null;
+      const curId = String(raw.curId);
+      const ts = parseInt(raw.ts, 10);
+      if (!Number.isFinite(ts)) return null;
+      const tokenName = tokenNameFromCurId(curId);
+
+      const cacheKey = tokenName || '';
+      let tokenRow = tokenCache.get(cacheKey);
+      if (tokenRow === undefined) {
+        tokenRow = lookupStmt.get(tokenName);
+        if (!tokenRow && tokenName) {
+          const upper = tokenName.toUpperCase();
+          if (upper !== tokenName) tokenRow = lookupStmt.get(upper);
+        }
+        if (!tokenRow && tokenName) {
+          const lower = tokenName.toLowerCase();
+          if (lower !== tokenName) tokenRow = lookupStmt.get(lower);
+        }
+        tokenCache.set(cacheKey, tokenRow || null);
+      }
+
+      return {
+        curId,
+        ts,
+        buyDiffBps: raw.buyDiffBps != null ? parseInt(raw.buyDiffBps, 10) : null,
+        sellDiffBps: raw.sellDiffBps != null ? parseInt(raw.sellDiffBps, 10) : null,
+        cexVol: safeNumber(raw.cexVol),
+        serverBuy: tokenRow ? safeNumber(tokenRow.buy) : null,
+        serverSell: tokenRow ? safeNumber(tokenRow.sell) : null,
+        dexVolume: safeNumber(raw.dexLiq),
+        rejectReason: raw.rr == null ? null : String(raw.rr),
+      };
+    }).filter(Boolean);
+
+    if (!rows.length) {
+      console.log('[diffdata:' + server.label + '] No diff data rows to store.');
+      return;
+    }
+
+    const stmt = db.prepare('INSERT INTO diff_history (curId, ts, buyDiffBps, sellDiffBps, cexVol, serverBuy, serverSell, dexVolume, rejectReason) ' +
+      'VALUES (@curId, @ts, @buyDiffBps, @sellDiffBps, @cexVol, @serverBuy, @serverSell, @dexVolume, @rejectReason) ' +
+      'ON CONFLICT(curId, ts) DO UPDATE SET ' +
+      'buyDiffBps = COALESCE(excluded.buyDiffBps, diff_history.buyDiffBps), ' +
+      'sellDiffBps = COALESCE(excluded.sellDiffBps, diff_history.sellDiffBps), ' +
+      'cexVol = COALESCE(excluded.cexVol, diff_history.cexVol), ' +
+      'serverBuy = CASE WHEN diff_history.serverBuy IS NULL THEN excluded.serverBuy ELSE diff_history.serverBuy END, ' +
+      'serverSell = CASE WHEN diff_history.serverSell IS NULL THEN excluded.serverSell ELSE diff_history.serverSell END, ' +
+      'dexVolume = COALESCE(excluded.dexVolume, diff_history.dexVolume), ' +
+      'rejectReason = COALESCE(excluded.rejectReason, diff_history.rejectReason)');
+
     db.transaction((items) => {
       for (const item of items) stmt.run(item);
-    })(data);
-    console.log(`[diffdata:${server.label}] Stored ${data.length} diff data points.`);
+    })(rows);
+    console.log('[diffdata:' + server.label + '] Stored ' + rows.length + ' diff data points.');
   } catch (err) {
     const status = err?.response?.status;
     if (status === 404) console.log(`[diffdata:${server.label}] 404 (not found). Skipping.`);
@@ -168,6 +243,48 @@ async function fetchDiffDataAndStoreFor(server) {
 function safeNumber(val) {
   const n = Number(val);
   return Number.isFinite(n) ? n : null;
+}
+
+function safeJsonParse(value, fallback = null) {
+  if (value == null) return fallback;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function propsHasCurId(rawProps, curId) {
+  if (!curId) return false;
+  try {
+    const parsed = typeof rawProps === 'string' ? JSON.parse(rawProps) : rawProps;
+    if (!parsed || typeof parsed !== 'object') return false;
+    return Object.prototype.hasOwnProperty.call(parsed, curId);
+  } catch {
+    return false;
+  }
+}
+
+function getTradeRawProps(trade) {
+  if (!trade) return null;
+  const raw = safeJsonParse(trade.raw_data, null);
+  if (!raw || raw.props == null) return null;
+  return raw.props;
+}
+
+function tradeHasCurId(trade, curId) {
+  if (!curId || !trade) return false;
+  if (propsHasCurId(trade.props, curId)) return true;
+  const rawProps = getTradeRawProps(trade);
+  return propsHasCurId(rawProps, curId);
+}
+
+function tokenNameFromCurId(curId) {
+  if (typeof curId !== "string") return null;
+  const parts = curId.split('_').filter(Boolean);
+  if (parts.length >= 2) return parts[1];
+  return parts[0] || null;
 }
 
 function calculateTotals(snapshot) {
@@ -271,15 +388,18 @@ async function fetchBalancesAndStoreFor(server) {
   }
 }
 
-async function fetchTradesAndStoreFor(server) {
-  if (!server) return;
-  try {
-    const url = server.baseUrl + (server.completedPath || '/completed');
-    const resp = await axios.get(url, { timeout: 20000 });
-    const arr = Array.isArray(resp.data) ? resp.data : [];
-    let inserted = 0;
-    const db = ensureDb(server.id);
-    const insertTradeStmt = db.prepare(`INSERT OR IGNORE INTO completed_trades (
+function storeCompletedTrades(server, trades, sourceLabel = 'recent') {
+  if (!server) return 0;
+  const arr = Array.isArray(trades) ? trades : [];
+  if (!arr.length) {
+    if (sourceLabel) console.log(`[trades:${server.label}] No trades from ${sourceLabel}.`);
+    return 0;
+  }
+
+  const db = ensureDb(server.id);
+  let inserted = 0;
+
+  const insertTradeStmt = db.prepare(`INSERT OR IGNORE INTO completed_trades (
       id, fsmType, pair, srcExchange, dstExchange, status, user,
       estimatedProfitNormalized, estimatedProfit, estimatedGrossProfit, eta,
       estimatedSrcPrice, estimatedDstPrice, estimatedQty,
@@ -296,54 +416,80 @@ async function fetchTradesAndStoreFor(server) {
       @executedFeeTotal, @executedFeePercent, @props, @creationTime, @openTime, @lastUpdateTime,
       @nwId, @txFee, @calculatedVolume, @conveyedVolume, @commissionPercent, @hedge, @raw_data
     )`);
-    const insert = db.transaction((items) => {
-      for (const t of items) {
-        const normProps = normalizePropsRaw(t.props);
-        const row = {
-          id: t.id,
-          fsmType: t.fsmType ?? null,
-          pair: t.pair ?? null,
-          srcExchange: t.srcExchange ?? null,
-          dstExchange: t.dstExchange ?? null,
-          status: t.status ?? null,
-          user: t.user ?? null,
-          estimatedProfitNormalized: safeNumber(t.estimatedProfitNormalized),
-          estimatedProfit: safeNumber(t.estimatedProfit),
-          estimatedGrossProfit: safeNumber(t.estimatedGrossProfit),
-          eta: t.eta == null ? null : String(t.eta),
-          estimatedSrcPrice: safeNumber(t.estimatedSrcPrice),
-          estimatedDstPrice: safeNumber(t.estimatedDstPrice),
-          estimatedQty: safeNumber(t.estimatedQty),
-          executedProfitNormalized: safeNumber(t.executedProfitNormalized),
-          executedProfit: safeNumber(t.executedProfit),
-          executedGrossProfit: safeNumber(t.executedGrossProfit),
-          executedTime: t.executedTime != null ? parseInt(t.executedTime) : null,
-          executedSrcPrice: safeNumber(t.executedSrcPrice),
-          executedDstPrice: safeNumber(t.executedDstPrice),
-          executedQtySrc: safeNumber(t.executedQtySrc),
-          executedQtyDst: safeNumber(t.executedQtyDst),
-          executedFeeTotal: safeNumber(t.executedFeeTotal),
-          executedFeePercent: safeNumber(t.executedFeePercent),
-          props: Object.keys(normProps).length ? JSON.stringify(normProps) : (t.props == null ? null : String(t.props)),
-          creationTime: t.creationTime != null ? parseInt(t.creationTime) : null,
-          openTime: t.openTime != null ? parseInt(t.openTime) : null,
-          lastUpdateTime: t.lastUpdateTime != null ? parseInt(t.lastUpdateTime) : null,
-          nwId: t.nwId == null ? null : String(t.nwId),
-          txFee: safeNumber(t.txFee),
-          calculatedVolume: safeNumber(t.calculatedVolume),
-          conveyedVolume: safeNumber(t.conveyedVolume),
-          commissionPercent: safeNumber(t.commissionPercent),
-          hedge: t.hedge === true ? 1 : t.hedge === false ? 0 : null,
-          raw_data: JSON.stringify(t)
-        };
-        const info = insertTradeStmt.run(row);
-        if (info.changes > 0) inserted += 1;
-      }
-    });
-    insert(arr);
-    console.log(`[trades:${server.label}] Inserted new trades: ${inserted}/${arr.length}`);
+
+  const insert = db.transaction((items) => {
+    for (const t of items) {
+      const normProps = normalizePropsRaw(t.props);
+      const row = {
+        id: t.id,
+        fsmType: t.fsmType ?? null,
+        pair: t.pair ?? null,
+        srcExchange: t.srcExchange ?? null,
+        dstExchange: t.dstExchange ?? null,
+        status: t.status ?? null,
+        user: t.user ?? null,
+        estimatedProfitNormalized: safeNumber(t.estimatedProfitNormalized),
+        estimatedProfit: safeNumber(t.estimatedProfit),
+        estimatedGrossProfit: safeNumber(t.estimatedGrossProfit),
+        eta: t.eta == null ? null : String(t.eta),
+        estimatedSrcPrice: safeNumber(t.estimatedSrcPrice),
+        estimatedDstPrice: safeNumber(t.estimatedDstPrice),
+        estimatedQty: safeNumber(t.estimatedQty),
+        executedProfitNormalized: safeNumber(t.executedProfitNormalized),
+        executedProfit: safeNumber(t.executedProfit),
+        executedGrossProfit: safeNumber(t.executedGrossProfit),
+        executedTime: t.executedTime != null ? parseInt(t.executedTime) : null,
+        executedSrcPrice: safeNumber(t.executedSrcPrice),
+        executedDstPrice: safeNumber(t.executedDstPrice),
+        executedQtySrc: safeNumber(t.executedQtySrc),
+        executedQtyDst: safeNumber(t.executedQtyDst),
+        executedFeeTotal: safeNumber(t.executedFeeTotal),
+        executedFeePercent: safeNumber(t.executedFeePercent),
+        props: Object.keys(normProps).length ? JSON.stringify(normProps) : (t.props == null ? null : String(t.props)),
+        creationTime: t.creationTime != null ? parseInt(t.creationTime) : null,
+        openTime: t.openTime != null ? parseInt(t.openTime) : null,
+        lastUpdateTime: t.lastUpdateTime != null ? parseInt(t.lastUpdateTime) : null,
+        nwId: t.nwId == null ? null : String(t.nwId),
+        txFee: safeNumber(t.txFee),
+        calculatedVolume: safeNumber(t.calculatedVolume),
+        conveyedVolume: safeNumber(t.conveyedVolume),
+        commissionPercent: safeNumber(t.commissionPercent),
+        hedge: t.hedge === true ? 1 : t.hedge === false ? 0 : null,
+        raw_data: JSON.stringify(t)
+      };
+      const info = insertTradeStmt.run(row);
+      if (info.changes > 0) inserted += 1;
+    }
+  });
+
+  insert(arr);
+  console.log(`[trades:${server.label}] Inserted new trades${sourceLabel ? ` (${sourceLabel})` : ''}: ${inserted}/${arr.length}`);
+  return inserted;
+}
+
+async function fetchTradesAndStoreFor(server) {
+  if (!server) return;
+  try {
+    const url = server.baseUrl + (server.completedPath || '/completed');
+    const resp = await axios.get(url, { timeout: 20000 });
+    const arr = Array.isArray(resp.data) ? resp.data : [];
+    storeCompletedTrades(server, arr, 'delta');
   } catch (err) {
     console.error(`[trades:${server?.label}] Fetch/store error:`, err.message);
+  }
+}
+
+async function fetchAllTradesAndStoreFor(server) {
+  if (!server) return false;
+  try {
+    const url = server.baseUrl + (server.completedAllPath || '/completedall');
+    const resp = await axios.get(url, { timeout: 60000 });
+    const arr = Array.isArray(resp.data) ? resp.data : [];
+    storeCompletedTrades(server, arr, 'bootstrap');
+    return true;
+  } catch (err) {
+    console.error(`[trades:${server?.label}] Fetch/store (completedall) error:`, err.message);
+    return false;
   }
 }
 
@@ -404,9 +550,17 @@ async function fetchStatusAndStoreFor(server) {
   }
 }
 
+async function ensureInitialTradesSync(server) {
+  if (!server) return;
+  if (initialTradesSynced.has(server.id)) return;
+  const ok = await fetchAllTradesAndStoreFor(server);
+  if (ok) initialTradesSynced.add(server.id);
+}
+
 async function fetchAllAndStore() {
   const cfg = loadServers();
   for (const s of cfg.servers) {
+    await ensureInitialTradesSync(s);
     // Fetch status first to ensure it's processed before other data
     await fetchStatusAndStoreFor(s);
     // Then fetch balances and trades in parallel
@@ -427,44 +581,93 @@ app.get('/trades/history', (req, res) => {
   try {
     const db = getDbFromReq(req);
     const token = req.query.token;
-    const startTime = req.query.startTime;
-    const endTime = req.query.endTime;
-    const minNetProfit = req.query.minNetProfit ? parseFloat(req.query.minNetProfit) : null;
-    const maxNetProfit = req.query.maxNetProfit ? parseFloat(req.query.maxNetProfit) : null;
+    const curId = req.query.curId;
+    let startTime = req.query.startTime != null && req.query.startTime !== '' ? Number(req.query.startTime) : null;
+    let endTime = req.query.endTime != null && req.query.endTime !== '' ? Number(req.query.endTime) : null;
+    let minNetProfit = req.query.minNetProfit != null && req.query.minNetProfit !== '' ? Number(req.query.minNetProfit) : null;
+    let maxNetProfit = req.query.maxNetProfit != null && req.query.maxNetProfit !== '' ? Number(req.query.maxNetProfit) : null;
 
-    if (!token) {
-      return res.status(400).json({ error: 'token parameter is required' });
+    if (!Number.isFinite(startTime)) startTime = null;
+    if (!Number.isFinite(endTime)) endTime = null;
+    if (!Number.isFinite(minNetProfit)) minNetProfit = null;
+    if (!Number.isFinite(maxNetProfit)) maxNetProfit = null;
+
+    if (!token && !curId) {
+      return res.status(400).json({ error: 'token or curId parameter is required' });
     }
 
-    let query = 'SELECT lastUpdateTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, props FROM completed_trades WHERE pair LIKE ?';
-    const params = [`%${token}%`];
+    let query = 'SELECT id, lastUpdateTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, props, raw_data FROM completed_trades';
+    const clauses = [];
+    const params = [];
 
-    if (startTime && endTime) {
-      query += ' AND lastUpdateTime BETWEEN ? AND ?';
+    if (token) {
+      clauses.push('pair LIKE ?');
+      params.push(`%${token}%`);
+    }
+
+    if (startTime != null && endTime != null) {
+      clauses.push('lastUpdateTime BETWEEN ? AND ?');
       params.push(startTime, endTime);
     }
 
-    const trades = db.prepare(query).all(params);
+    if (clauses.length) {
+      query += ' WHERE ' + clauses.join(' AND ');
+    }
 
-    const tradesWithNetProfit = trades.map(t => {
+    const trades = db.prepare(query).all(params);
+    console.log(`[api:/trades/history] params token=${token || 'none'} curId=${curId || 'none'} start=${startTime ?? 'none'} end=${endTime ?? 'none'} fetched=${trades.length}`);
+
+    let filteredTrades = trades;
+    if (curId) {
+      const matching = [];
+      const nonMatchingSamples = [];
+      for (const trade of trades) {
+        if (tradeHasCurId(trade, curId)) {
+          matching.push(trade);
+        } else if (nonMatchingSamples.length < 5) {
+          const parsedProps = safeJsonParse(trade.props, {});
+          const rawProps = getTradeRawProps(trade);
+          nonMatchingSamples.push({
+            id: trade.id,
+            lastUpdateTime: trade.lastUpdateTime,
+            propsKeys: parsedProps && typeof parsedProps === 'object' ? Object.keys(parsedProps) : [],
+            rawPropsKeys: rawProps && typeof rawProps === 'object' ? Object.keys(rawProps) : []
+          });
+        }
+      }
+      console.log(`[api:/trades/history] curId=${curId} matches=${matching.length}`);
+      if (!matching.length && nonMatchingSamples.length) {
+        console.log('[api:/trades/history] sample non-matching trades:', nonMatchingSamples);
+      }
+      filteredTrades = matching;
+    } else {
+      console.log(`[api:/trades/history] no curId filter applied; using ${filteredTrades.length} trades`);
+    }
+
+    const tradesWithNetProfit = filteredTrades.map(t => {
       const netProfit = (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
+      const rawProps = getTradeRawProps(t);
+      const rawPropsStr = rawProps == null ? null : (typeof rawProps === 'string' ? rawProps : JSON.stringify(rawProps));
       return {
         lastUpdateTime: t.lastUpdateTime,
         netProfit: netProfit,
-        props: t.props
+        props: t.props,
+        rawProps: rawPropsStr
       };
-    }).filter(t => {
-      let include = true;
-      if (minNetProfit !== null && t.netProfit < minNetProfit) {
-        include = false;
-      }
-      if (maxNetProfit !== null && t.netProfit > maxNetProfit) {
-        include = false;
-      }
-      return include;
     });
 
-    res.json(tradesWithNetProfit);
+    const tradesFilteredByProfit = tradesWithNetProfit.filter(t => {
+      if (minNetProfit !== null && t.netProfit < minNetProfit) {
+        return false;
+      }
+      if (maxNetProfit !== null && t.netProfit > maxNetProfit) {
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`[api:/trades/history] returning ${tradesFilteredByProfit.length} trades after profit filter`);
+    res.json(tradesFilteredByProfit);
   } catch (err) {
     console.error('[api:/trades/history] error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -497,7 +700,7 @@ app.get('/diffdata/history', (req, res) => {
       return res.status(400).json({ error: 'curId parameter is required' });
     }
 
-    let query = 'SELECT *, cexVol FROM diff_history WHERE curId = ?'; // Added cexVol
+    let query = 'SELECT curId, ts, buyDiffBps, sellDiffBps, cexVol, serverBuy, serverSell, dexVolume, rejectReason FROM diff_history WHERE curId = ?';
     const params = [curId];
 
     if (minBuyDiffBps !== null) {
@@ -522,12 +725,52 @@ app.get('/diffdata/history', (req, res) => {
 
     const diffRows = db.prepare(query).all(params);
 
-    const tokenName = curId.split('_')[1];
-    const serverToken = db.prepare('SELECT buy, sell FROM server_tokens WHERE name = ? ORDER BY timestamp DESC LIMIT 1').get(tokenName);
+    const tokenName = tokenNameFromCurId(curId);
+    const serverTokenStmt = db.prepare('SELECT buy, sell FROM server_tokens WHERE name = ? ORDER BY timestamp DESC LIMIT 1');
+    let serverToken = tokenName ? serverTokenStmt.get(tokenName) : null;
+    if (!serverToken && tokenName) {
+      const upper = tokenName.toUpperCase();
+      if (upper !== tokenName) serverToken = serverTokenStmt.get(upper);
+    }
+    if (!serverToken && tokenName) {
+      const lower = tokenName.toLowerCase();
+      if (lower !== tokenName) serverToken = serverTokenStmt.get(lower);
+    }
+
+    const normalizedRows = diffRows.reverse().map((row) => {
+      const ts = Number(row.ts);
+      const buy = row.serverBuy != null ? safeNumber(row.serverBuy) : null;
+      const sell = row.serverSell != null ? safeNumber(row.serverSell) : null;
+      const dexVolume = row.dexVolume != null ? safeNumber(row.dexVolume) : null;
+      const cexVol = safeNumber(row.cexVol);
+      const normalized = {
+        curId: row.curId,
+        ts: Number.isFinite(ts) ? ts : null,
+        buyDiffBps: safeNumber(row.buyDiffBps),
+        sellDiffBps: safeNumber(row.sellDiffBps),
+        cexVol,
+        serverBuy: buy,
+        serverSell: sell,
+        dexVolume,
+        rejectReason: row.rejectReason == null ? null : String(row.rejectReason),
+      };
+      if (normalized.serverBuy == null && serverToken?.buy != null) {
+        normalized.serverBuy = safeNumber(serverToken.buy);
+      }
+      if (normalized.serverSell == null && serverToken?.sell != null) {
+        normalized.serverSell = safeNumber(serverToken.sell);
+      }
+      return normalized;
+    });
+
+    const normalizedServerToken = serverToken ? {
+      buy: safeNumber(serverToken.buy),
+      sell: safeNumber(serverToken.sell),
+    } : null;
 
     res.json({
-      diffData: diffRows.reverse(),
-      serverToken: serverToken
+      diffData: normalizedRows,
+      serverToken: normalizedServerToken
     });
   } catch (err) {
     console.error('[api:/diffdata/history] error:', err.message);

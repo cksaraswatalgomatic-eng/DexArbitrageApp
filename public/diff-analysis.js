@@ -21,6 +21,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const limit = 5000;
   let allDiffData = [];
 
+  function formatValue(value, decimals) {
+    if (value === null || value === undefined) return '--';
+    const num = Number(value);
+    if (!Number.isFinite(num)) return '--';
+    if (typeof decimals === 'number') {
+      return num.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+    return num.toLocaleString();
+  }
+
+  function propsHasCurId(raw, curId) {
+    if (!curId) return false;
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+      if (!parsed || typeof parsed !== 'object') return false;
+      return Object.prototype.hasOwnProperty.call(parsed, curId);
+    } catch {
+      return false;
+    }
+  }
+
   function normalizePropsFront(raw) {
     try {
       const p = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
@@ -138,13 +159,19 @@ document.addEventListener('DOMContentLoaded', () => {
     diffTableBody.innerHTML = '';
     for (const d of diffData) {
         const tr = document.createElement('tr');
-        const tokenName = d.curId.split('_')[1];
+        const parts = typeof d.curId === 'string' ? d.curId.split('_').filter(Boolean) : [];
+        const tokenName = parts[1] || parts[0] || d.curId || '--';
+        const timestamp = d.ts ? new Date(d.ts).toLocaleString() : '--';
         tr.innerHTML = `
             <td>${tokenName}</td>
-            <td>${new Date(d.ts).toLocaleString()}</td>
-            <td>${d.buyDiffBps}</td>
-            <td>${d.sellDiffBps}</td>
-            <td>${d.cexVol}</td>
+            <td>${timestamp}</td>
+            <td>${d.buyDiffBps ?? '--'}</td>
+            <td>${d.sellDiffBps ?? '--'}</td>
+            <td>${formatValue(d.cexVol)}</td>
+            <td>${formatValue(d.dexVolume)}</td>
+            <td>${formatValue(d.serverBuy, 4)}</td>
+            <td>${formatValue(d.serverSell, 4)}</td>
+            <td>${d.rejectReason ? d.rejectReason : '--'}</td>
         `;
         diffTableBody.appendChild(tr);
     }
@@ -177,10 +204,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const startTime = allDiffData.length > 0 ? allDiffData[0].ts : null;
         const endTime = allDiffData.length > 0 ? allDiffData[allDiffData.length - 1].ts : null;
 
-        const tradesHistory = await fetchJSON(`/trades/history?token=${tokenName}&startTime=${startTime}&endTime=${endTime}&minNetProfit=${minNetProfit}&maxNetProfit=${maxNetProfit}`);
+        const tradeParams = new URLSearchParams();
+        if (tokenName) tradeParams.set('token', tokenName);
+        if (curId) tradeParams.set('curId', curId);
+        if (startTime != null) tradeParams.set('startTime', startTime);
+        if (endTime != null) tradeParams.set('endTime', endTime);
+        if (minNetProfit !== '') tradeParams.set('minNetProfit', minNetProfit);
+        if (maxNetProfit !== '') tradeParams.set('maxNetProfit', maxNetProfit);
+
+        const tradesHistory = await fetchJSON(`/trades/history?${tradeParams.toString()}`);
+
+        const filteredTrades = tradesHistory.filter(t => propsHasCurId(t.rawProps ?? t.props, curId));
 
         // Process trades to extract Dex and assign colors
-        const processedTrades = tradesHistory.map(t => {
+        const processedTrades = filteredTrades.map(t => {
           const props = normalizePropsFront(t.props);
           const dex = props.Dex || 'N/A';
           let color;
@@ -194,12 +231,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderDiffTable(allDiffData);
 
+        const labels = allDiffData.map(d => (d.ts ? new Date(d.ts) : null));
+        const buySeries = allDiffData.map(d => (d.buyDiffBps != null ? d.buyDiffBps / 100 : null));
+        const sellSeries = allDiffData.map(d => (d.sellDiffBps != null ? d.sellDiffBps / 100 : null));
+        const cexSeries = allDiffData.map(d => (d.cexVol != null ? d.cexVol : null));
+        const dexSeries = allDiffData.map(d => (d.dexVolume != null ? d.dexVolume : null));
+        const serverBuySeries = allDiffData.map(d => (d.serverBuy != null ? d.serverBuy : null));
+        const serverSellSeries = allDiffData.map(d => (d.serverSell != null ? d.serverSell : null));
+
         const chartData = {
-            labels: allDiffData.map(d => new Date(d.ts)),
+            labels,
             datasets: [
                 {
                     label: 'Buy Diff',
-                    data: allDiffData.map(d => d.buyDiffBps / 100),
+                    data: buySeries,
                     borderColor: '#00E5FF',
                     backgroundColor: 'rgba(0, 229, 255, 0.1)',
                     tension: 0.25,
@@ -209,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 {
                     label: 'Sell Diff',
-                    data: allDiffData.map(d => d.sellDiffBps / 100),
+                    data: sellSeries,
                     borderColor: '#FF8C00',
                     backgroundColor: 'rgba(255, 140, 0, 0.1)',
                     borderWidth: 1.5,
@@ -218,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 {
                     label: 'CEX Volume',
-                    data: allDiffData.map(d => d.cexVol),
+                    data: cexSeries,
                     borderColor: '#00FF00',
                     backgroundColor: 'rgba(0, 255, 0, 0.1)',
                     borderWidth: 1,
@@ -228,7 +273,29 @@ document.addEventListener('DOMContentLoaded', () => {
             ]
         };
 
-        if (serverToken) {
+        if (dexSeries.some(v => v !== null)) {
+            chartData.datasets.push({
+                label: 'DEX Volume',
+                data: dexSeries,
+                borderColor: '#8A2BE2',
+                backgroundColor: 'rgba(138, 43, 226, 0.1)',
+                borderWidth: 1,
+                pointRadius: 0,
+                yAxisID: 'y3'
+            });
+        }
+
+        if (serverBuySeries.some(v => v !== null)) {
+            chartData.datasets.push({
+                label: 'Server Buy',
+                data: serverBuySeries,
+                borderColor: '#00E5FF',
+                borderDash: [5, 5],
+                borderWidth: 1,
+                pointRadius: 0,
+                yAxisID: 'y'
+            });
+        } else if (serverToken && serverToken.buy != null) {
             chartData.datasets.push({
                 label: 'Server Buy',
                 data: allDiffData.map(() => serverToken.buy),
@@ -238,6 +305,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 pointRadius: 0,
                 yAxisID: 'y'
             });
+        }
+
+        if (serverSellSeries.some(v => v !== null)) {
+            chartData.datasets.push({
+                label: 'Server Sell',
+                data: serverSellSeries,
+                borderColor: '#FF00FF',
+                borderDash: [5, 5],
+                borderWidth: 1,
+                pointRadius: 0,
+                yAxisID: 'y'
+            });
+        } else if (serverToken && serverToken.sell != null) {
             chartData.datasets.push({
                 label: 'Server Sell',
                 data: allDiffData.map(() => serverToken.sell),

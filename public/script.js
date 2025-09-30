@@ -25,6 +25,26 @@ if (window.Chart && zoomPlugin && !window.__chartZoomRegistered) {
   window.__chartZoomWarned = true;
 }
 
+function safeJsonParse(value, fallback = {}) {
+  if (value == null) return fallback;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function extractTokenFromProps(props) {
+  if (!props || typeof props !== 'object') return '';
+  for (const [key, val] of Object.entries(props)) {
+    if (typeof val === 'string' && (val === 'BUY' || val === 'SELL')) {
+      return key;
+    }
+  }
+  return '';
+}
+
 function normalizePropsFront(raw) {
   try {
     const p = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
@@ -622,22 +642,15 @@ async function loadTrades() {
     for (const t of rows) {
       const tr = document.createElement('tr');
       try {
-        const rawData = JSON.parse(t.raw_data);
-        const combinedProps = { ...JSON.parse(t.props), ...JSON.parse(rawData.props) };
+        const rawData = safeJsonParse(t.raw_data);
+        const baseProps = safeJsonParse(t.props);
+        const rawProps = safeJsonParse(rawData.props);
+        const combinedProps = { ...rawProps, ...baseProps };
         const props = normalizePropsFront(combinedProps);
 
-        let token = '';
-        if (combinedProps) {
-          for (const key in combinedProps) {
-            if (combinedProps[key] === 'BUY' || combinedProps[key] === 'SELL') {
-              const parts = key.split('_');
-              if (parts.length > 1) {
-                token = parts[1];
-                break; // Found it
-              }
-            }
-          }
-        }
+        const tokenKey = extractTokenFromProps(rawProps) || extractTokenFromProps(baseProps);
+        const tokenLabel = tokenKey || '';
+        const tokenLink = tokenKey ? `/token-analysis.html?token=${encodeURIComponent(tokenKey)}` : '/token-analysis.html';
 
         const qty = (() => {
           const p = Number(t.executedSrcPrice);
@@ -656,7 +669,7 @@ async function loadTrades() {
         const cexSlipClass = isFinite(cexSlipNum) ? (cexSlipNum > 0 ? 'text-neg' : cexSlipNum < 0 ? 'text-pos' : '') : '';
         tr.innerHTML = `
           <td>${t.pair ?? ''}</td>
-          <td><a href="/token-analysis.html?token=${token}">${token}</a></td>
+          <td>${tokenLabel ? `<a href="${tokenLink}">${tokenLabel}</a>` : ''}</td>
           <td class="${egpClass}">${fmtNum(t.executedGrossProfit)}</td>
           <td style="${netProfitStyle}">${fmtNum(netProfit)}</td>
           <td>${qty != null ? fmtNum(qty) : ''}</td>

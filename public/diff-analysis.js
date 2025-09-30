@@ -16,6 +16,30 @@ document.addEventListener('DOMContentLoaded', () => {
   const diffTableBody = document.querySelector('#diffTable tbody');
   const resetZoomBtn = document.getElementById('resetZoomBtn');
   const loadMoreBtn = document.getElementById('loadMoreBtn');
+  const formatUtc = (value) => {
+    if (value == null) return '--';
+    let date = null;
+    if (value instanceof Date) {
+      date = value;
+    } else if (typeof value === 'number' && Math.abs(value) > 1e10) {
+      date = new Date(value);
+    } else if (typeof value === 'string') {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && Math.abs(numeric) > 1e10) {
+        date = new Date(numeric);
+      } else if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+        date = new Date(value);
+      } else {
+        return value;
+      }
+    } else {
+      return String(value);
+    }
+    if (Number.isNaN(date.getTime())) return String(value);
+    const iso = date.toISOString();
+    return iso.replace('T', ' ').replace('Z', ' UTC');
+  };
+
   let diffChart;
   let currentOffset = 0;
   const limit = 5000;
@@ -78,6 +102,14 @@ document.addEventListener('DOMContentLoaded', () => {
           borderColor: gridColor,
           borderWidth: 1,
           callbacks: {
+            title: function(contexts) {
+              if (!contexts || !contexts.length) return '';
+              const ctx = contexts[0];
+              const raw = ctx.raw ?? {};
+              const parsed = ctx.parsed ?? {};
+              const value = parsed.x ?? raw.x ?? raw.ts ?? ctx.label ?? null;
+              return value != null ? formatUtc(value) : '';
+            },
             label: function(context) {
               let label = context.dataset.label || '';
               if (label) {
@@ -107,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       scales: {
         x: {
           type: 'time',
+          adapters: { date: { zone: 'utc' } },
           ticks: { color: textColor },
           grid: { color: gridColor }
         },
@@ -161,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tr = document.createElement('tr');
         const parts = typeof d.curId === 'string' ? d.curId.split('_').filter(Boolean) : [];
         const tokenName = parts[1] || parts[0] || d.curId || '--';
-        const timestamp = d.ts ? new Date(d.ts).toLocaleString() : '--';
+        const timestamp = d.ts ? formatUtc(d.ts) : '--';
         tr.innerHTML = `
             <td>${tokenName}</td>
             <td>${timestamp}</td>

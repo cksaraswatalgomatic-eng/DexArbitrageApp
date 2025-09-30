@@ -23,6 +23,30 @@ const pairSearchSelectEl = document.getElementById('pairSearchSelect');
 const correlationAttributeSelectEl = document.getElementById('correlationAttributeSelect');
 
 let barChart, winnersWinRateChart, losersLossChart;
+const formatUtc = (value) => {
+  if (value == null) return '';
+  let date = null;
+  if (value instanceof Date) {
+    date = value;
+  } else if (typeof value === 'number' && Math.abs(value) > 1e10) {
+    date = new Date(value);
+  } else if (typeof value === 'string') {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && Math.abs(numeric) > 1e10) {
+      date = new Date(numeric);
+    } else if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+      date = new Date(value);
+    } else {
+      return value;
+    }
+  } else {
+    return String(value);
+  }
+  if (Number.isNaN(date.getTime())) return String(value);
+  const iso = date.toISOString();
+  return iso.replace('T', ' ').replace('Z', ' UTC');
+};
+
 let netProfitDistributionChart, netProfitCorrelationChart;
 let allPairsList = []; // Store all pairs for filtering
 
@@ -42,6 +66,16 @@ function getChartBaseOptions() {
         bodyColor: textColor,
         borderColor: gridColor,
         borderWidth: 1,
+        callbacks: {
+          title: function(contexts) {
+            if (!contexts || !contexts.length) return '';
+            const ctx = contexts[0];
+            const raw = ctx.raw ?? {};
+            const parsed = ctx.parsed ?? {};
+            const value = parsed.x ?? raw.x ?? raw.timestamp ?? ctx.label ?? null;
+            return value != null ? formatUtc(value) : '';
+          }
+        }
       },
       zoom: {
         pan: { enabled: true, mode: 'x', modifierKey: 'ctrl' },
@@ -56,7 +90,8 @@ function getChartBaseOptions() {
     scales: {
       x: {
         ticks: { color: textColor },
-        grid: { color: gridColor }
+        grid: { color: gridColor },
+        adapters: { date: { zone: 'utc' } }
       },
       y: {
         ticks: { color: textColor },
@@ -151,7 +186,7 @@ async function load() {
   statusEl.textContent = 'Loading...';
   const limit = parseInt(limitEl.value, 10) || 1000;
   const data = await fetchJSON(`/trades/analytics/pairs?limit=${limit}`);
-  statusEl.textContent = `Pairs: ${data.totalPairs} | Generated: ${new Date(data.generatedAt).toLocaleString()}`;
+  statusEl.textContent = `Pairs: ${data.totalPairs} | Generated: ${formatUtc(data.generatedAt)}`;
 
   winnersBody.innerHTML = '';
   for (const p of data.topWinners.slice(0,20)) {
@@ -266,7 +301,7 @@ function renderNetProfitDistributionChart(trades) {
     const groupedData = new Map();
     validTrades.forEach(t => {
         const timestamp = new Date(t.lastUpdateTime || t.creationTime);
-        const groupKey = new Date(timestamp.getFullYear(), timestamp.getMonth(), timestamp.getDate(), timestamp.getHours());
+        const groupKey = new Date(Date.UTC(timestamp.getUTCFullYear(), timestamp.getUTCMonth(), timestamp.getUTCDate(), timestamp.getUTCHours()));
         const netProfit = (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
         if (Number.isFinite(netProfit)) {
             const key = groupKey.getTime();
@@ -285,7 +320,20 @@ function renderNetProfitDistributionChart(trades) {
     netProfitDistributionChart = new Chart(ctx, {
         type: 'bar',
         data: { datasets: [{ label: 'Net Profit', data: chartData, backgroundColor: backgroundColors }] },
-        options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, type: 'time', time: { unit: 'hour' } } }, plugins: { ...baseOptions.plugins, tooltip: { callbacks: { label: (ctx) => [`Net Profit: ${ctx.raw.y.toFixed(2)}`, `Trades: ${ctx.raw.tradeCount}`] } } } }
+        options: {
+            ...baseOptions,
+            scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, type: 'time', time: { unit: 'hour' } } },
+            plugins: {
+                ...baseOptions.plugins,
+                tooltip: {
+                    ...baseOptions.plugins.tooltip,
+                    callbacks: {
+                        ...((baseOptions.plugins.tooltip || {}).callbacks || {}),
+                        label: (ctx) => [`Net Profit: ${ctx.raw.y.toFixed(2)}`, `Trades: ${ctx.raw.tradeCount}`]
+                    }
+                }
+            }
+        }
     });
 }
 
@@ -302,7 +350,24 @@ function renderNetProfitCorrelationChart(trades, attribute) {
     netProfitCorrelationChart = new Chart(ctx, {
         type: 'scatter',
         data: { datasets: [{ label: `Net Profit vs ${attribute}`, data: dataPoints, backgroundColor: dataPoints.map(p => p.y >= 0 ? 'rgba(57, 255, 20, 0.7)' : 'rgba(255, 0, 255, 0.7)') }] },
-        options: { ...baseOptions, scales: { ...baseOptions.scales, x: { ...baseOptions.scales.x, title: { display: true, text: attribute, color: '#8B949E' } }, y: { ...baseOptions.scales.y, title: { display: true, text: 'Net Profit', color: '#8B949E' } } }, plugins: { ...baseOptions.plugins, tooltip: { callbacks: { label: (ctx) => [`${attribute}: ${ctx.parsed.x.toFixed(4)}`, `Net Profit: ${ctx.parsed.y.toFixed(2)}`] } } } }
+        options: {
+            ...baseOptions,
+            scales: {
+                ...baseOptions.scales,
+                x: { ...baseOptions.scales.x, title: { display: true, text: attribute, color: '#8B949E' } },
+                y: { ...baseOptions.scales.y, title: { display: true, text: 'Net Profit', color: '#8B949E' } }
+            },
+            plugins: {
+                ...baseOptions.plugins,
+                tooltip: {
+                    ...baseOptions.plugins.tooltip,
+                    callbacks: {
+                        ...((baseOptions.plugins.tooltip || {}).callbacks || {}),
+                        label: (ctx) => [`${attribute}: ${ctx.parsed.x.toFixed(4)}`, `Net Profit: ${ctx.parsed.y.toFixed(2)}`]
+                    }
+                }
+            }
+        }
     });
 }
 

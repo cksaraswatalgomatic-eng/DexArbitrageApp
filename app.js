@@ -280,11 +280,87 @@ function tradeHasCurId(trade, curId) {
   return propsHasCurId(rawProps, curId);
 }
 
-function tokenNameFromCurId(curId) {
-  if (typeof curId !== "string") return null;
+function extractTokensFromPropsSource(source) {
+  const obj = safeJsonParse(source, null);
+  if (!obj || typeof obj !== 'object') return [];
+  const tokens = [];
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      const upper = value.toUpperCase();
+      if (upper === 'BUY' || upper === 'SELL') tokens.push(String(key));
+    }
+  }
+  return tokens;
+}
+
+function extractTokensFromTrade(trade) {
+  if (!trade) return [];
+  const tokens = new Set();
+  if (trade.props != null) {
+    for (const token of extractTokensFromPropsSource(trade.props)) tokens.add(token);
+  }
+  const raw = safeJsonParse(trade.raw_data, null);
+  if (raw && raw.props != null) {
+    for (const token of extractTokensFromPropsSource(raw.props)) tokens.add(token);
+  }
+  return Array.from(tokens);
+}
+
+function tokenSymbolFromCurId(curId) {
+  if (typeof curId !== 'string') return null;
   const parts = curId.split('_').filter(Boolean);
   if (parts.length >= 2) return parts[1];
-  return parts[0] || null;
+  return null;
+}
+
+function aggregateTokenMetrics(tradeRows) {
+  const metrics = new Map();
+  for (const trade of tradeRows) {
+    const tokens = extractTokensFromTrade(trade);
+    if (!tokens.length) continue;
+    const netProfit = (Number(trade.executedQtyDst) * Number(trade.executedDstPrice)) - (Number(trade.executedSrcPrice) * Number(trade.executedQtySrc)) - (0.0002 * Number(trade.executedQtyDst) * Number(trade.executedDstPrice));
+    const gp = Number(trade.executedGrossProfit) || 0;
+    const props = normalizePropsRaw(trade.props);
+
+    for (const token of tokens) {
+      let rec = metrics.get(token);
+      if (!rec) {
+        rec = {
+          token,
+          trades: 0,
+          wins: 0,
+          losses: 0,
+          totalGrossProfit: 0,
+          totalNetProfit: 0,
+          sumCexSlip: 0,
+          countCexSlip: 0,
+          sumDexSlip: 0,
+          countDexSlip: 0,
+          sumDiff: 0,
+          countDiff: 0,
+        };
+        metrics.set(token, rec);
+      }
+
+      rec.trades += 1;
+      rec.totalGrossProfit += gp;
+      if (Number.isFinite(netProfit)) rec.totalNetProfit += netProfit;
+      if (gp > 0) rec.wins += 1;
+      else if (gp < 0) rec.losses += 1;
+
+      if (Number.isFinite(props.CexSlip)) { rec.sumCexSlip += props.CexSlip; rec.countCexSlip++; }
+      if (Number.isFinite(props.DexSlip)) { rec.sumDexSlip += props.DexSlip; rec.countDexSlip++; }
+      if (Number.isFinite(props.Diff)) { rec.sumDiff += props.Diff; rec.countDiff++; }
+    }
+  }
+  return metrics;
+}
+
+function tokenNameFromCurId(curId) {
+  if (typeof curId !== 'string') return null;
+  const parts = curId.split('_').filter(Boolean);
+  if (parts.length >= 2) return parts[1];
+  return parts[0] || curId || null;
 }
 
 function calculateTotals(snapshot) {
@@ -309,6 +385,7 @@ function calculateTotals(snapshot) {
     totalCoin: null,
   };
 }
+
 
 // Helper to compute per-snapshot DEX and CEX totals
 function computeDexCex(snapshot) {
@@ -991,7 +1068,7 @@ app.get('/trades/analytics/pairs', (req, res) => {
     const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 5000, 20000));
     const db = getDbFromReq(req);
     const rows = db.prepare(
-      "SELECT pair, executedGrossProfit, executedTime, executedSrcPrice, executedQtySrc, executedQtyDst, executedDstPrice, props FROM completed_trades WHERE pair IS NOT NULL AND TRIM(pair) <> '' ORDER BY COALESCE(lastUpdateTime, creationTime) DESC LIMIT ?"
+      "SELECT pair, executedGrossProfit, executedTime, executedSrcPrice, executedQtySrc, executedQtyDst, executedDstPrice, props, raw_data FROM completed_trades ORDER BY COALESCE(lastUpdateTime, creationTime) DESC LIMIT ?"
     ).all(limit);
 
     const m = new Map();
@@ -1082,78 +1159,20 @@ app.get('/trades/analytics/tokens', (req, res) => {
     const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 5000, 20000));
     const db = getDbFromReq(req);
     const rows = db.prepare(
-      "SELECT pair, executedGrossProfit, executedTime, executedSrcPrice, executedQtySrc, executedQtyDst, executedDstPrice, props FROM completed_trades WHERE pair IS NOT NULL AND TRIM(pair) <> '' ORDER BY COALESCE(lastUpdateTime, creationTime) DESC LIMIT ?"
+      "SELECT pair, executedGrossProfit, executedTime, executedSrcPrice, executedQtySrc, executedQtyDst, executedDstPrice, props, raw_data FROM completed_trades ORDER BY COALESCE(lastUpdateTime, creationTime) DESC LIMIT ?"
     ).all(limit);
 
-    const m = new Map();
+    const metrics = aggregateTokenMetrics(rows);
 
-    function extractTokensFromPair(pair) {
-      if (!pair) return [];
-      const legs = pair.split('->');
-      const tokens = new Set();
-      for (const leg of legs) {
-        const parts = leg.split('_');
-        const tokenAndQuote = parts[parts.length - 1]; // e.g., aave/usdt
-        if (tokenAndQuote && tokenAndQuote.includes('/')) {
-          const token = tokenAndQuote.split('/')[0];
-          if (token) tokens.add(token.toLowerCase());
-        }
-      }
-      return Array.from(tokens);
-    }
-
-    for (const r of rows) {
-      const tokens = extractTokensFromPair(r.pair);
-      for (const token of tokens) {
-        if (!m.has(token)) {
-          m.set(token, {
-            token,
-            trades: 0,
-            wins: 0,
-            losses: 0,
-            totalGrossProfit: 0,
-            totalNetProfit: 0,
-            sumCexSlip: 0,
-            countCexSlip: 0,
-            sumDexSlip: 0,
-            countDexSlip: 0,
-            sumDiff: 0,
-            countDiff: 0,
-          });
-        }
-        const rec = m.get(token);
-        const gp = Number(r.executedGrossProfit) || 0;
-        const netProfit = (r.executedQtyDst * r.executedDstPrice) - (r.executedSrcPrice * r.executedQtySrc) - (0.0002 * r.executedQtyDst * r.executedDstPrice);
-        const props = normalizePropsRaw(r.props);
-
-        rec.trades += 1;
-        rec.totalGrossProfit += gp;
-        rec.totalNetProfit += netProfit;
-        if (gp > 0) {
-          rec.wins += 1;
-        } else if (gp < 0) {
-          rec.losses += 1;
-        }
-
-        if (Number.isFinite(props.CexSlip)) {
-            rec.sumCexSlip += props.CexSlip;
-            rec.countCexSlip++;
-        }
-        if (Number.isFinite(props.DexSlip)) {
-            rec.sumDexSlip += props.DexSlip;
-            rec.countDexSlip++;
-        }
-        if (Number.isFinite(props.Diff)) {
-            rec.sumDiff += props.Diff;
-            rec.countDiff++;
-        }
-      }
-    }
-
-    const result = Array.from(m.values()).map(r => ({
-      ...r,
+    const result = Array.from(metrics.values()).map(r => ({
+      token: r.token,
+      trades: r.trades,
+      wins: r.wins,
+      losses: r.losses,
+      totalGrossProfit: r.totalGrossProfit,
+      totalNetProfit: r.totalNetProfit,
       winRate: r.trades ? r.wins / r.trades : null,
-      avgNetProfit: r.totalNetProfit / (r.trades || 1),
+      avgNetProfit: r.trades ? r.totalNetProfit / r.trades : null,
       avgCexSlip: r.countCexSlip > 0 ? r.sumCexSlip / r.countCexSlip : null,
       avgDexSlip: r.countDexSlip > 0 ? r.sumDexSlip / r.countDexSlip : null,
       avgDiff: r.countDiff > 0 ? r.sumDiff / r.countDiff : null,
@@ -1202,47 +1221,24 @@ app.get('/analysis/server-tokens', async (req, res) => {
     `).all();
     const tokenMap = new Map(tokenData.map(t => [t.name.toLowerCase(), t]));
 
-    // 2. Get profit data
+    // 2. Aggregate profit data from completed trades
     const tradeRows = db.prepare(
-      "SELECT pair, executedGrossProfit, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades WHERE pair IS NOT NULL AND TRIM(pair) <> ''"
+      "SELECT executedGrossProfit, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, props, raw_data FROM completed_trades"
     ).all();
 
-    function extractTokensFromPair(pair) {
-      if (!pair) return [];
-      const legs = pair.split('->');
-      const tokens = new Set();
-      for (const leg of legs) {
-        const parts = leg.split('_');
-        const tokenAndQuote = parts[parts.length - 1]; // e.g., aave/usdt
-        if (tokenAndQuote && tokenAndQuote.includes('/')) {
-          const token = tokenAndQuote.split('/')[0];
-          if (token) tokens.add(token.toLowerCase());
-        }
-      }
-      return Array.from(tokens);
-    }
+    const metrics = aggregateTokenMetrics(tradeRows);
 
-    const profitMap = new Map();
-    for (const r of tradeRows) {
-      const tokens = extractTokensFromPair(r.pair);
-      const netProfit = (r.executedQtyDst * r.executedDstPrice) - (r.executedSrcPrice * r.executedQtySrc) - (0.0002 * r.executedQtyDst * r.executedDstPrice);
-      if (!Number.isFinite(netProfit)) continue;
-
-      for (const token of tokens) {
-        profitMap.set(token, (profitMap.get(token) || 0) + netProfit);
-      }
-    }
-
-    // 3. Combine data
-    const result = [];
-    for (const [name, tokenInfo] of tokenMap.entries()) {
-      result.push({
-        token: name,
-        buy: tokenInfo.buy,
-        sell: tokenInfo.sell,
-        totalNetProfit: profitMap.get(name) || 0,
-      });
-    }
+    const result = Array.from(metrics.values()).map(r => {
+      const symbol = tokenSymbolFromCurId(r.token);
+      const tokenInfo = symbol ? tokenMap.get((symbol || '').toLowerCase()) : null;
+      return {
+        token: r.token,
+        buy: tokenInfo?.buy ?? null,
+        sell: tokenInfo?.sell ?? null,
+        totalNetProfit: r.totalNetProfit,
+        trades: r.trades,
+      };
+    });
 
     res.json(result);
 
@@ -1254,7 +1250,7 @@ app.get('/analysis/server-tokens', async (req, res) => {
 
 app.get('/analysis/token-time-patterns', (req, res) => {
   try {
-    const token = req.query.token?.toLowerCase();
+    const token = req.query.token ? String(req.query.token) : null;
     if (!token) {
       return res.status(400).json({ error: 'Token parameter is required' });
     }
@@ -1277,29 +1273,14 @@ app.get('/analysis/token-time-patterns', (req, res) => {
 
     // Fetch all trades for the relevant week
     const tradeRows = db.prepare(
-      "SELECT pair, lastUpdateTime, creationTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, props FROM completed_trades WHERE lastUpdateTime BETWEEN ? AND ?"
+      "SELECT executedGrossProfit, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, lastUpdateTime, creationTime, props, raw_data FROM completed_trades WHERE COALESCE(lastUpdateTime, creationTime) BETWEEN ? AND ?"
     ).all(weekStartTs, weekEndTs);
-
-    function extractTokensFromPair(pair) {
-      if (!pair) return [];
-      const legs = pair.split('->');
-      const tokens = new Set();
-      for (const leg of legs) {
-        const parts = leg.split('_');
-        const tokenAndQuote = parts[parts.length - 1];
-        if (tokenAndQuote && tokenAndQuote.includes('/')) {
-          const t = tokenAndQuote.split('/')[0];
-          if (t) tokens.add(t.toLowerCase());
-        }
-      }
-      return Array.from(tokens);
-    }
 
     const byHour = Array(24).fill(0).map((_, i) => ({ hour: i, netProfit: 0, sumCexSlip: 0, countCexSlip: 0, sumDexSlip: 0, countDexSlip: 0 }));
     const byDay = Array(7).fill(0).map((_, i) => ({ day: i, netProfit: 0, sumCexSlip: 0, countCexSlip: 0, sumDexSlip: 0, countDexSlip: 0 }));
 
     for (const r of tradeRows) {
-      const tokens = extractTokensFromPair(r.pair);
+      const tokens = extractTokensFromTrade(r);
       if (tokens.includes(token)) {
         const timestamp = r.lastUpdateTime || r.creationTime;
         if (!timestamp) continue;
@@ -1352,7 +1333,7 @@ app.get('/analysis/token-time-patterns', (req, res) => {
 
 app.get('/analysis/token-time-series', (req, res) => {
   try {
-    const token = req.query.token?.toLowerCase();
+    const token = req.query.token ? String(req.query.token) : null;
     if (!token) {
       return res.status(400).json({ error: 'Token parameter is required' });
     }
@@ -1361,27 +1342,12 @@ app.get('/analysis/token-time-series', (req, res) => {
 
     // 1. Get time-bucketed profits
     const tradeRows = db.prepare(
-      "SELECT pair, lastUpdateTime, creationTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades WHERE pair IS NOT NULL AND TRIM(pair) <> ''"
+      "SELECT executedGrossProfit, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, lastUpdateTime, creationTime, props, raw_data FROM completed_trades"
     ).all();
-
-    function extractTokensFromPair(pair) {
-      if (!pair) return [];
-      const legs = pair.split('->');
-      const tokens = new Set();
-      for (const leg of legs) {
-        const parts = leg.split('_');
-        const tokenAndQuote = parts[parts.length - 1];
-        if (tokenAndQuote && tokenAndQuote.includes('/')) {
-          const t = tokenAndQuote.split('/')[0];
-          if (t) tokens.add(t.toLowerCase());
-        }
-      }
-      return Array.from(tokens);
-    }
 
     const profitByHour = new Map();
     for (const r of tradeRows) {
-      const tokens = extractTokensFromPair(r.pair);
+      const tokens = extractTokensFromTrade(r);
       if (tokens.includes(token)) {
         const timestamp = r.lastUpdateTime || r.creationTime;
         if (!timestamp) continue;
@@ -1398,9 +1364,10 @@ app.get('/analysis/token-time-series', (req, res) => {
     }
 
     // 2. Get time-bucketed buy/sell
-    const tokenRows = db.prepare(
-      "SELECT timestamp, buy, sell FROM server_tokens WHERE lower(name) = ?"
-    ).all(token);
+    const tokenSymbol = tokenSymbolFromCurId(token);
+    const tokenRows = tokenSymbol
+      ? db.prepare("SELECT timestamp, buy, sell FROM server_tokens WHERE lower(name) = ?").all(tokenSymbol.toLowerCase())
+      : [];
 
     const buySellByHour = new Map();
     for (const r of tokenRows) {

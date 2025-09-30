@@ -32,6 +32,29 @@ document.addEventListener('DOMContentLoaded', () => {
   // State
   let currentTargetDate = new Date();
 
+  const formatUtc = (value) => {
+    if (value == null) return '';
+    let date = null;
+    if (value instanceof Date) {
+      date = value;
+    } else if (typeof value === 'number' && Math.abs(value) > 1e10) {
+      date = new Date(value);
+    } else if (typeof value === 'string') {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && Math.abs(numeric) > 1e10) {
+        date = new Date(numeric);
+      } else if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+        date = new Date(value);
+      } else {
+        return value;
+      }
+    } else {
+      return String(value);
+    }
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toISOString().replace('T', ' ').replace('Z', ' UTC');
+  };
+
   // --- Utility Functions ---
   async function fetchJSON(url) {
     const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json();
@@ -89,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const data = await fetchJSON(`/trades/analytics/tokens?limit=${limit}`);
       console.log('Received data for token analysis:', data);
-      statusEl.textContent = `Tokens: ${data.totalTokens} | Generated: ${new Date(data.generatedAt).toLocaleString()}`;
+      statusEl.textContent = `Tokens: ${data.totalTokens} | Generated: ${formatUtc(data.generatedAt)}`;
 
       renderWinnersTable(data.topWinners);
       renderLosersTable(data.topLosers);
@@ -153,7 +176,17 @@ document.addEventListener('DOMContentLoaded', () => {
           titleColor: textColor,
           bodyColor: textColor,
           borderColor: gridColor,
-          borderWidth: 1
+          borderWidth: 1,
+          callbacks: {
+            title: function(contexts) {
+              if (!contexts || !contexts.length) return '';
+              const ctx = contexts[0];
+              const raw = ctx.raw ?? {};
+              const parsed = ctx.parsed ?? {};
+              const value = parsed.x ?? raw.x ?? raw.timestamp ?? ctx.label ?? null;
+              return value != null ? formatUtc(value) : '';
+            }
+          }
         },
         zoom: {
             pan: { enabled: true, mode: 'x', modifierKey: 'ctrl' },
@@ -168,14 +201,15 @@ document.addEventListener('DOMContentLoaded', () => {
       scales: {
         x: {
           ticks: { color: textColor },
-          grid: { color: gridColor }
+          grid: { color: gridColor },
+          adapters: { date: { zone: 'utc' } }
         },
         y: {
           ticks: { color: textColor },
           grid: { color: gridColor },
           title: {
-            display: true,
-            text: yLabel,
+            display: Boolean(yLabel),
+            text: yLabel || '',
             color: textColor
           }
         }

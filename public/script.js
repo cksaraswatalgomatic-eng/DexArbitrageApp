@@ -124,7 +124,11 @@ function enableTableFeatures(tableSelector, searchInputId) {
 }
 
 function fmtTime(ts) {
-  try { return new Date(ts).toLocaleString(); } catch { return String(ts); }
+  if (ts == null) return '';
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return String(ts);
+  const iso = date.toISOString();
+  return iso.replace('T', ' ').replace('Z', ' UTC');
 }
 
 function fmtNum(n, precision = 6) {
@@ -155,6 +159,16 @@ function getChartBaseOptions() {
         bodyColor: textColor,
         borderColor: gridColor,
         borderWidth: 1,
+        callbacks: {
+          title: function(contexts) {
+            if (!contexts || !contexts.length) return '';
+            const ctx = contexts[0];
+            const raw = ctx.raw ?? {};
+            const parsed = ctx.parsed ?? {};
+            const value = parsed.x ?? raw.x ?? raw.timestamp ?? ctx.label ?? null;
+            return value != null ? fmtTime(value) : '';
+          }
+        }
       },
       zoom: {
         pan: { enabled: true, mode: 'x', modifierKey: 'ctrl' },
@@ -169,7 +183,8 @@ function getChartBaseOptions() {
     scales: {
       x: {
         ticks: { color: textColor },
-        grid: { color: gridColor }
+        grid: { color: gridColor },
+        adapters: { date: { zone: 'utc' } }
       },
       y: {
         ticks: { color: textColor },
@@ -328,7 +343,7 @@ async function refreshAll() {
     // When refreshing all, reset allBalanceData and fetch initial set
     allBalanceData = [];
     await Promise.all([loadBalancesHistory(), loadTrades(), loadExchangeBalances(), loadServerStatus()]);
-    lastUpdatedEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    lastUpdatedEl.textContent = `Updated ${fmtTime(Date.now())}`;
     console.log('All data refreshed successfully');
   } catch (err) {
     console.error('Error in refreshAll:', err);

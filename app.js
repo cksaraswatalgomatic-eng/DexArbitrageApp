@@ -1867,12 +1867,19 @@ app.get('/contracts/analysis', async (req, res) => {
     const failed = recent.filter(t => t.isError).slice(0, 100);
 
     const failedWithReasons = failed.map(t => {
+      const raw = safeJsonParse(t.raw_data);
+      const gasPrice = raw ? safeNumber(raw.gasPrice) : 0;
+      const gasUsed = raw ? safeNumber(raw.gasUsed) : 0;
+      const l1Fee = raw ? safeNumber(raw.L1FeesPaid) : 0;
+      const gasFee = (gasPrice * gasUsed) + l1Fee;
+
       const explorerBase = (server.explorerSite || '').replace(/\/?$/, '');
       const traceUrl = explorerBase ? `${explorerBase}/vmtrace?txhash=${t.hash}&type=gethtrace2` : null;
       return {
         hash: t.hash,
         time: new Date(t.timestamp).toISOString(),
         reason: t.reason,
+        gasFee: gasFee / 1e18, // Convert from Wei to Ether
         link: explorerBase ? `${explorerBase}/tx/${t.hash}` : null,
         traceUrl
       };

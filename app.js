@@ -17,10 +17,34 @@ async function getEthPrice() {
   }
 }
 
-// Fetch the ETH price once on startup
+let polPrice = null;
+async function getPolPrice() {
+  try {
+    const response = await axios.get('https://api.binance.com/api/v3/ticker/price?symbol=POLUSDT');
+    polPrice = parseFloat(response.data.price);
+  } catch (error) {
+    console.error('Error fetching POL price:', error.message);
+  }
+}
+
+let bnbPrice = null;
+async function getBnbPrice() {
+  try {
+    const response = await axios.get('https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT');
+    bnbPrice = parseFloat(response.data.price);
+  } catch (error) {
+    console.error('Error fetching BNB price:', error.message);
+  }
+}
+
+// Fetch the ETH, POL and BNB price once on startup
 getEthPrice();
+getPolPrice();
+getBnbPrice();
 // And then every 5 minutes
 cron.schedule('*/5 * * * *', getEthPrice);
+cron.schedule('*/5 * * * *', getPolPrice);
+cron.schedule('*/5 * * * *', getBnbPrice);
 
 // Configuration
 const PORT = process.env.PORT || 3000;
@@ -167,6 +191,8 @@ function ensureDb(serverId) {
       isError INTEGER NOT NULL,
       reason TEXT,
       ethPrice REAL,
+      polPrice REAL,
+      bnbPrice REAL,
       raw_data TEXT,
       PRIMARY KEY (serverId, hash)
     );
@@ -710,21 +736,30 @@ async function fetchContractTxsAndStoreFor(server) {
 
     if (txs.length > 0) {
       const stmt = db.prepare(`
-        INSERT OR IGNORE INTO contract_transactions (hash, serverId, timestamp, isError, reason, ethPrice, raw_data)
-        VALUES (@hash, @serverId, @timestamp, @isError, @reason, @ethPrice, @raw_data)
+        INSERT OR IGNORE INTO contract_transactions (hash, serverId, timestamp, isError, reason, ethPrice, polPrice, bnbPrice, raw_data)
+        VALUES (@hash, @serverId, @timestamp, @isError, @reason, @ethPrice, @polPrice, @bnbPrice, @raw_data)
       `);
 
       db.transaction((items) => {
         for (const t of items) {
           const isError = String(t.isError || t.errorCode || '0').trim() !== '0';
           const reason = t.txreceipt_status === '0' ? 'Reverted' : (t.errDescription || t.revertReason || 'Unknown');
+          let price = { ethPrice: null, polPrice: null, bnbPrice: null };
+          if (server.explorerSite === 'https://polygonscan.com') {
+            price.polPrice = polPrice;
+          } else if (server.explorerSite === 'https://bscscan.com') {
+            price.bnbPrice = bnbPrice;
+          } else {
+            price.ethPrice = ethPrice;
+          }
+
           stmt.run({
             hash: t.hash,
             serverId: serverId,
             timestamp: Number(t.timeStamp) * 1000,
             isError: isError ? 1 : 0,
             reason: isError ? reason : null,
-            ethPrice: ethPrice,
+            ...price,
             raw_data: JSON.stringify(t)
           });
         }
@@ -1891,7 +1926,22 @@ app.get('/contracts/analysis', async (req, res) => {
       const gasFee = (gasPrice * gasUsed) + l1Fee;
 
       const gasFeeInEth = gasFee / 1e18;
-      const price = t.ethPrice || ethPrice;
+      let price = 0;
+      if (t.ethPrice) {
+        price = t.ethPrice;
+      } else if (t.polPrice) {
+        price = t.polPrice;
+      } else if (t.bnbPrice) {
+        price = t.bnbPrice;
+      } else {
+        if (server.explorerSite === 'https://polygonscan.com') {
+          price = polPrice;
+        } else if (server.explorerSite === 'https://bscscan.com') {
+          price = bnbPrice;
+        } else {
+          price = ethPrice;
+        }
+      }
       const gasFeeInUsdt = price ? gasFeeInEth * price : 0;
 
       const explorerBase = (server.explorerSite || '').replace(/\/?$/, '');

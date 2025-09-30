@@ -144,6 +144,17 @@ function ensureDb(serverId) {
       UNIQUE(curId, ts)
     );
   `);
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS contract_transactions (
+      hash TEXT NOT NULL,
+      serverId TEXT NOT NULL,
+      timestamp INTEGER NOT NULL,
+      isError INTEGER NOT NULL,
+      reason TEXT,
+      raw_data TEXT,
+      PRIMARY KEY (serverId, hash)
+    );
+  `);
   ensureDiffHistoryColumns(_db);
   dbCache.set(serverId, _db);
   return _db;
@@ -627,6 +638,88 @@ async function fetchStatusAndStoreFor(server) {
   }
 }
 
+async function fetchContractTxsAndStoreFor(server) {
+  if (!server || !server.contractAddress) return;
+
+  const { id: serverId, contractAddress, chainId, explorerApiKey, explorerApiBase } = server;
+  const db = ensureDb(serverId);
+
+  try {
+    const apiKey = (explorerApiKey || ETHERSCAN_API_KEY || '').trim();
+    const useUnifiedApi = Number.isFinite(chainId) && chainId > 0 && apiKey;
+
+    const extractTxs = (payload) => {
+      if (!payload) return [];
+      if (Array.isArray(payload.result)) return payload.result;
+      if (Array.isArray(payload.data)) return payload.data;
+      if (payload.result && Array.isArray(payload.result.transactions)) return payload.result.transactions;
+      return [];
+    };
+
+    const fetchLegacy = async () => {
+      if (!explorerApiBase) return [];
+      const legacyApi = explorerApiBase.replace(/\/?$/, '');
+      const legacyUrl = `${legacyApi}/api?module=account&action=txlist&address=${encodeURIComponent(contractAddress)}&sort=desc&page=1&offset=1000${explorerApiKey ? `&apikey=${encodeURIComponent(explorerApiKey)}` : ''}`;
+      const data = await fetchThrottledEtherscan(legacyUrl);
+      if (typeof (data && data.result) === 'string' && data.result.toLowerCase().includes('max rate limit')) {
+        throw new Error(data.result);
+      }
+      return extractTxs(data);
+    };
+
+    let txs = [];
+    if (useUnifiedApi) {
+      const params = new URLSearchParams({
+        chainid: String(chainId),
+        module: 'account',
+        action: 'txlist',
+        address: contractAddress,
+        sort: 'desc',
+        page: '1',
+        offset: '1000'
+      });
+      if (apiKey) params.append('apikey', apiKey);
+      const unifiedUrl = `${ETHERSCAN_API_URL}/api?${params.toString()}`;
+      const data = await fetchThrottledEtherscan(unifiedUrl);
+      if (typeof (data && data.result) === 'string' && data.result.toLowerCase().includes('max rate limit')) {
+        throw new Error(data.result);
+      }
+      txs = extractTxs(data);
+      if ((!txs || txs.length === 0) && explorerApiBase && data && ((data.status === '0' && data.result) || data.message === 'NOTOK')) {
+        txs = await fetchLegacy();
+      }
+    } else {
+      txs = await fetchLegacy();
+    }
+
+    if (txs.length > 0) {
+      const stmt = db.prepare(`
+        INSERT OR IGNORE INTO contract_transactions (hash, serverId, timestamp, isError, reason, raw_data)
+        VALUES (@hash, @serverId, @timestamp, @isError, @reason, @raw_data)
+      `);
+
+      db.transaction((items) => {
+        for (const t of items) {
+          const isError = String(t.isError || t.errorCode || '0').trim() !== '0';
+          const reason = t.txreceipt_status === '0' ? 'Reverted' : (t.errDescription || t.revertReason || 'Unknown');
+          stmt.run({
+            hash: t.hash,
+            serverId: serverId,
+            timestamp: Number(t.timeStamp) * 1000,
+            isError: isError ? 1 : 0,
+            reason: isError ? reason : null,
+            raw_data: JSON.stringify(t)
+          });
+        }
+      })(txs);
+      console.log(`[contracts:${serverId}] Stored ${txs.length} transactions.`);
+    }
+
+  } catch (err) {
+    console.error(`[contracts:${serverId}] Fetch/store error:`, err.message);
+  }
+}
+
 async function ensureInitialTradesSync(server) {
   if (!server) return;
   if (initialTradesSynced.has(server.id)) return;
@@ -641,7 +734,7 @@ async function fetchAllAndStore() {
     // Fetch status first to ensure it's processed before other data
     await fetchStatusAndStoreFor(s);
     // Then fetch balances and trades in parallel
-    await Promise.allSettled([fetchBalancesAndStoreFor(s), fetchTradesAndStoreFor(s), fetchDiffDataAndStoreFor(s)]);
+    await Promise.allSettled([fetchBalancesAndStoreFor(s), fetchTradesAndStoreFor(s), fetchDiffDataAndStoreFor(s), fetchContractTxsAndStoreFor(s)]);
   }
 }
 
@@ -1747,123 +1840,45 @@ function fetchThrottledEtherscan(url) {
 app.get('/contracts/analysis', async (req, res) => {
   try {
     const serverId = req.query.serverId || loadServers().activeId;
-    const cfg = loadServers();
-    const s = cfg.servers.find(x => x.id === serverId) || cfg.servers.find(x => x.id === cfg.activeId) || cfg.servers[0];
-    if (!s) return res.status(404).json({ error: 'No server configured' });
-    if (!s.contractAddress) {
-      return res.status(400).json({ error: 'Server missing contractAddress' });
-    }
+    const db = ensureDb(serverId);
 
-    const addr = s.contractAddress;
-    const chainId = Number(s.chainId);
-    const apiKey = (s.explorerApiKey || ETHERSCAN_API_KEY || '').trim();
-    const useUnifiedApi = Number.isFinite(chainId) && chainId > 0 && apiKey;
-    console.log('[contracts/analysis] server', serverId, 'address', addr, 'chainId', chainId, 'useUnified', useUnifiedApi);
+    // Fetch latest transactions and store them
+    const server = (loadServers().servers.find(s => s.id === serverId)) || getActiveServer();
+    await fetchContractTxsAndStoreFor(server);
 
-    const extractTxs = (payload) => {
-      if (!payload) return [];
-      if (Array.isArray(payload.result)) return payload.result;
-      if (Array.isArray(payload.data)) return payload.data;
-      if (payload.result && Array.isArray(payload.result.transactions)) return payload.result.transactions;
-      return [];
-    };
-
-    const fetchLegacy = async () => {
-      if (!s.explorerApiBase) return [];
-      const legacyApi = s.explorerApiBase.replace(/\/?$/, '');
-      const legacyUrl = `${legacyApi}/api?module=account&action=txlist&address=${encodeURIComponent(addr)}&sort=desc&page=1&offset=1000${s.explorerApiKey ? `&apikey=${encodeURIComponent(s.explorerApiKey)}` : ''}`;
-      console.log('[contracts/analysis] legacy fetch', maskEtherscanUrl(legacyUrl));
-      const data = await fetchThrottledEtherscan(legacyUrl);
-      if (typeof (data && data.result) === 'string' && data.result.toLowerCase().includes('max rate limit')) {
-        throw new Error(data.result);
-      }
-      const txs = extractTxs(data);
-      console.log('[contracts/analysis] legacy results', Array.isArray(txs) ? txs.length : 0);
-      return txs;
-    };
-
-    let txs = [];
-    try {
-      if (useUnifiedApi) {
-        const params = new URLSearchParams({
-          chainid: String(chainId),
-          module: 'account',
-          action: 'txlist',
-          address: addr,
-          sort: 'desc',
-          page: '1',
-          offset: '1000'
-        });
-        if (apiKey) params.append('apikey', apiKey);
-        const unifiedUrl = `${ETHERSCAN_API_URL}/api?${params.toString()}`;
-        const data = await fetchThrottledEtherscan(unifiedUrl);
-        if (typeof (data && data.result) === 'string' && data.result.toLowerCase().includes('max rate limit')) {
-          throw new Error(data.result);
-        }
-        txs = extractTxs(data);
-        if ((!txs || txs.length === 0) && s.explorerApiBase && data && ((data.status === '0' && data.result) || data.message === 'NOTOK')) {
-          txs = await fetchLegacy();
-        }
-      } else {
-        txs = await fetchLegacy();
-      }
-    } catch (e) {
-      console.error('[contracts/analysis] unified fetch error:', e.message);
-      if (useUnifiedApi && s.explorerApiBase) {
-        try {
-          txs = await fetchLegacy();
-        } catch (fallbackErr) {
-          console.error('[contracts/analysis] legacy fallback error:', fallbackErr.message);
-          return res.status(502).json({ error: 'Failed to fetch transactions from explorer API' });
-        }
-      } else {
-        return res.status(502).json({ error: 'Failed to fetch transactions from explorer API' });
-      }
-    }
-
-    console.log('[contracts/analysis] tx count', txs.length);
+    const rows = db.prepare('SELECT * FROM contract_transactions WHERE serverId = ? ORDER BY timestamp DESC').all(serverId);
 
     const since24h = Date.now() - (24 * 60 * 60 * 1000);
-    const recent = txs.filter(t => {
-      const ts = Number(t.timeStamp) * 1000;
-      return Number.isFinite(ts) && ts >= since24h;
-    });
-
-    function isSuccess(t) {
-      return String(t.isError || t.errorCode || '0').trim() === '0';
-    }
+    const recent = rows.filter(t => t.timestamp >= since24h);
 
     const buckets = [1, 4, 8, 12, 24];
     const now = Date.now();
     const periods = {};
     for (const h of buckets) periods[`${h}h`] = { success: 0, fail: 0 };
     for (const t of recent) {
-      const ts = Number(t.timeStamp) * 1000;
-      const ageH = (now - ts) / (60 * 60 * 1000);
+      const ageH = (now - t.timestamp) / (60 * 60 * 1000);
       for (const h of buckets) {
         if (ageH <= h) {
-          if (isSuccess(t)) periods[`${h}h`].success++; else periods[`${h}h`].fail++;
+          if (!t.isError) periods[`${h}h`].success++; else periods[`${h}h`].fail++;
         }
       }
     }
 
-    const failed = recent.filter(t => !isSuccess(t)).slice(0, 100);
+    const failed = recent.filter(t => t.isError).slice(0, 100);
 
     const failedWithReasons = failed.map(t => {
-      const ts = Number(t.timeStamp) * 1000;
-      const reason = t.txreceipt_status === '0' ? 'Reverted' : (t.errDescription || t.revertReason || 'Unknown');
-      const explorerBase = (s.explorerSite || '').replace(/\/?$/, '');
+      const explorerBase = (server.explorerSite || '').replace(/\/?$/, '');
       const traceUrl = explorerBase ? `${explorerBase}/vmtrace?txhash=${t.hash}&type=gethtrace2` : null;
       return {
         hash: t.hash,
-        time: Number.isFinite(ts) ? new Date(ts).toISOString() : '',
-        reason,
+        time: new Date(t.timestamp).toISOString(),
+        reason: t.reason,
         link: explorerBase ? `${explorerBase}/tx/${t.hash}` : null,
         traceUrl
       };
     });
 
-    res.json({ serverId, address: addr, periods, failed: failedWithReasons, totalAnalyzed: recent.length, chainId: Number.isFinite(chainId) ? chainId : undefined });
+    res.json({ serverId, address: server.contractAddress, periods, failed: failedWithReasons, totalAnalyzed: recent.length, chainId: Number.isFinite(server.chainId) ? server.chainId : undefined });
   } catch (err) {
     console.error('[api:/contracts/analysis] error:', err.message);
     res.status(500).json({ error: 'Internal server error' });

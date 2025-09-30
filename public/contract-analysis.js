@@ -54,7 +54,7 @@ async function loadData() {
       const link = f.link || null;
       const hashCell = link ? `<a href="${link}" target="_blank" rel="noopener">${hashLabel}</a>` : hashLabel;
       const logsIcon = f.traceUrl ? `<a href="${f.traceUrl}" target="_blank" rel="noopener" title="View trace">&#128221;</a>` : '';
-      tr.innerHTML = `<td>${f.time}</td><td>${hashCell}</td><td>${f.reason || ''}</td><td>${fmtNum(f.gasFee, 6)}</td><td class="logs-cell">${logsIcon}</td>`;
+      tr.innerHTML = `<td>${f.time}</td><td>${hashCell}</td><td>${f.reason || ''}</td><td>${f.gasFee}</td><td class="logs-cell">${logsIcon}</td>`;
       failedTblBody.appendChild(tr);
     }
     applyFailedSearch();

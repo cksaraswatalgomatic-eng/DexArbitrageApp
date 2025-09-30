@@ -1879,7 +1879,7 @@ app.get('/contracts/analysis', async (req, res) => {
         hash: t.hash,
         time: new Date(t.timestamp).toISOString(),
         reason: t.reason,
-        gasFee: gasFee / 1e18, // Convert from Wei to Ether
+        gasFee: gasFee,
         link: explorerBase ? `${explorerBase}/tx/${t.hash}` : null,
         traceUrl
       };

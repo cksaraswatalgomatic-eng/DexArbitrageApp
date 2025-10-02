@@ -2031,7 +2031,7 @@ async function sendBalanceUpdate() {
   const cfg = loadServers();
   const data = await getBalanceUpdateData();
   
-  // Format the message
+  // Format the message containing data for all servers
   let message = '';
   for (const serverData of data) {
     message += `📊 *SERVER: ${serverData.server}*\n`;
@@ -2046,20 +2046,23 @@ async function sendBalanceUpdate() {
     message += '\n';
   }
   
-  // Send notification for each server
-  for (const server of cfg.servers) {
-    const notifier = ensureNotifier(server.id);
-    if (!notifier) continue;
-    
-    // Use channels specified in the rule configuration
-    const ruleChannels = notifier.getRuleConfig('balanceUpdate')?.channels;
-    const channels = ruleChannels || ['slack']; // Default to slack
-    
-    await notifier.notify('balanceUpdate', {
-      title: `Balance Update for All Servers`,
-      message: message,
-      channels: channels
-    });
+  // Since this is a global notification for all servers, we'll use the rule configuration
+  // from the first server's notifier, but the config is shared across all servers
+  if (cfg.servers.length > 0) {
+    // Get configuration from the first server's notifier
+    const firstServerNotifier = ensureNotifier(cfg.servers[0].id);
+    if (firstServerNotifier) {
+      // Use channels specified in the rule configuration
+      const ruleChannels = firstServerNotifier.getRuleConfig('balanceUpdate')?.channels;
+      const channels = ruleChannels || ['slack']; // Default to slack
+      
+      // Send notification once for all servers with data for all servers
+      await firstServerNotifier.notify('balanceUpdate', {
+        title: `Balance Update for All Servers`,
+        message: message,
+        channels: channels
+      });
+    }
   }
 }
 

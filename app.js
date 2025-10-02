@@ -319,9 +319,9 @@ async function fetchDiffDataAndStoreFor(server) {
     console.log('[diffdata:' + server.label + '] Stored ' + rows.length + ' diff data points.');
   } catch (err) {
     const status = err?.response?.status;
+    const notifier = ensureNotifier(server.id);
     if (status === 404) {
       console.log(`[diffdata:${server.label}] 404 (not found). Skipping.`);
-      const notifier = ensureNotifier(server.id);
       if (notifier) {
         notifier.notify('pollFailed', {
           title: `Poll Failed: ${server.label}`,
@@ -330,8 +330,18 @@ async function fetchDiffDataAndStoreFor(server) {
           uniqueKey: 'diffdata-404'  // Add unique key to differentiate from other poll failures
         }).catch(err => console.error('Notifier error:', err.message));
       }
+    } else {
+      // Handle other types of errors, such as connection failures
+      console.error(`[diffdata:${server.label}] Fetch/store error:`, err.message);
+      if (notifier) {
+        notifier.notify('pollFailed', {
+          title: `Poll Failed: ${server.label}`,
+          message: `Failed to fetch diffdata (${err.message})`,
+          details: { server: server.label, error: err.message, type: 'connection-error' },
+          uniqueKey: `diffdata-conn-error-${err.code || 'unknown'}`  // Unique key based on error code
+        }).catch(err => console.error('Notifier error:', err.message));
+      }
     }
-    else console.error(`[diffdata:${server.label}] Fetch/store error:`, err.message);
   }
 }
 
@@ -556,8 +566,21 @@ async function fetchBalancesAndStoreFor(server) {
     console.log(`[balances:${server.label}] Stored @ ${row.timestamp} | total_usdt=${totalUsdt}${totalCoin != null ? ` total_coin=${totalCoin}` : ''}`);
   } catch (err) {
     const status = err?.response?.status;
-    if (status === 404) console.log(`[balances:${server.label}] 404 (not found). Skipping.`);
-    else console.error(`[balances:${server.label}] Fetch/store error:`, err.message);
+    const notifier = ensureNotifier(server.id);
+    if (status === 404) {
+      console.log(`[balances:${server.label}] 404 (not found). Skipping.`);
+    } else {
+      // Handle other types of errors, such as connection failures
+      console.error(`[balances:${server.label}] Fetch/store error:`, err.message);
+      if (notifier) {
+        notifier.notify('pollFailed', {
+          title: `Poll Failed: ${server.label}`,
+          message: `Failed to fetch balances (${err.message})`,
+          details: { server: server.label, error: err.message, type: 'connection-error' },
+          uniqueKey: `balances-conn-error-${err.code || 'unknown'}`  // Unique key based on error code
+        }).catch(err => console.error('Notifier error:', err.message));
+      }
+    }
   }
 }
 
@@ -662,6 +685,15 @@ async function fetchTradesAndStoreFor(server) {
     storeCompletedTrades(server, arr, 'delta');
   } catch (err) {
     console.error(`[trades:${server?.label}] Fetch/store error:`, err.message);
+    const notifier = ensureNotifier(server.id);
+    if (notifier) {
+      notifier.notify('pollFailed', {
+        title: `Poll Failed: ${server.label}`,
+        message: `Failed to fetch trades (${err.message})`,
+        details: { server: server.label, error: err.message, type: 'connection-error' },
+        uniqueKey: `trades-conn-error-${err.code || 'unknown'}`  // Unique key based on error code
+      }).catch(err => console.error('Notifier error:', err.message));
+    }
   }
 }
 
@@ -747,6 +779,15 @@ async function fetchStatusAndStoreFor(server) {
     }
   } catch (err) {
     console.error(`[status:${server?.label}] Fetch/store error:`, err.message);
+    const notifier = ensureNotifier(server.id);
+    if (notifier) {
+      notifier.notify('pollFailed', {
+        title: `Poll Failed: ${server.label}`,
+        message: `Failed to fetch status (${err.message})`,
+        details: { server: server.label, error: err.message, type: 'connection-error' },
+        uniqueKey: `status-conn-error-${err.code || 'unknown'}`  // Unique key based on error code
+      }).catch(err => console.error('Notifier error:', err.message));
+    }
   }
 }
 
@@ -839,6 +880,15 @@ async function fetchContractTxsAndStoreFor(server) {
 
   } catch (err) {
     console.error(`[contracts:${serverId}] Fetch/store error:`, err.message);
+    const notifier = ensureNotifier(serverId);
+    if (notifier) {
+      notifier.notify('pollFailed', {
+        title: `Poll Failed: ${serverId}`,
+        message: `Failed to fetch contract transactions (${err.message})`,
+        details: { server: serverId, error: err.message, type: 'connection-error' },
+        uniqueKey: `contracts-conn-error-${err.code || 'unknown'}`  // Unique key based on error code
+      }).catch(err => console.error('Notifier error:', err.message));
+    }
   }
 }
 

@@ -1865,6 +1865,44 @@ app.post('/servers', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.put('/servers/:id', (req, res) => {
+  try {
+    const { label, baseUrl, balancesPath = '/balance', completedPath = '/completed', contractAddress, explorerSite, explorerApiBase, explorerApiKey, chainId } = req.body || {};
+    if (!label || !baseUrl) return res.status(400).json({ error: 'label and baseUrl required' });
+
+    let parsedChainId;
+    if (chainId !== undefined && chainId !== null && String(chainId).trim() !== '') {
+      const n = Number(chainId);
+      if (!Number.isFinite(n)) return res.status(400).json({ error: 'chainId must be a number' });
+      parsedChainId = n;
+    }
+
+    const cfg = loadServers();
+    const serverIndex = cfg.servers.findIndex(s => s.id === req.params.id);
+    if (serverIndex === -1) return res.status(404).json({ error: 'server not found' });
+
+    // Update the server details
+    cfg.servers[serverIndex] = {
+      ...cfg.servers[serverIndex],  // Keep existing properties not being updated
+      id: req.params.id,  // Keep the same ID
+      label,
+      baseUrl,
+      balancesPath,
+      completedPath,
+      contractAddress,
+      explorerSite,
+      explorerApiBase,
+      explorerApiKey
+    };
+
+    // Only add chainId if it was provided and is valid
+    if (parsedChainId !== undefined) cfg.servers[serverIndex].chainId = parsedChainId;
+
+    saveServers(cfg);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.delete('/servers/:id', (req, res) => {
   try {
     const cfg = loadServers();

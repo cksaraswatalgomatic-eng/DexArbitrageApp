@@ -1608,7 +1608,21 @@ app.get('/notifications/recent', (req, res) => {
   try {
     const db = getDbFromReq(req);
     const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 100, 500));
-    const items = db.prepare('SELECT * FROM notifications_log ORDER BY created_at DESC LIMIT ?').all(limit);
+    // Map the database field 'created_at' to 'createdAt' for JavaScript convention
+    const items = db.prepare(`
+      SELECT 
+        server_id as serverId,
+        rule,
+        title,
+        channel,
+        status,
+        message,
+        details,
+        created_at as createdAt
+      FROM notifications_log 
+      ORDER BY created_at DESC 
+      LIMIT ?
+    `).all(limit);
     res.json({ items });
   } catch (err) {
     console.error('[api:/notifications/recent] error:', err.message);

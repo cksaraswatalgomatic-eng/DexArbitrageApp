@@ -1,4 +1,4 @@
-# Dex Arbitrage App
+﻿# Dex Arbitrage App
 
 Simple Node.js app that periodically fetches balances and completed trades from a remote service, stores them in a local SQLite database, and serves a small UI plus JSON APIs for charts and dashboards.
 
@@ -10,6 +10,7 @@ Simple Node.js app that periodically fetches balances and completed trades from 
 - CORS enabled for easy local development and embedding.
 - **Diff Analysis Page:** Provides detailed visualization and analysis of price differences (diffs) between DEX and CEX, including historical data, server token values, and integrated trade profitability.
 
+ - Notification system with Telegram, Slack, and Email providers, including configurable rules, digests, and a notifications dashboard.
 ## Prerequisites
 
 - Node.js 18+ (Node 20 LTS recommended)
@@ -17,7 +18,7 @@ Simple Node.js app that periodically fetches balances and completed trades from 
 
 Windows note about `better-sqlite3` with Node 22:
 - If `npm install` fails compiling `better-sqlite3` on Node 22, either:
-  - Install MSVC build tools: Visual Studio 2022 Build Tools with “Desktop development with C++”, then rerun `npm install`, or
+  - Install MSVC build tools: Visual Studio 2022 Build Tools with â€œDesktop development with C++â€, then rerun `npm install`, or
   - Use Node 20 LTS via nvm-windows (recommended for simplicity).
 
 ## Quick Start
@@ -62,6 +63,13 @@ Remove-Item Env:BALANCES_URL  # or: $env:BALANCES_URL = ''
 npm start
 ```
 
+## Notifications
+
+- Configure per-server providers (Telegram bot + chat, Slack webhook, SMTP email) from the Servers admin page or directly in `servers.json`.
+- Notification rules support thresholds and cooldowns (`notificationRules` in `servers.json`). Defaults include profit alerts, low gas alerts, poll failure alerts, daily digests, and hourly digests.
+- A new `/notifications/recent` API exposes the delivery log, and `/notifications.html` renders a table with status, channel, and details.
+- Daily digest (default 09:00) summarises 24h net profit, success rate, fees, top pairs, and low-gas counts. Hourly digest (default at minute 5) highlights recent token activity and gas warnings.
+- Digests honour the configured channels (email/slack) and respect cooldowns/unique keys to avoid duplicates.
 ### Contract Analysis Setup
 
 - Add a `chainId` property to any entry in `servers.json` (or through the Servers admin page) to identify the target EVM chain.
@@ -73,7 +81,7 @@ npm start
 - `GET /health`: Basic liveness check.
 - `GET /balances`: Latest balance snapshot. Returns `{ timestamp, total_usdt, total_coin }`.
 - `GET /balances/history?limit=500`:
-  - Returns an array of balance snapshots ordered oldest → newest.
+  - Returns an array of balance snapshots ordered oldest â†’ newest.
   - `limit` defaults to 500, min 1, max 5000.
 - `GET /trades/history?token={tokenName}&startTime={timestamp}&endTime={timestamp}`:
   - Returns trade history for a specific token within a given time range.
@@ -116,14 +124,14 @@ The database is created automatically on first run. Two tables are used:
 
 - Cron expression: `*/2 * * * *` (runs every 2 minutes)
 - Tasks:
-  - Fetch balances → compute totals → insert into `balances_history`.
-  - Fetch completed trades → insert or ignore (by primary key) into `completed_trades`.
+  - Fetch balances â†’ compute totals â†’ insert into `balances_history`.
+  - Fetch completed trades â†’ insert or ignore (by primary key) into `completed_trades`.
 
 Logs will indicate stored balance totals and how many new trades were inserted.
 
 ## Troubleshooting
 
-- `Error: Cannot find module 'express'` → run `npm install` in the project root.
+- `Error: Cannot find module 'express'` â†’ run `npm install` in the project root.
 - `better-sqlite3` build errors on Windows with Node 22:
   - Option A: Install Visual Studio 2022 Build Tools with C++ workload, then `npm install`.
   - Option B: Switch to Node 20 LTS (e.g., via nvm-windows), then `npm install`.
@@ -138,7 +146,7 @@ Logs will indicate stored balance totals and how many new trades were inserted.
 
 ## Scripts
 
-- `npm start` – run the server (`node app.js`).
+- `npm start` â€“ run the server (`node app.js`).
 
 ---
 
@@ -146,12 +154,12 @@ If you want environment-variable driven configuration for the remote URLs or DB 
 
 ## Feature Guide (Quick Reference)
 
-This is a condensed guide to the in‑app documentation available at `/docs.html`.
+This is a condensed guide to the inâ€‘app documentation available at `/docs.html`.
 
 - Total USDT Balance Over Time: Combined DEX (usdtVal + coinVal) + BinanceF (USDT + sum of unrealized PnL). Zoom with wheel/drag, pan with Ctrl + drag. Reset using the header button.
-- DEX Exchange Balances: Per‑exchange totals and token rows (filtered to `totalUsdt > 0.1`). Use search and column sorting.
-- BinanceF Balances: Token USDT value = `(entryPrice × total)/leverage + unrealizedProfit`. USDT total = wallet USDT + sum of unrealized PnL.
-- Completed Trades: Shows `executedGrossProfit` (green/red), `Quantity = executedSrcPrice × executedQtySrc`, timestamps, parsed `props` (`Dex`, `Diff`, `DexSlip`, `CexSlip`). Sort/search supported.
+- DEX Exchange Balances: Perâ€‘exchange totals and token rows (filtered to `totalUsdt > 0.1`). Use search and column sorting.
+- BinanceF Balances: Token USDT value = `(entryPrice Ã— total)/leverage + unrealizedProfit`. USDT total = wallet USDT + sum of unrealized PnL.
+- Completed Trades: Shows `executedGrossProfit` (green/red), `Quantity = executedSrcPrice Ã— executedQtySrc`, timestamps, parsed `props` (`Dex`, `Diff`, `DexSlip`, `CexSlip`). Sort/search supported.
 - Pair Analysis:
   - Bar Chart: Total Gross Profit by Pair (top 20).
   - Win Rate (Top Winners) and Total Loss (Top Losers): Charts to spot consistent winners and risky pairs.
@@ -161,9 +169,9 @@ This is a condensed guide to the in‑app documentation available at `/docs.html
   - Gross Profit Distribution histogram.
   - Scatter: chosen X vs gross profit.
 - ML Analysis:
-  - Scatter + Linear Regression, with correlation and R². Points colored by sign of Y. Zoom/pan.
+  - Scatter + Linear Regression, with correlation and RÂ². Points colored by sign of Y. Zoom/pan.
   - Outlier clipping and histogram bin control.
-  - Histograms for X and Y and Residuals (Y − Ŷ) scatter.
+  - Histograms for X and Y and Residuals (Y âˆ’ Å¶) scatter.
   - Correlation Matrix: Select variables, compute Pearson correlations; green positive, red negative.
 
 ## Diff Analysis Page Enhancements

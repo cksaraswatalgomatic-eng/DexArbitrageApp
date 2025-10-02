@@ -20,7 +20,9 @@
       <div class="controls">
         <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
         <a class="nav-link" href="/">Dashboard</a>
-        <a class="nav-link" href="/docs.html">Docs</a>
+<a class="nav-link" href="/docs.html">Docs</a>
+        <a class="icon-btn" href="/notifications.html" title="Notifications" aria-label="Notifications">&#128276;</a>
+        <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
       </div>
     </header>
     <main style="max-width:1024px;margin:0 auto;padding:16px">
@@ -34,7 +36,7 @@
         </div>
       </section>
       <section class="card">
-        <h2 id="formTitle">Add Server</h2>
+        <h2 id="formTitle">Add/Edit Server</h2>
         <form id="srvForm">
           <input type="hidden" id="srvId" />
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -49,8 +51,138 @@
             <label>Explorer API Key <input id="explorerApiKey" placeholder="(optional)"></label>
           </div>
           <div style="margin-top:12px;display:flex;gap:8px">
-            <button class="btn-orange" type="submit">Save</button>
-            <button class="btn" type="button" id="resetBtn">Reset</button>
+            <button class="btn-orange" type="submit">Save Server</button>
+            <button class="btn" type="button" id="resetSrvBtn">Reset</button>
+          </div>
+        </form>
+      </section>
+      <section class="card">
+        <h2>Notification Settings</h2>
+        <form id="notifForm">
+          <fieldset>
+            <fieldset style="border:1px solid var(--border);border-radius:6px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <legend>Telegram</legend>
+              <label style="grid-column:1 / -1"><input type="checkbox" id="telegramEnabled"> Enable Telegram</label>
+              <label>Bot Token <input id="telegramBotToken" placeholder="Secret token"></label>
+              <label>Chat ID <input id="telegramChatId" placeholder="@channel or numeric"></label>
+            </fieldset>
+            <fieldset style="border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <legend>Slack</legend>
+              <label style="grid-column:1 / -1"><input type="checkbox" id="slackEnabled"> Enable Slack Webhook</label>
+              <label style="grid-column:1 / -1">Webhook URL <input id="slackWebhookUrl" placeholder="https://hooks.slack.com/..." /></label>
+            </fieldset>
+            <fieldset style="border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <legend>Email (SMTP)</legend>
+              <label style="grid-column:1 / -1"><input type="checkbox" id="emailEnabled"> Enable Email</label>
+              <label>SMTP Host <input id="emailSmtpHost" placeholder="smtp.example.com"></label>
+              <label>SMTP Port <input id="emailSmtpPort" placeholder="587" value="587"></label>
+              <label style="grid-column:1 / -1"><input type="checkbox" id="emailSecure"> Use TLS/SSL</label>
+              <label>Username <input id="emailUser" placeholder="user"></label>
+              <label>Password <input id="emailPass" type="password" placeholder="password"></label>
+              <label>From <input id="emailFrom" placeholder="alerts@example.com"></label>
+              <label>To <input id="emailTo" placeholder="comma,separated@example.com"></label>
+            </fieldset>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button class="btn-orange" type="submit">Save Notifications</button>
+              <button class="btn" type="button" id="resetNotifBtn">Reset</button>
+            </div>
+          </fieldset>
+        </form>
+      </section>
+      <section class="card">
+        <h2>Notification Rules & Schedules</h2>
+        <form id="rulesForm">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div style="border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 1.2em; color: var(--text);">Hourly Digest</h3>
+              <label style="display: block; margin-bottom: 6px;">Minute (0-59) <input id="hourlyMinute" type="number" min="0" max="59" value="5" style="width: 100px; margin-left: 8px;" /></label>
+              <label style="display: block; margin-bottom: 12px;">Cooldown (minutes) <input id="hourlyCooldown" type="number" min="1" value="60" style="width: 100px; margin-left: 8px;" /></label>
+              <div style="margin-top:8px">
+                <h4 style="margin: 0 0 6px 0; font-size: 0.95em;">Channels:</h4>
+                <div style="display: flex; gap: 12px;">
+                  <label><input type="checkbox" id="hourlySlack" /> Slack</label>
+                  <label><input type="checkbox" id="hourlyTelegram" /> Telegram</label>
+                  <label><input type="checkbox" id="hourlyEmail" /> Email</label>
+                </div>
+              </div>
+            </div>
+            <div style="border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 1.2em; color: var(--text);">Daily Digest</h3>
+              <label style="display: block; margin-bottom: 6px;">Hour (0-23) <input id="dailyHour" type="number" min="0" max="23" value="9" style="width: 100px; margin-left: 8px;" /></label>
+              <label style="display: block; margin-bottom: 6px;">Minute (0-59) <input id="dailyMinute" type="number" min="0" max="59" value="0" style="width: 100px; margin-left: 8px;" /></label>
+              <label style="display: block; margin-bottom: 12px;">Cooldown (minutes) <input id="dailyCooldown" type="number" min="1" value="1440" style="width: 100px; margin-left: 8px;" /></label>
+              <div style="margin-top:8px">
+                <h4 style="margin: 0 0 6px 0; font-size: 0.95em;">Channels:</h4>
+                <div style="display: flex; gap: 12px;">
+                  <label><input type="checkbox" id="dailySlack" /> Slack</label>
+                  <label><input type="checkbox" id="dailyTelegram" /> Telegram</label>
+                  <label><input type="checkbox" id="dailyEmail" /> Email</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+            <div style="border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 1.2em; color: var(--text);">Profit Thresholds</h3>
+              <label style="display: block; margin-bottom: 6px;">Low Profit Threshold (%) <input id="profitThreshold" type="number" step="0.01" value="-5" style="width: 100px; margin-left: 8px;" /></label>
+              <label style="display: block; margin-bottom: 12px;">Cooldown (minutes) <input id="profitCooldown" type="number" min="1" value="30" style="width: 100px; margin-left: 8px;" /></label>
+              <div style="margin-top:8px">
+                <h4 style="margin: 0 0 6px 0; font-size: 0.95em;">Channels:</h4>
+                <div style="display: flex; gap: 12px;">
+                  <label><input type="checkbox" id="profitSlack" /> Slack</label>
+                  <label><input type="checkbox" id="profitTelegram" /> Telegram</label>
+                  <label><input type="checkbox" id="profitEmail" /> Email</label>
+                </div>
+              </div>
+            </div>
+            <div style="border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 1.2em; color: var(--text);">Gas Thresholds</h3>
+              <label style="display: block; margin-bottom: 6px;">Low Gas Threshold <input id="gasThreshold" type="number" step="0.01" value="2" style="width: 100px; margin-left: 8px;" /></label>
+              <label style="display: block; margin-bottom: 12px;">Cooldown (minutes) <input id="gasCooldown" type="number" min="1" value="60" style="width: 100px; margin-left: 8px;" /></label>
+              <div style="margin-top:8px">
+                <h4 style="margin: 0 0 6px 0; font-size: 0.95em;">Channels:</h4>
+                <div style="display: flex; gap: 12px;">
+                  <label><input type="checkbox" id="gasSlack" /> Slack</label>
+                  <label><input type="checkbox" id="gasTelegram" /> Telegram</label>
+                  <label><input type="checkbox" id="gasEmail" /> Email</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+            <div style="border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 1.2em; color: var(--text);">Poll Failed</h3>
+              <label style="display: block; margin-bottom: 12px;">Cooldown (minutes) <input id="pollFailedCooldown" type="number" min="1" value="30" style="width: 100px; margin-left: 8px;" /></label>
+              <div style="margin-top:8px">
+                <h4 style="margin: 0 0 6px 0; font-size: 0.95em;">Channels:</h4>
+                <div style="display: flex; gap: 12px;">
+                  <label><input type="checkbox" id="pollFailedSlack" /> Slack</label>
+                  <label><input type="checkbox" id="pollFailedTelegram" /> Telegram</label>
+                  <label><input type="checkbox" id="pollFailedEmail" /> Email</label>
+                </div>
+              </div>
+            </div>
+            
+            <div style="border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+              <h3 style="margin: 0 0 8px 0; font-size: 1.2em; color: var(--text);">Balance Update</h3>
+              <label style="display: block; margin-bottom: 12px;">Cooldown (minutes) <input id="balanceUpdateCooldown" type="number" min="1" value="60" style="width: 100px; margin-left: 8px;" /></label>
+              <div style="margin-top:8px">
+                <h4 style="margin: 0 0 6px 0; font-size: 0.95em;">Channels:</h4>
+                <div style="display: flex; gap: 12px;">
+                  <label><input type="checkbox" id="balanceUpdateSlack" checked /> Slack</label>
+                  <label><input type="checkbox" id="balanceUpdateTelegram" /> Telegram</label>
+                  <label><input type="checkbox" id="balanceUpdateEmail" /> Email</label>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn-orange" type="submit">Save Notification Rules</button>
+            <button class="btn" type="button" id="resetRulesBtn">Reset</button>
           </div>
         </form>
       </section>
@@ -64,7 +196,7 @@
           const caddr = s.contractAddress || '';
           const explorerSite = s.explorerSite || '';
           const link = caddr ? (explorerSite.replace(/\/?$/, '') + '/txs?a=' + caddr) : '';
-          const contractHtml = caddr ? `<a href="${link}" target="_blank" rel="noopener">${caddr.slice(0,6)}…${caddr.slice(-4)}</a>` : '';
+          const contractHtml = caddr ? `<a href="${link}" target="_blank" rel="noopener">${caddr.slice(0,6)}???${caddr.slice(-4)}</a>` : '';
           const chainIdText = s.chainId != null ? s.chainId : '';
           const activeMark = cfg.activeId === s.id ? '&#10003;' : '';
           tr.innerHTML = `<td>${s.label}</td><td>${s.baseUrl}</td><td>${s.balancesPath||'/balance'} | ${s.completedPath||'/completed'}</td><td>${contractHtml}</td><td>${chainIdText}</td><td>${explorerSite}</td><td>${activeMark}</td>
@@ -97,6 +229,31 @@
           document.getElementById('explorerApiKey').value = s.explorerApiKey||'';
         }
       }
+
+      async function loadNotifications() {
+        console.log('Loading notifications...');
+        const notifications = await (await fetch('/notifications/settings')).json();
+        console.log('Fetched notifications:', notifications);
+        const telegram = notifications.telegram || {};
+        const slack = notifications.slack || {};
+        const email = notifications.email || {};
+        document.getElementById('telegramEnabled').checked = !!telegram.enabled;
+        document.getElementById('telegramBotToken').value = telegram.botToken || '';
+        document.getElementById('telegramChatId').value = telegram.chatId || '';
+        document.getElementById('slackEnabled').checked = !!slack.enabled;
+        document.getElementById('slackWebhookUrl').value = slack.webhookUrl || '';
+        document.getElementById('emailEnabled').checked = !!email.enabled;
+        document.getElementById('emailSmtpHost').value = email.smtpHost || '';
+        document.getElementById('emailSmtpPort').value = email.smtpPort != null ? email.smtpPort : '587';
+        document.getElementById('emailSecure').checked = !!email.secure;
+        document.getElementById('emailUser').value = email.user || '';
+        document.getElementById('emailPass').value = email.pass || '';
+        document.getElementById('emailFrom').value = email.from || '';
+        document.getElementById('emailTo').value = email.to || '';
+        console.log('Telegram Enabled:', document.getElementById('telegramEnabled').checked);
+        console.log('Email Pass:', document.getElementById('emailPass').value);
+      }
+
       document.getElementById('srvForm').addEventListener('submit', async (e)=>{
         e.preventDefault();
         const id = document.getElementById('srvId').value.trim();
@@ -116,8 +273,175 @@
         e.target.reset(); document.getElementById('formTitle').textContent='Add Server';
         await loadServers();
       });
-      document.getElementById('resetBtn').addEventListener('click', (e)=>{ document.getElementById('srvForm').reset(); document.getElementById('srvId').value=''; document.getElementById('formTitle').textContent='Add Server'; });
+
+      document.getElementById('notifForm').addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const payload = {
+          telegram: {
+            enabled: document.getElementById('telegramEnabled').checked,
+            botToken: document.getElementById('telegramBotToken').value.trim(),
+            chatId: document.getElementById('telegramChatId').value.trim(),
+          },
+          slack: {
+            enabled: document.getElementById('slackEnabled').checked,
+            webhookUrl: document.getElementById('slackWebhookUrl').value.trim(),
+          },
+          email: {
+            enabled: document.getElementById('emailEnabled').checked,
+            smtpHost: document.getElementById('emailSmtpHost').value.trim(),
+            smtpPort: document.getElementById('emailSmtpPort').value.trim(),
+            secure: document.getElementById('emailSecure').checked,
+            user: document.getElementById('emailUser').value.trim(),
+            pass: document.getElementById('emailPass').value,
+            from: document.getElementById('emailFrom').value.trim(),
+            to: document.getElementById('emailTo').value.trim(),
+          },
+        };
+        await fetch('/notifications/settings', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        alert('Notification settings saved.');
+      });
+
+      document.getElementById('resetSrvBtn').addEventListener('click', (e)=>{ 
+        document.getElementById('srvForm').reset(); 
+        document.getElementById('srvId').value=''; 
+        document.getElementById('formTitle').textContent='Add Server'; 
+      });
+      async function loadNotificationRules() {
+        console.log('Loading notification rules...');
+        const config = await (await fetch('/servers')).json();
+        const rules = config.notificationRules || {};
+        
+        // Helper function to check a channel checkbox if it's in the list
+        function setChannelCheckboxes(prefix, channels) {
+          document.getElementById(prefix + 'Slack').checked = channels.includes('slack');
+          document.getElementById(prefix + 'Telegram').checked = channels.includes('telegram');
+          document.getElementById(prefix + 'Email').checked = channels.includes('email');
+        }
+        
+        // Hourly digest settings
+        if (rules.hourlyDigest) {
+          document.getElementById('hourlyMinute').value = rules.hourlyDigest.minute || 5;
+          document.getElementById('hourlyCooldown').value = rules.hourlyDigest.cooldownMinutes || 60;
+          const hourlyChannels = rules.hourlyDigest.channels || ['slack'];
+          setChannelCheckboxes('hourly', hourlyChannels);
+        }
+        
+        // Daily digest settings
+        if (rules.dailyDigest) {
+          document.getElementById('dailyHour').value = rules.dailyDigest.hour || 9;
+          document.getElementById('dailyMinute').value = rules.dailyDigest.minute || 0;
+          document.getElementById('dailyCooldown').value = rules.dailyDigest.cooldownMinutes || 1440;
+          const dailyChannels = rules.dailyDigest.channels || ['email', 'slack'];
+          setChannelCheckboxes('daily', dailyChannels);
+        }
+        
+        // Profit settings
+        if (rules.profit) {
+          document.getElementById('profitThreshold').value = rules.profit.thresholdPercent || -5;
+          document.getElementById('profitCooldown').value = rules.profit.cooldownMinutes || 30;
+          const profitChannels = rules.profit.channels || ['slack'];
+          setChannelCheckboxes('profit', profitChannels);
+        }
+        
+        // Low gas settings
+        if (rules.lowGas) {
+          document.getElementById('gasThreshold').value = rules.lowGas.threshold || 2;
+          document.getElementById('gasCooldown').value = rules.lowGas.cooldownMinutes || 60;
+          const gasChannels = rules.lowGas.channels || ['slack'];
+          setChannelCheckboxes('gas', gasChannels);
+        }
+        
+        // Poll failed settings
+        if (rules.pollFailed) {
+          document.getElementById('pollFailedCooldown').value = rules.pollFailed.cooldownMinutes || 30;
+          const pollFailedChannels = rules.pollFailed.channels || ['slack'];
+          setChannelCheckboxes('pollFailed', pollFailedChannels);
+        }
+        
+        // Balance Update settings
+        if (rules.balanceUpdate) {
+          document.getElementById('balanceUpdateCooldown').value = rules.balanceUpdate.cooldownMinutes || 60;
+          const balanceUpdateChannels = rules.balanceUpdate.channels || ['slack'];
+          setChannelCheckboxes('balanceUpdate', balanceUpdateChannels);
+        }
+        
+
+      }
+
+      document.getElementById('rulesForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Helper function to get channels from checked checkboxes
+        function getChannelsFromCheckboxes(prefix) {
+          const channels = [];
+          if (document.getElementById(prefix + 'Slack').checked) channels.push('slack');
+          if (document.getElementById(prefix + 'Telegram').checked) channels.push('telegram');
+          if (document.getElementById(prefix + 'Email').checked) channels.push('email');
+          // If no channels selected, default to slack
+          return channels.length > 0 ? channels : ['slack'];
+        }
+        
+        const payload = {
+          notificationRules: {
+
+            'profit-trade': {
+              cooldownMinutes: parseInt(document.getElementById('profitCooldown').value) || 60,
+              channels: getChannelsFromCheckboxes('profit')
+            },
+            lowGas: {
+              threshold: parseFloat(document.getElementById('gasThreshold').value) || 2,
+              cooldownMinutes: parseInt(document.getElementById('gasCooldown').value) || 60,
+              channels: getChannelsFromCheckboxes('gas')
+            },
+            pollFailed: {
+              cooldownMinutes: parseInt(document.getElementById('pollFailedCooldown').value) || 30,
+              channels: getChannelsFromCheckboxes('pollFailed')
+            },
+            profit: {
+              thresholdPercent: parseFloat(document.getElementById('profitThreshold').value) || -5,
+              cooldownMinutes: parseInt(document.getElementById('profitCooldown').value) || 30,
+              channels: getChannelsFromCheckboxes('profit')
+            },
+            dailyDigest: {
+              enabled: true,
+              hour: parseInt(document.getElementById('dailyHour').value) || 9,
+              minute: parseInt(document.getElementById('dailyMinute').value) || 0,
+              channels: getChannelsFromCheckboxes('daily'),
+              cooldownMinutes: parseInt(document.getElementById('dailyCooldown').value) || 1440
+            },
+            hourlyDigest: {
+              enabled: true,
+              minute: parseInt(document.getElementById('hourlyMinute').value) || 5,
+              channels: getChannelsFromCheckboxes('hourly'),
+              cooldownMinutes: parseInt(document.getElementById('hourlyCooldown').value) || 60
+            },
+            balanceUpdate: {
+              cooldownMinutes: parseInt(document.getElementById('balanceUpdateCooldown').value) || 60,
+              channels: getChannelsFromCheckboxes('balanceUpdate')
+            }
+          }
+        };
+        
+        // Save notification rules using the dedicated API endpoint
+        await fetch('/notifications/rules', { 
+          method: 'PUT', 
+          headers: {'Content-Type': 'application/json'}, 
+          body: JSON.stringify(payload.notificationRules) 
+        });
+        
+        alert('Notification rules saved.');
+      });
+
+      document.getElementById('resetRulesBtn').addEventListener('click', (e) => { 
+        loadNotificationRules();
+      });
+
+      document.getElementById('resetNotifBtn').addEventListener('click', (e)=>{ 
+        loadNotifications();
+      });
       loadServers();
+      loadNotifications();
+      loadNotificationRules();
     </script>
     <script src="/servers-client.js"></script>
     <script src="/theme-switcher.js"></script>

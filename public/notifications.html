@@ -1,25 +1,22 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Contract Analysis - Dex Arbitrage</title>
+    <title>Notifications - Dex Arbitrage Dashboard</title>
     <script src="/auth-check.js"></script>
     <link rel="icon" href="/favicon.ico">
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/light-theme.css" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
   </head>
   <body>
     <header>
       <div id="brand">
         <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
-        <h1>Contract Analysis</h1>
+        <h1>Notifications</h1>
       </div>
       <div class="controls">
         <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
@@ -27,39 +24,53 @@
           <select id="serverSelect"></select>
         </label>
         <a class="nav-link" href="/">Dashboard</a>
-        <a class="nav-link" href="/ml-analysis.html">ML Analysis</a>
-        <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
-        <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
-
-        <a class="icon-btn requires-admin" href="/servers.html" data-requires-role="admin" title="Server settings" aria-label="Server settings">&#9881;</a>
+        <a class="nav-link" href="/docs.html">Docs</a>
         <a class="icon-btn" href="/notifications.html" title="Notifications" aria-label="Notifications">&#128276;</a>
         <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
       </div>
     </header>
-    <main>
+    <main style="max-width:1200px;margin:0 auto;padding:16px">
       <section class="card">
-        <div class="chart-header">
-          <h2>Summary <button class="info-btn" data-help="contract-summary">i</button></h2>
-          <div class="chart-nav">
-            <button id="reloadBtn" class="btn">Reload</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <h2 style="margin:0">Recent Notifications</h2>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <label>Show
+              <select id="notificationsLimit">
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </select>
+              items
+            </label>
+            <button id="refreshNotifications" class="btn">Refresh</button>
           </div>
         </div>
-        <div id="summary"></div>
-      </section>
-      <section class="card">
-        <h2>Failed Transactions (last 24h) <button class="info-btn" data-help="contract-failed">i</button></h2>
-        <input id="failedSearch" placeholder="Search by hash or reason..." />
+        <div id="notificationsStatus" class="muted" style="margin:12px 0">Loading...</div>
         <div class="table-wrap">
-          <table id="failedTbl"><thead>
-            <tr><th>Time (UTC)</th><th>Tx Hash</th><th>Reason</th><th>Gas Fee (USDT)</th><th>Logs</th></tr>
-          </thead><tbody></tbody></table>
+          <table id="notificationsTable">
+            <thead>
+              <tr>
+                <th>Sent At</th>
+                <th>Rule</th>
+                <th>Channel</th>
+                <th>Status</th>
+                <th>Title</th>
+                <th>Message</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
       </section>
     </main>
-    <script src="/contract-analysis.js"></script>
+    <footer>
+      <small>Notifications are stored locally per server.</small>
+    </footer>
+    <script src="/notifications.js"></script>
     <script src="/servers-client.js"></script>
-    <script src="/help.js"></script>
     <script src="/theme-switcher.js"></script>
     <script src="/logout.js"></script>
   </body>
-  </html>
+</html>

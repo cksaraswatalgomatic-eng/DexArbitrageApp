@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const cron = require('node-cron');
@@ -6,7 +6,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
-const { Notifier } = require('./notifier.js');
+const { Notifier } = require('./notifier');
 
 let ethPrice = null;
 async function getEthPrice() {
@@ -60,7 +60,478 @@ if (etherscanBase) {
 }
 const ETHERSCAN_API_URL = etherscanBase;
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || '';
+const DEFAULT_NOTIFICATION_RULES = {
+  profit: { thresholdPercent: 5, cooldownMinutes: 30 },
+  lowGas: { threshold: 2, cooldownMinutes: 60 },
+  pollFailed: { cooldownMinutes: 30 },
+  dailyDigest: { enabled: true, hour: 9, minute: 0, channels: ['email', 'slack'], cooldownMinutes: 1440 },
+  hourlyDigest: { enabled: true, minute: 5, channels: ['slack'], cooldownMinutes: 60 },
+};
 
+const DEFAULT_SERVER_NOTIFICATION_SETTINGS = {
+  telegram: { enabled: false, botToken: '', chatId: '' },
+  slack: { enabled: false, webhookUrl: '' },
+  email: {
+    enabled: false,
+    smtpHost: '',
+    smtpPort: 587,
+    secure: false,
+    user: '',
+    pass: '',
+    from: '',
+    to: '',
+  },
+};
+
+const notifierCache = new Map();
+const pollFailureCounts = new Map();
+
+function mergeWithDefaults(source, defaults) {
+  if (defaults == null) {
+    if (source == null) return source;
+    if (Array.isArray(source)) return source.slice();
+    if (typeof source === 'object') return { ...source };
+    return source;
+  }
+  if (Array.isArray(defaults)) {
+    if (Array.isArray(source)) return source.slice();
+    return defaults.slice();
+  }
+  const result = { ...defaults };
+  if (!source || typeof source !== 'object') return result;
+  for (const [key, value] of Object.entries(source)) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && defaults[key] && typeof defaults[key] === 'object' && !Array.isArray(defaults[key])) {
+      result[key] = mergeWithDefaults(value, defaults[key]);
+    } else if (Array.isArray(value)) {
+      result[key] = value.slice();
+    } else if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+function toBoolean(value) {
+  if (value === true || value === false) return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+  }
+  return Boolean(value);
+}
+
+function sanitizeString(value) {
+  return value == null ? '' : String(value).trim();
+}
+
+function normalizeNotificationSettings(settings) {
+  const merged = mergeWithDefaults(settings, DEFAULT_SERVER_NOTIFICATION_SETTINGS);
+  const telegram = merged.telegram || {};
+  const slack = merged.slack || {};
+  const email = merged.email || {};
+  const smtpPortNum = Number(email.smtpPort);
+  return {
+    telegram: {
+      enabled: toBoolean(telegram.enabled),
+      botToken: sanitizeString(telegram.botToken),
+      chatId: sanitizeString(telegram.chatId),
+    },
+    slack: {
+      enabled: toBoolean(slack.enabled),
+      webhookUrl: sanitizeString(slack.webhookUrl),
+    },
+    email: {
+      enabled: toBoolean(email.enabled),
+      smtpHost: sanitizeString(email.smtpHost),
+      smtpPort: Number.isFinite(smtpPortNum) && smtpPortNum > 0 ? smtpPortNum : DEFAULT_SERVER_NOTIFICATION_SETTINGS.email.smtpPort,
+      secure: toBoolean(email.secure),
+      user: sanitizeString(email.user || email.username),
+      pass: sanitizeString(email.pass || email.password),
+      from: sanitizeString(email.from),
+      to: sanitizeString(email.to || email.recipients),
+    },
+  };
+}
+function normalizeServerConfigEntry(entry) {
+  const base = entry && typeof entry === 'object' ? { ...entry } : {};
+  base.notifications = normalizeNotificationSettings(base.notifications);
+  return base;
+
+}
+function normalizeServersConfig(input) {
+  const cfg = input && typeof input === 'object' ? { ...input } : {};
+  cfg.notificationRules = mergeWithDefaults(cfg.notificationRules, DEFAULT_NOTIFICATION_RULES);
+  const servers = Array.isArray(cfg.servers) ? cfg.servers : [];
+  cfg.servers = servers.map((srv) => normalizeServerConfigEntry(srv));
+  if (!cfg.activeId && cfg.servers.length) cfg.activeId = cfg.servers[0].id;
+  if (cfg.activeId && !cfg.servers.some((s) => s.id === cfg.activeId)) {
+    cfg.activeId = cfg.servers[0]?.id || cfg.activeId;
+  }
+  return cfg;
+
+}
+function getNotifierForServer(serverRef, cfgOverride) {
+  if (!serverRef) return null;
+  const cfg = cfgOverride || loadServers();
+  let server = null;
+  let serverId = null;
+  if (serverRef && typeof serverRef === 'object' && serverRef.id) {
+    serverId = serverRef.id;
+    server = cfg.servers.find((s) => s.id === serverId) || serverRef;
+  } else {
+    serverId = serverRef;
+    server = cfg.servers.find((s) => s.id === serverId);
+  }
+  if (!serverId || !server) return null;
+  let signature;
+  try {
+    signature = JSON.stringify({
+      notifications: server.notifications,
+      rules: cfg.notificationRules,
+    });
+  } catch {
+    signature = `${Date.now()}-${Math.random()}`;
+  }
+  const cached = notifierCache.get(serverId);
+  if (cached && cached.signature === signature) {
+    return cached.instance;
+  }
+  const notifier = new Notifier({
+    serverId,
+    serverLabel: server.label || serverId,
+    config: server.notifications || {},
+    rules: cfg.notificationRules || {},
+    db: ensureDb(serverId),
+  });
+  notifierCache.set(serverId, { signature, instance: notifier });
+  return notifier;
+
+function scheduleNotificationTask(fn) {
+  setImmediate(() => {
+    Promise.resolve().then(fn).catch((err) => {
+      console.error('[notify] handler error:', err?.stack || err?.message || err);
+    });
+  });
+
+function formatNumber(value, digits = 2) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '-';
+function formatTimestamp(value) {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      const d = new Date(numeric);
+      if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+    return value;
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? String(value) : d.toISOString();
+}
+function formatUsd(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '-';
+  return `$${num.toFixed(2)}`;
+}
+function isWithinMinuteWindow(currentMinute, targetMinute, windowSize = 5) {
+  const normalizedTarget = ((Number(targetMinute) % 60) + 60) % 60;
+  const diff = (currentMinute - normalizedTarget + 60) % 60;
+  return diff >= 0 && diff < windowSize;
+}
+function computeTradeNetProfit(row, raw) {
+
+  const srcPrice = Number(row?.executedSrcPrice ?? raw?.executedSrcPrice);
+  const srcQty = Number(row?.executedQtySrc ?? raw?.executedQtySrc);
+  const dstPrice = Number(row?.executedDstPrice ?? raw?.executedDstPrice);
+  const dstQty = Number(row?.executedQtyDst ?? raw?.executedQtyDst);
+  if (![srcPrice, srcQty, dstPrice, dstQty].every(Number.isFinite)) return null;
+  const grossDst = dstQty * dstPrice;
+  const grossSrc = srcQty * srcPrice;
+  const fee = 0.0002 * grossDst;
+  const net = grossDst - grossSrc - fee;
+  return Number.isFinite(net) ? net : null;
+}
+
+function handleProfitNotifications(server, newTrades) {
+  if (!server || !Array.isArray(newTrades) || !newTrades.length) return;
+  scheduleNotificationTask(async () => {
+    const notifier = getNotifierForServer(server);
+    if (!notifier) return;
+    const ruleCfg = typeof notifier.getRuleConfig === 'function' ? notifier.getRuleConfig('profit') : (notifier.rules?.profit || {});
+    const thresholdRaw = ruleCfg.thresholdPercent ?? ruleCfg.threshold;
+    const threshold = Number.isFinite(Number(thresholdRaw)) ? Number(thresholdRaw) : 5;
+    for (const entry of newTrades) {
+      const row = entry?.row || entry;
+      const raw = entry?.raw || {};
+      const percent = Number(row?.executedGrossProfit ?? raw?.executedGrossProfit);
+      if (!Number.isFinite(percent) || percent < threshold) continue;
+      const netProfit = computeTradeNetProfit(row, raw);
+      const qty = Number(row?.executedQtySrc ?? raw?.executedQtySrc);
+      const lines = [
+        `Server: ${server.label}`,
+        `Pair: ${row?.pair || raw?.pair || 'unknown'}`,
+        `Profit %: ${formatNumber(percent, 2)}`,
+      ];
+      if (Number.isFinite(netProfit)) lines.push(`Net Profit: ${formatNumber(netProfit, 2)}`);
+      if (Number.isFinite(qty)) lines.push(`Src Qty: ${formatNumber(qty, 4)}`);
+      const lastUpdate = row?.lastUpdateTime ?? raw?.lastUpdateTime;
+      if (lastUpdate) lines.push(`Last Update: ${formatTimestamp(lastUpdate)}`);
+      try {
+        await notifier.notify('profit', {
+          title: `High Profit Trade (${server.label})`,
+          message: lines.join('\n'),
+          uniqueKey: `trade-${row?.id ?? entry?.id ?? Date.now()}`,
+          details: {
+            tradeId: row?.id ?? entry?.id ?? null,
+            pair: row?.pair || raw?.pair || null,
+            profitPercent: percent,
+            netProfit,
+            serverId: server.id,
+          },
+        });
+      } catch (err) {
+        console.error('[notify] profit rule error:', err?.message || err);
+      }
+    }
+  });
+
+  });
+}
+function handleLowGasNotifications(server, items) {
+  if (!server || !Array.isArray(items) || !items.length) return;
+  const lowEntries = items.filter((item) => Number(item?.is_low) === 1);
+  if (!lowEntries.length) return;
+  scheduleNotificationTask(async () => {
+    const notifier = getNotifierForServer(server);
+    if (!notifier) return;
+    const ruleCfg = typeof notifier.getRuleConfig === 'function' ? notifier.getRuleConfig('lowGas') : (notifier.rules?.lowGas || {});
+    const configuredThreshold = Number(ruleCfg?.threshold);
+    const baseThreshold = Number.isFinite(configuredThreshold) && configuredThreshold > 0 ? configuredThreshold : 2;
+    for (const entry of lowEntries) {
+      const gas = Number(entry?.gas);
+      let threshold = baseThreshold;
+      const entryThreshold = Number(entry?.threshold);
+      if (Number.isFinite(entryThreshold) && entryThreshold > 0) threshold = entryThreshold;
+      if (Number.isFinite(gas) && gas >= threshold) continue;
+      const lines = [
+        `Server: ${server.label}`,
+        `Contract: ${entry?.contract || 'unknown'}`,
+        `Gas Remaining: ${formatNumber(gas, 4)}`,
+        `Threshold: ${formatNumber(threshold, 4)}`,
+      ];
+      if (entry?.timestamp) lines.push(`Observed: ${formatTimestamp(entry.timestamp)}`);
+      try {
+        await notifier.notify('lowGas', {
+          title: `Low Gas Alert (${server.label})`,
+          message: lines.join('\n'),
+          uniqueKey: entry?.contract || undefined,
+          details: {
+            contract: entry?.contract || null,
+            gas,
+            threshold,
+            serverId: server.id,
+          },
+        });
+      } catch (err) {
+        console.error('[notify] low gas rule error:', err?.message || err);
+      }
+    }
+  });
+
+
+
+  });
+}
+function handlePollFailureNotification(server, statusCode, count) {
+  if (!server) return;
+  scheduleNotificationTask(async () => {
+    const notifier = getNotifierForServer(server);
+    if (!notifier) return;
+    const attempt = Number(count) || 1;
+    const message = `Poll Failed (${server.label}): ${statusCode} for /diffdata (attempt ${attempt})`;
+    try {
+      await notifier.notify('pollFailed', {
+        title: `Poll Failed (${server.label})`,
+        message,
+        uniqueKey: 'diffdata',
+        details: {
+          statusCode,
+          consecutiveFailures: attempt,
+          path: '/diffdata',
+          serverId: server.id,
+        },
+      });
+    } catch (err) {
+      console.error('[notify] poll failed rule error:', err?.message || err);
+    }
+  });
+
+function buildDailyDigestSummary(server) {
+  try {
+    const db = ensureDb(server.id);
+    const now = Date.now();
+    const dayWindow = now - (24 * 60 * 60 * 1000);
+    const trades = db.prepare('SELECT pair, status, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, executedProfit, executedFeeTotal, txFee, lastUpdateTime FROM completed_trades WHERE lastUpdateTime >= ?').all(dayWindow);
+    let successCount = 0;
+    let failureCount = 0;
+    let netProfit = 0;
+    let feeSpend = 0;
+    const pairStats = new Map();
+    for (const row of trades) {
+      const profit = computeTradeNetProfit(row, {}) ?? Number(row.executedProfit) ?? 0;
+      netProfit += Number.isFinite(profit) ? profit : 0;
+      const statusRaw = (row.status || '').toLowerCase();
+      const isSuccess = statusRaw.includes('success') || (!statusRaw.includes('fail') && profit > 0);
+      if (isSuccess) successCount += 1; else failureCount += 1;
+      const pairKey = row.pair || 'n/a';
+      const entry = pairStats.get(pairKey) || { count: 0, net: 0 };
+      entry.count += 1;
+      entry.net += Number.isFinite(profit) ? profit : 0;
+      pairStats.set(pairKey, entry);
+      const fee = Number(row.executedFeeTotal);
+      if (Number.isFinite(fee)) feeSpend += fee;
+      const txFee = Number(row.txFee);
+      if (Number.isFinite(txFee)) feeSpend += txFee;
+    }
+
+    const topPairs = Array.from(pairStats.entries())
+      .sort((a, b) => {
+        if (b[1].count !== a[1].count) return b[1].count - a[1].count;
+        return b[1].net - a[1].net;
+      })
+      .slice(0, 3)
+      .map(([pair, info]) => `${pair} (${info.count}, ${formatNumber(info.net, 2)})`);
+
+    const sinceIso = new Date(dayWindow).toISOString();
+    const lowGasRows = db.prepare('SELECT contract, gas FROM gas_balances WHERE is_low = 1 AND timestamp >= ? ORDER BY timestamp DESC').all(sinceIso);
+    const lowGasPreview = lowGasRows.slice(0, 5).map((row) => `${row.contract}: ${formatNumber(row.gas, 2)}`);
+
+    const totalTrades = trades.length;
+    const successRate = totalTrades ? (successCount / totalTrades) * 100 : 0;
+
+    const lines = [
+      `Server: ${server.label}`,
+      `Trades (24h): ${totalTrades} | Success: ${successCount} | Fail: ${failureCount} | Success Rate: ${formatNumber(successRate, 1)}%`,
+      `Net Profit (24h): ${formatUsd(netProfit)}`,
+      `Fee Spend (txFee + executedFeeTotal): ${formatNumber(feeSpend, 2)}`,
+      `Low Gas Alerts (24h): ${lowGasRows.length}${lowGasPreview.length ? ' -> ' + lowGasPreview.join(', ') : ''}`,
+      `Top Pairs: ${topPairs.length ? topPairs.join(', ') : 'n/a'}`,
+    ];
+
+    return {
+      message: lines.join('\n'),
+      details: {
+        trades: totalTrades,
+        success: successCount,
+        failures: failureCount,
+        successRate,
+        netProfit,
+        feeSpend,
+        topPairs,
+        lowGasCount: lowGasRows.length,
+        lowGasPreview,
+      },
+    };
+  } catch (err) {
+    console.error(`[digest:daily:${server.id}] summary error:`, err?.message || err);
+    return null;
+  }
+
+}
+function buildHourlyDigestSummary(server) {
+  try {
+    const db = ensureDb(server.id);
+    const now = Date.now();
+    const hourWindow = now - (60 * 60 * 1000);
+    const sinceIso = new Date(hourWindow).toISOString();
+    const tokenRows = db.prepare('SELECT name, buy, sell, timestamp FROM server_tokens WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT 5').all(sinceIso);
+    const tokenCountRow = db.prepare('SELECT COUNT(*) AS count FROM server_tokens WHERE timestamp >= ?').get(sinceIso);
+    const tokenCount = tokenCountRow?.count ?? tokenRows.length;
+    const tokenSamples = tokenRows.map((row) => `${row.name}: ${formatNumber(row.buy, 3)}/${formatNumber(row.sell, 3)}`);
+
+    const lowGasRows = db.prepare('SELECT contract, gas FROM gas_balances WHERE is_low = 1 AND timestamp >= ? ORDER BY timestamp DESC').all(sinceIso);
+    const lowGasCount = lowGasRows.length;
+    const lowGasSamples = lowGasRows.slice(0, 5).map((row) => `${row.contract}: ${formatNumber(row.gas, 2)}`);
+
+    const lines = [
+      `Server: ${server.label}`,
+      `Tokens observed (1h): ${tokenCount}${tokenSamples.length ? ' -> ' + tokenSamples.join(', ') : ''}`,
+      `Low gas events (1h): ${lowGasCount}${lowGasSamples.length ? ' -> ' + lowGasSamples.join(', ') : ''}`,
+    ];
+
+    return {
+      message: lines.join('\n'),
+      details: {
+        tokenCount,
+        tokenSamples,
+        lowGasCount,
+        lowGasSamples,
+      },
+    };
+  } catch (err) {
+    console.error(`[digest:hourly:${server.id}] summary error:`, err?.message || err);
+    return null;
+  }
+
+async function runDailyDigest() {
+  const cfg = loadServers();
+  const now = new Date();
+  for (const server of cfg.servers) {
+    const notifier = getNotifierForServer(server, cfg);
+    if (!notifier) continue;
+    const ruleCfg = typeof notifier.getRuleConfig === 'function' ? notifier.getRuleConfig('dailyDigest') : (notifier.rules?.dailyDigest || {});
+    if (ruleCfg && ruleCfg.enabled === false) continue;
+    const targetHour = Number.isFinite(Number(ruleCfg?.hour)) ? Number(ruleCfg.hour) : 9;
+    const targetMinute = Number.isFinite(Number(ruleCfg?.minute)) ? Number(ruleCfg.minute) : 0;
+    if (now.getHours() !== targetHour) continue;
+    if (!isWithinMinuteWindow(now.getMinutes(), targetMinute, 5)) continue;
+    const summary = buildDailyDigestSummary(server);
+    if (!summary) continue;
+    const channels = Array.isArray(ruleCfg?.channels) && ruleCfg.channels.length ? ruleCfg.channels : ['email', 'slack'];
+    try {
+      await notifier.notify('dailyDigest', {
+        title: `Daily Digest (${server.label})`,
+        message: summary.message,
+        channels,
+        uniqueKey: `${server.id}-daily-${now.toISOString().slice(0, 10)}`,
+        details: summary.details,
+      });
+    } catch (err) {
+      console.error(`[notify] daily digest error (${server.id}):`, err?.message || err);
+    }
+  }
+
+}
+async function runHourlyDigest() {
+  const cfg = loadServers();
+  const now = new Date();
+  for (const server of cfg.servers) {
+    const notifier = getNotifierForServer(server, cfg);
+    if (!notifier) continue;
+    const ruleCfg = typeof notifier.getRuleConfig === 'function' ? notifier.getRuleConfig('hourlyDigest') : (notifier.rules?.hourlyDigest || {});
+    if (ruleCfg && ruleCfg.enabled === false) continue;
+    const targetMinute = Number.isFinite(Number(ruleCfg?.minute)) ? Number(ruleCfg.minute) : 5;
+    if (!isWithinMinuteWindow(now.getMinutes(), targetMinute, 5)) continue;
+    const summary = buildHourlyDigestSummary(server);
+    if (!summary) continue;
+    const channels = Array.isArray(ruleCfg?.channels) && ruleCfg.channels.length ? ruleCfg.channels : ['slack'];
+    try {
+      await notifier.notify('hourlyDigest', {
+        title: `Hourly Digest (${server.label})`,
+        message: summary.message,
+        channels,
+        uniqueKey: `${server.id}-hourly-${now.toISOString().slice(0, 13)}`,
+        details: summary.details,
+      });
+    } catch (err) {
+      console.error(`[notify] hourly digest error (${server.id}):`, err?.message || err);
+    }
+  }
 // App setup
 const app = express();
 app.use(cors()); // Allow all origins
@@ -71,62 +542,42 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Multi-server config
 function loadServers() {
   if (!fs.existsSync(SERVERS_FILE)) {
-    const defaults = {
+    const defaults = normalizeServersConfig({
       activeId: 'bnb',
       servers: [
         { id: 'bnb', label: 'BNB', baseUrl: 'http://195.201.178.120:3001', balancesPath: '/balance', completedPath: '/completed' },
         { id: 'arbitrum', label: 'ARBITRUM', baseUrl: 'http://168.119.69.230:3001', balancesPath: '/balance', completedPath: '/completed' },
         { id: 'base', label: 'BASE', baseUrl: 'http://95.216.27.101:3001', balancesPath: '/balance', completedPath: '/completed' },
       ],
-      notificationRules: {
-        "profit-trade": { "cooldownMinutes": 60 },
-        "lowGas": { "cooldownMinutes": 60 },
-        "pollFailed": { "cooldownMinutes": 60 },
-        "hourlyDigest": { "cooldownMinutes": 60 },
-        "dailyDigest": { "cooldownMinutes": 1440 }
-      },
-      notifications: {
-        telegram: { enabled: false, botToken: '', chatId: '' },
-        slack: { enabled: false, webhookUrl: '' },
-        email: { enabled: false, smtpHost: '', smtpPort: 587, secure: false, user: '', pass: '', from: '', to: '' }
-      }
-    };
+    });
     fs.writeFileSync(SERVERS_FILE, JSON.stringify(defaults, null, 2));
     return defaults;
   }
   try {
-    return JSON.parse(fs.readFileSync(SERVERS_FILE, 'utf8'));
+    const parsed = JSON.parse(fs.readFileSync(SERVERS_FILE, 'utf8'));
+    return normalizeServersConfig(parsed);
   } catch {
-    return { activeId: 'default', servers: [{ id: 'default', label: 'Default', baseUrl: (BALANCES_URL||'').replace(/\/(balance|balances).*/, ''), balancesPath: '/balance', completedPath: '/completed' }] };
+    return normalizeServersConfig({
+      activeId: 'default',
+      servers: [
+        { id: 'default', label: 'Default', baseUrl: (BALANCES_URL || '').replace(/\/(balance|balances).*/, ''), balancesPath: '/balance', completedPath: '/completed' },
+      ],
+    });
   }
-}
-function saveServers(cfg) { fs.writeFileSync(SERVERS_FILE, JSON.stringify(cfg, null, 2)); }
-function getActiveServer() { const cfg = loadServers(); return cfg.servers.find(s => s.id === cfg.activeId) || cfg.servers[0]; }
+function saveServers(cfg) {
+  const normalized = normalizeServersConfig(cfg);
+  fs.writeFileSync(SERVERS_FILE, JSON.stringify(normalized, null, 2));
+  notifierCache.clear();
+  return normalized;
+function getActiveServer() {
+  const cfg = loadServers();
+  return cfg.servers.find(s => s.id === cfg.activeId) || cfg.servers[0];
 
 const dbCache = new Map();
-const notifierCache = new Map();
-
-function ensureNotifier(serverId) {
-  if (notifierCache.has(serverId)) return notifierCache.get(serverId);
-  const cfg = loadServers();
-  const server = cfg.servers.find(s => s.id === serverId);
-  const db = ensureDb(serverId);
-  const notifier = new Notifier({
-    serverId,
-    serverLabel: server?.label,
-    config: cfg.notifications,
-    rules: cfg.notificationRules,
-    db
-  });
-  notifierCache.set(serverId, notifier);
-  return notifier;
-}
-
 const initialTradesSynced = new Set();
 function dbPathFor(serverId) {
   if (serverId === 'default' && fs.existsSync(DB_PATH)) return DB_PATH;
   return path.join(__dirname, `data-${serverId}.sqlite`);
-}
 function ensureDb(serverId) {
   if (dbCache.has(serverId)) return dbCache.get(serverId);
   const file = dbPathFor(serverId);
@@ -228,15 +679,32 @@ function ensureDb(serverId) {
       PRIMARY KEY (serverId, hash)
     );
   `);
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      server_id TEXT,
+      rule TEXT,
+      title TEXT,
+      channel TEXT,
+      status TEXT,
+      message TEXT,
+      details TEXT,
+      created_at TEXT NOT NULL
+    );
+  `);
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS notification_state (
+      key TEXT PRIMARY KEY,
+      last_sent INTEGER NOT NULL
+    );
+  `);
   ensureDiffHistoryColumns(_db);
   dbCache.set(serverId, _db);
   return _db;
-}
 
 function ensureDiffHistoryColumns(db) {
   const columns = new Set(db.prepare('PRAGMA table_info(diff_history)').all().map(col => col.name));
   const migrations = [];
-  if (!columns.has('cexVol')) migrations.push('ALTER TABLE diff_history ADD COLUMN cexVol REAL');
   if (!columns.has('serverBuy')) migrations.push('ALTER TABLE diff_history ADD COLUMN serverBuy REAL');
   if (!columns.has('serverSell')) migrations.push('ALTER TABLE diff_history ADD COLUMN serverSell REAL');
   if (!columns.has('dexVolume')) migrations.push('ALTER TABLE diff_history ADD COLUMN dexVolume REAL');
@@ -248,7 +716,6 @@ function ensureDiffHistoryColumns(db) {
       console.error('[db] diff_history migration failed:', err.message);
     }
   }
-}
 
 async function fetchDiffDataAndStoreFor(server) {
   if (!server) return;
@@ -256,6 +723,7 @@ async function fetchDiffDataAndStoreFor(server) {
     const url = server.baseUrl + '/diffdata';
     const resp = await axios.get(url, { timeout: 15000 });
     const data = resp.data;
+    pollFailureCounts.set(server.id, 0);
     if (!Array.isArray(data)) return;
 
     const db = ensureDb(server.id);
@@ -320,36 +788,15 @@ async function fetchDiffDataAndStoreFor(server) {
   } catch (err) {
     const status = err?.response?.status;
     if (status === 404) {
-      console.log(`[diffdata:${server.label}] 404 (not found). Skipping.`);
-      const notifier = ensureNotifier(server.id);
-      if (notifier) {
-        notifier.notify('pollFailed', {
-          title: `Poll Failed: ${server.label}`,
-          message: `Failed to fetch diffdata (404 Not Found)`,
-          details: { server: server.label, error: '404 Not Found' },
-          uniqueKey: 'diffdata-404'  // Add unique key to differentiate from other poll failures
-        }).catch(err => console.error('Notifier error:', err.message));
-      }
+      const failures = (pollFailureCounts.get(server.id) || 0) + 1;
+      pollFailureCounts.set(server.id, failures);
+      console.warn(`[diffdata:${server.label}] 404 (not found). Skipping. (attempt ${failures})`);
+      handlePollFailureNotification(server, status, failures);
+    } else {
+      pollFailureCounts.set(server.id, 0);
+      console.error(`[diffdata:${server.label}] Fetch/store error:`, err.message);
     }
-    else console.error(`[diffdata:${server.label}] Fetch/store error:`, err.message);
   }
-}
-
-// Helpers
-function safeNumber(val) {
-  const n = Number(val);
-  return Number.isFinite(n) ? n : null;
-}
-
-function safeJsonParse(value, fallback = null) {
-  if (value == null) return fallback;
-  if (typeof value === 'object') return value;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
 
 function propsHasCurId(rawProps, curId) {
   if (!curId) return false;
@@ -360,21 +807,18 @@ function propsHasCurId(rawProps, curId) {
   } catch {
     return false;
   }
-}
 
 function getTradeRawProps(trade) {
   if (!trade) return null;
   const raw = safeJsonParse(trade.raw_data, null);
   if (!raw || raw.props == null) return null;
   return raw.props;
-}
 
 function tradeHasCurId(trade, curId) {
   if (!curId || !trade) return false;
   if (propsHasCurId(trade.props, curId)) return true;
   const rawProps = getTradeRawProps(trade);
   return propsHasCurId(rawProps, curId);
-}
 
 function extractTokensFromPropsSource(source) {
   const obj = safeJsonParse(source, null);
@@ -387,7 +831,6 @@ function extractTokensFromPropsSource(source) {
     }
   }
   return tokens;
-}
 
 function extractTokensFromTrade(trade) {
   if (!trade) return [];
@@ -400,14 +843,12 @@ function extractTokensFromTrade(trade) {
     for (const token of extractTokensFromPropsSource(raw.props)) tokens.add(token);
   }
   return Array.from(tokens);
-}
 
 function tokenSymbolFromCurId(curId) {
   if (typeof curId !== 'string') return null;
   const parts = curId.split('_').filter(Boolean);
   if (parts.length >= 2) return parts[1];
   return null;
-}
 
 function aggregateTokenMetrics(tradeRows) {
   const metrics = new Map();
@@ -450,14 +891,12 @@ function aggregateTokenMetrics(tradeRows) {
     }
   }
   return metrics;
-}
 
 function tokenNameFromCurId(curId) {
   if (typeof curId !== 'string') return null;
   const parts = curId.split('_').filter(Boolean);
   if (parts.length >= 2) return parts[1];
   return parts[0] || curId || null;
-}
 
 function calculateTotals(snapshot) {
   let totalUsdt = 0;
@@ -480,7 +919,6 @@ function calculateTotals(snapshot) {
     totalUsdt: Number.isFinite(totalUsdt) ? totalUsdt : null,
     totalCoin: null,
   };
-}
 
 
 // Helper to compute per-snapshot DEX and CEX totals
@@ -503,7 +941,6 @@ function computeDexCex(snapshot) {
   }
 
   return { dexTotal, cexTotal, combined: dexTotal + cexTotal };
-}
 
 // Normalize various props encodings into a canonical shape
 function normalizePropsRaw(input) {
@@ -541,7 +978,6 @@ function normalizePropsRaw(input) {
     console.error('normalizePropsRaw - error:', e);
     return {};
   }
-}
 
 async function fetchBalancesAndStoreFor(server) {
   if (!server) return;
@@ -559,7 +995,6 @@ async function fetchBalancesAndStoreFor(server) {
     if (status === 404) console.log(`[balances:${server.label}] 404 (not found). Skipping.`);
     else console.error(`[balances:${server.label}] Fetch/store error:`, err.message);
   }
-}
 
 function storeCompletedTrades(server, trades, sourceLabel = 'recent') {
   if (!server) return 0;
@@ -571,6 +1006,7 @@ function storeCompletedTrades(server, trades, sourceLabel = 'recent') {
 
   const db = ensureDb(server.id);
   let inserted = 0;
+  const newTrades = [];
 
   const insertTradeStmt = db.prepare(`INSERT OR IGNORE INTO completed_trades (
       id, fsmType, pair, srcExchange, dstExchange, status, user,
@@ -633,25 +1069,15 @@ function storeCompletedTrades(server, trades, sourceLabel = 'recent') {
       const info = insertTradeStmt.run(row);
       if (info.changes > 0) {
         inserted += 1;
-        const notifier = ensureNotifier(server.id);
-        if (notifier) {
-          const profitThreshold = notifier.getRuleConfig('profit')?.thresholdPercent ?? -5;
-          if (t.executedProfitNormalized != null && t.executedProfitNormalized < profitThreshold) {
-            notifier.notify('profit-trade', {
-              title: `Low profit trade: ${t.pair}`,
-              message: `Profit: ${(t.executedProfitNormalized || 0).toFixed(2)}%`,
-              details: { tradeId: t.id, pair: t.pair, profit: t.executedProfitNormalized }
-            }).catch(err => console.error('Notifier error:', err.message));
-          }
-        }
+        newTrades.push({ row, raw: t });
       }
     }
   });
 
   insert(arr);
+  if (newTrades.length) handleProfitNotifications(server, newTrades);
   console.log(`[trades:${server.label}] Inserted new trades${sourceLabel ? ` (${sourceLabel})` : ''}: ${inserted}/${arr.length}`);
   return inserted;
-}
 
 async function fetchTradesAndStoreFor(server) {
   if (!server) return;
@@ -663,7 +1089,6 @@ async function fetchTradesAndStoreFor(server) {
   } catch (err) {
     console.error(`[trades:${server?.label}] Fetch/store error:`, err.message);
   }
-}
 
 async function fetchAllTradesAndStoreFor(server) {
   if (!server) return false;
@@ -677,7 +1102,6 @@ async function fetchAllTradesAndStoreFor(server) {
     console.error(`[trades:${server?.label}] Fetch/store (completedall) error:`, err.message);
     return false;
   }
-}
 
 async function fetchStatusAndStoreFor(server) {
   if (!server) return;
@@ -714,11 +1138,22 @@ async function fetchStatusAndStoreFor(server) {
     const blacklistLine = text.split(/\r?\n/).find(l => l.startsWith('SDIFF Uniswap BlackList:'));
     if (blacklistLine) {
       const str = blacklistLine.replace('SDIFF Uniswap BlackList:', '').trim();
+      let gasThreshold = 2;
+      try {
+        const notifier = getNotifierForServer(server);
+        if (notifier) {
+          const ruleCfg = typeof notifier.getRuleConfig === 'function' ? notifier.getRuleConfig('lowGas') : (notifier.rules?.lowGas || {});
+          const configured = Number(ruleCfg?.threshold);
+          if (Number.isFinite(configured) && configured > 0) gasThreshold = configured;
+        }
+      } catch (notifyErr) {
+        if (process.env.DEBUG_NOTIFIER) console.warn(`[notify] low gas threshold lookup failed for ${server.id}:`, notifyErr?.message || notifyErr);
+      }
       const gasBalances = str.split(',').map(item => item.trim()).filter(Boolean).map(item => {
         const [key, value] = item.split(':');
         if (key && value !== undefined) {
           const valNum = parseFloat(value);
-          return { contract: key, gas: valNum, is_low: valNum < 2 ? 1 : 0 };
+          return { contract: key, gas: valNum, is_low: valNum < gasThreshold ? 1 : 0, threshold: gasThreshold, timestamp };
         }
         return null;
       }).filter(Boolean);
@@ -729,26 +1164,12 @@ async function fetchStatusAndStoreFor(server) {
           for (const item of items) stmt.run({ timestamp, ...item });
         })(gasBalances);
         console.log(`[status:${server.label}] Stored ${gasBalances.length} gas balances.`);
-
-        const notifier = ensureNotifier(server.id);
-        if (notifier) {
-          const lowGasThreshold = notifier.getRuleConfig('lowGas')?.threshold ?? 2;
-          const lowGasContracts = gasBalances.filter(b => b.gas < lowGasThreshold);
-          if (lowGasContracts.length > 0) {
-            const message = lowGasContracts.map(b => `Gas for ${b.contract} is ${b.gas}`).join('\n');
-            notifier.notify('lowGas', {
-              title: `Low Gas: ${server.label}`,
-              message: message,
-              details: { server: server.label, contracts: lowGasContracts }
-            }).catch(err => console.error('Notifier error:', err.message));
-          }
-        }
+        handleLowGasNotifications(server, gasBalances);
       }
     }
   } catch (err) {
     console.error(`[status:${server?.label}] Fetch/store error:`, err.message);
   }
-}
 
 async function fetchContractTxsAndStoreFor(server) {
   if (!server || !server.contractAddress) return;
@@ -840,232 +1261,33 @@ async function fetchContractTxsAndStoreFor(server) {
   } catch (err) {
     console.error(`[contracts:${serverId}] Fetch/store error:`, err.message);
   }
-}
 
+}
 async function ensureInitialTradesSync(server) {
   if (!server) return;
   if (initialTradesSynced.has(server.id)) return;
   const ok = await fetchAllTradesAndStoreFor(server);
   if (ok) initialTradesSynced.add(server.id);
-}
 
 async function fetchAllAndStore() {
   const cfg = loadServers();
   for (const s of cfg.servers) {
     await ensureInitialTradesSync(s);
+    // Fetch status first to ensure it's processed before other data
+    await fetchStatusAndStoreFor(s);
     // Then fetch balances and trades in parallel
-    await Promise.allSettled([fetchStatusAndStoreFor(s), fetchBalancesAndStoreFor(s), fetchTradesAndStoreFor(s), fetchDiffDataAndStoreFor(s), fetchContractTxsAndStoreFor(s)]);
+    await Promise.allSettled([fetchBalancesAndStoreFor(s), fetchTradesAndStoreFor(s), fetchDiffDataAndStoreFor(s), fetchContractTxsAndStoreFor(s)]);
   }
-}
-
-async function sendHourlyDigest() {
-  const cfg = loadServers();
-  const servers = cfg.servers;
-
-  // Process each server to send hourly digest
-  for (const server of servers) {
-    const notifier = ensureNotifier(server.id);
-    if (!notifier) continue;
-
-    try {
-      const serverIp = server.baseUrl.split(':')[1].substring(2);
-      const resp = await axios.get(`http://${serverIp}:3001/`, { timeout: 10000 });
-      const text = resp.data;
-
-      if (typeof text !== 'string') {
-        throw new Error('Invalid status response from server');
-      }
-
-      let message = `📊 *Hourly Digest for ${server.label}*\n\n`;
-
-      const lines = text.split(/\r?\n/);
-      const sdiffLine = lines.find(l => l.startsWith('SDIFF_Uniswap_ckhvar2'));
-      if (sdiffLine) {
-        const parts = sdiffLine.split(/\s+/);
-        const propsIndex = sdiffLine.indexOf('Mindiff:');
-        const propsStr = propsIndex > -1 ? sdiffLine.substring(propsIndex) : '';
-        const up = parts.length > 4 ? parts[4] : 'N/A';
-        const mindiff = propsStr.match(/Mindiff:([\d.]+)/)?.[1];
-        const maxOrderSize = propsStr.match(/MaxOrderSize: (\d+)/)?.[1];
-        const tokens = propsStr.match(/\w+\([\d.]+,[\d.]+\)/g) || [];
-        message += `🔄 *Server Status*\n`;
-        message += `⏱️ Uptime: ${up} | 🎯 Mindiff: ${mindiff} | 📦 MaxOrderSize: ${maxOrderSize}\n`;
-        message += `🪙 Tokens: ${tokens.join(', ')}\n\n`;
-      }
-
-      const gasStatusLine = lines.find(l => l.startsWith('SDIFF Uniswap BlackList:'));
-      if (gasStatusLine) {
-        const gasStr = gasStatusLine.replace('SDIFF Uniswap BlackList:', '').trim();
-        const gasEntries = gasStr.split(',').map(item => item.trim()).filter(Boolean);
-        
-        if (gasEntries.length > 0) {
-          message += `⛽ *Gas Status*\n`;
-          gasEntries.forEach(entry => {
-            const [key, value] = entry.split(':');
-            if (key && value !== undefined) {
-              const gasValue = parseFloat(value);
-              if (!isNaN(gasValue)) {
-                // Format gas values less than 2 in red (using a red indicator)
-                const gasDisplay = gasValue < 2 ? `🔴 ${key}:${gasValue}` : `🟢 ${key}:${gasValue}`;
-                message += `${gasDisplay}\n`;
-              } else {
-                message += `🟡 ${entry}\n`;
-              }
-            } else {
-              message += `🟡 ${entry}\n`;
-            }
-          });
-          message += `\n`;
-        }
-      }
-
-      const db = ensureDb(server.id);
-      const now = Date.now();
-      const oneHourAgo = now - (1 * 60 * 60 * 1000);
-      const tradesLast1h = db.prepare('SELECT * FROM completed_trades WHERE lastUpdateTime >= ?').all(oneHourAgo);
-      const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
-      const profitLast1h = tradesLast1h.reduce((acc, t) => acc + netProfit(t), 0);
-
-      message += `📈 *Last Hour Performance*\n`;
-      message += `💼 Trades: ${tradesLast1h.length} | 💰 Profit: ${Number.isFinite(profitLast1h) ? profitLast1h.toFixed(2) : '0.00'}\n\n`;
-
-      const balanceRow = db.prepare('SELECT raw_data FROM balances_history ORDER BY id DESC LIMIT 1').get();
-      if (balanceRow) {
-        const snapshot = safeJsonParse(balanceRow.raw_data);
-        const { dexTotal, cexTotal, combined } = computeDexCex(snapshot);
-        message += `💰 *Balance*\n`;
-        message += `🪙 Total USDT (DEX + BinanceF): ${Number.isFinite(combined) ? combined.toFixed(2) : '0.00'}\n`;
-        message += `🏦 BinanceF Total USDT: ${Number.isFinite(cexTotal) ? cexTotal.toFixed(2) : '0.00'}\n`;
-        message += `🔗 DEX Total USDT: ${Number.isFinite(dexTotal) ? dexTotal.toFixed(2) : '0.00'}`;
-      }
-
-      // Use channels specified in the rule configuration
-      const ruleChannels = notifier.getRuleConfig('hourlyDigest')?.channels;
-      const channels = ruleChannels || ['slack']; // Default to slack only if not specified
-      
-      await notifier.notify('hourlyDigest', {
-        title: `Hourly Digest: ${server.label}`,
-        message: message,
-        channels: channels
-      });
-
-    } catch (err) {
-      console.error(`Failed to send hourly digest for server ${server.label}:`, err.message);
-    }
-  }
-}
-async function sendDailyDigest() {
-  const server = getActiveServer();
-  if (!server) return;
-
-  const notifier = ensureNotifier(server.id);
-  if (!notifier) return;
-
-  try {
-    const db = ensureDb(server.id);
-    const now = Date.now();
-    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
-
-    const tradesLast24h = db.prepare('SELECT * FROM completed_trades WHERE lastUpdateTime >= ?').all(twentyFourHoursAgo);
-    const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
-    const profitLast24h = tradesLast24h.reduce((acc, t) => acc + netProfit(t), 0);
-
-    const txsLast24h = db.prepare('SELECT * FROM contract_transactions WHERE timestamp >= ?').all(twentyFourHoursAgo);
-    const successCount = txsLast24h.filter(t => !t.isError).length;
-    const errorCount = txsLast24h.length - successCount;
-    const successRate = txsLast24h.length > 0 ? (successCount / txsLast24h.length) * 100 : 100;
-
-    const topPairs = db.prepare('SELECT pair, COUNT(*) as count, SUM(executedGrossProfit) as totalProfit FROM completed_trades WHERE lastUpdateTime >= ? GROUP BY pair ORDER BY totalProfit DESC LIMIT 5').all(twentyFourHoursAgo);
-
-    const totalFeeSpend = tradesLast24h.reduce((acc, t) => acc + (t.executedFeeTotal || 0), 0);
-
-    const gasLowOccurrences = db.prepare('SELECT COUNT(*) as count FROM gas_balances WHERE timestamp >= ? AND is_low = 1').get(new Date(twentyFourHoursAgo).toISOString()).count;
-
-    let message = `Daily digest for ${server.label}:\n`;
-    message += `24h P&L: ${Number.isFinite(profitLast24h) ? profitLast24h.toFixed(2) : '0.00'}\n`;
-    message += `Success Rate: ${Number.isFinite(successRate) ? successRate.toFixed(2) : '0.00'}%\n`;
-    message += `Error Count: ${Number.isFinite(errorCount) ? errorCount : '0'}\n`;
-    message += `Top Pairs (by profit):\n`;
-    for (const pair of topPairs) {
-      message += `  - ${pair.pair}: ${Number.isFinite(pair.totalProfit) ? pair.totalProfit.toFixed(2) : '0.00'}\n`;
-    }
-    message += `Total Fee Spend: ${Number.isFinite(totalFeeSpend) ? totalFeeSpend.toFixed(2) : '0.00'}\n`;
-    message += `Low Gas Occurrences: ${Number.isFinite(gasLowOccurrences) ? gasLowOccurrences : '0'}\n`;
-
-    notifier.notify('dailyDigest', {
-      title: `Daily Digest: ${server.label}`,
-      message: message,
-      channels: notifier.getRuleConfig('dailyDigest')?.channels
-    }).catch(err => console.error('Notifier error (daily digest): ', err.message));
-
-  } catch (err) {
-    console.error('Failed to send daily digest:', err.message);
-  }
-}
 
 // Schedule: every 2 minutes
 cron.schedule('*/2 * * * *', () => {
   console.log('[cron] Running scheduled fetch...');
   fetchAllAndStore();
-  // Also check notification conditions for all servers
-  checkAllNotifications().catch(err => console.error('[cron] Error checking notifications:', err));
 });
-
-cron.schedule('0 * * * *', () => {
-  console.log('[cron] Running hourly digest...');
-  sendHourlyDigest();
+cron.schedule('*/5 * * * *', () => {
+  runHourlyDigest().catch((err) => console.error('[cron] hourly digest error:', err?.message || err));
+  runDailyDigest().catch((err) => console.error('[cron] daily digest error:', err?.message || err));
 });
-
-cron.schedule('0 8 * * *', () => {
-  console.log('[cron] Running daily digest...');
-  sendDailyDigest();
-});
-
-// Function to check notification conditions for a server
-async function checkNotificationConditions(server) {
-  const notifier = ensureNotifier(server.id);
-  if (!notifier) return;
-
-  const db = ensureDb(server.id);
-  
-  try {
-    // Check for recent trades with low profit
-    const recentTrades = db.prepare(
-      'SELECT * FROM completed_trades WHERE lastUpdateTime >= ? ORDER BY lastUpdateTime DESC'
-    ).all(Date.now() - (2 * 60 * 1000)); // Last 2 minutes worth of trades
-
-    const profitThreshold = notifier.getRuleConfig('profit-trade')?.thresholdPercent ?? -5;
-    for (const trade of recentTrades) {
-      if (trade.executedProfitNormalized != null && trade.executedProfitNormalized < profitThreshold) {
-        await notifier.notify('profit-trade', {
-          title: `Low profit trade: ${trade.pair}`,
-          message: `Profit: ${(trade.executedProfitNormalized || 0).toFixed(2)}%`,
-          details: { 
-            tradeId: trade.id, 
-            pair: trade.pair, 
-            profit: trade.executedProfitNormalized,
-            server: server.label
-          },
-          uniqueKey: `low-profit-${trade.id}`  // Unique key to prevent duplicate notifications for same trade
-        });
-      }
-    }
-
-    // Check for low gas conditions (gas balance checks are already handled in fetchStatusAndStoreFor)
-    // Other potential checks could go here
-    
-  } catch (err) {
-    console.error(`[notifications:${server.label}] Error checking notification conditions:`, err.message);
-  }
-}
-
-// Function to systematically check notifications for all servers
-async function checkAllNotifications() {
-  const cfg = loadServers();
-  for (const server of cfg.servers) {
-    await checkNotificationConditions(server);
-  }
-}
 
 // Kick off initial fetch on startup (non-blocking)
 fetchAllAndStore();
@@ -1275,7 +1497,6 @@ app.get('/diffdata/history', (req, res) => {
 function getDbFromReq(req) {
   const serverId = req.query.serverId || loadServers().activeId;
   return ensureDb(serverId);
-}
 
 app.get('/balances', (req, res) => {
   try {
@@ -1329,6 +1550,34 @@ app.get('/balances/history', (req, res) => {
     res.json(enriched);
   } catch (err) {
     console.error('[api:/balances/history] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+app.get('/notifications/recent', (req, res) => {
+  try {
+    const serverId = req.query.serverId || loadServers().activeId;
+    if (!serverId) return res.status(400).json({ error: 'serverId required' });
+    const limitParam = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(limitParam, 200)) : 50;
+    const db = ensureDb(serverId);
+    const rows = db.prepare('SELECT id, server_id, rule, title, channel, status, message, details, created_at ' +
+      'FROM notifications_log WHERE server_id = ? ORDER BY datetime(created_at) DESC, id DESC LIMIT ?').all(serverId, limit);
+    const items = rows.map((row) => ({
+      id: row.id,
+      serverId: row.server_id,
+      rule: row.rule,
+      title: row.title,
+      channel: row.channel,
+      status: row.status,
+      message: row.message,
+      details: safeJsonParse(row.details, row.details),
+      createdAt: row.created_at,
+    }));
+    res.json({ items, limit, serverId });
+  } catch (err) {
+    console.error('[api:/notifications/recent] error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1604,18 +1853,6 @@ app.get('/trades/analytics/tokens', (req, res) => {
   }
 });
 
-app.get('/notifications/recent', (req, res) => {
-  try {
-    const db = getDbFromReq(req);
-    const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 100, 500));
-    const items = db.prepare('SELECT * FROM notifications_log ORDER BY created_at DESC LIMIT ?').all(limit);
-    res.json({ items });
-  } catch (err) {
-    console.error('[api:/notifications/recent] error:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 app.delete('/trades/:id', (req, res) => {
   try {
     const db = getDbFromReq(req);
@@ -1857,6 +2094,7 @@ app.post('/servers', (req, res) => {
     const cfg = loadServers();
     const newId = id || label.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now().toString(36);
     const entry = { id: newId, label, baseUrl, balancesPath, completedPath, contractAddress, explorerSite, explorerApiBase, explorerApiKey };
+    entry.notifications = normalizeNotificationSettings(req.body?.notifications);
     if (parsedChainId !== undefined) entry.chainId = parsedChainId;
     cfg.servers.push(entry);
     if (!cfg.activeId) cfg.activeId = newId;
@@ -1864,7 +2102,35 @@ app.post('/servers', (req, res) => {
     res.json({ ok: true, id: newId });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-
+app.put('/servers/:id', (req, res) => {
+  try {
+    const cfg = loadServers();
+    const i = cfg.servers.findIndex(s => s.id === req.params.id);
+    if (i < 0) return res.status(404).json({ error: 'not found' });
+    const s = cfg.servers[i];
+    const { label, baseUrl, balancesPath, completedPath, contractAddress, explorerSite, explorerApiBase, explorerApiKey, chainId, notifications } = req.body || {};
+    if (label != null) s.label = label;
+    if (baseUrl != null) s.baseUrl = baseUrl;
+    if (balancesPath != null) s.balancesPath = balancesPath;
+    if (completedPath != null) s.completedPath = completedPath;
+    if (contractAddress != null) s.contractAddress = contractAddress;
+    if (explorerSite != null) s.explorerSite = explorerSite;
+    if (explorerApiBase != null) s.explorerApiBase = explorerApiBase;
+    if (explorerApiKey != null) s.explorerApiKey = explorerApiKey;
+    if (chainId !== undefined) {
+      if (chainId === null || String(chainId).trim() === '') {
+        delete s.chainId;
+      } else {
+        const n = Number(chainId);
+        if (!Number.isFinite(n)) return res.status(400).json({ error: 'chainId must be a number' });
+        s.chainId = n;
+      }
+    }
+    if (notifications != null) s.notifications = normalizeNotificationSettings(notifications);
+    cfg.servers[i] = s; saveServers(cfg);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.delete('/servers/:id', (req, res) => {
   try {
     const cfg = loadServers();
@@ -1881,154 +2147,6 @@ app.post('/servers/:id/select', (req, res) => {
     cfg.activeId = req.params.id; saveServers(cfg);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Notification settings APIs
-app.get('/notifications/settings', (req, res) => {
-  try {
-    const cfg = loadServers();
-    res.json(cfg.notifications || {});
-  } catch (err) {
-    console.error('[api:/notifications/settings] error:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.put('/notifications/settings', (req, res) => {
-  try {
-    const cfg = loadServers();
-    cfg.notifications = req.body;
-    saveServers(cfg);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[api:/notifications/settings PUT] error:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// API endpoint to update notification rules
-app.put('/notifications/rules', (req, res) => {
-  try {
-    const cfg = loadServers();
-    cfg.notificationRules = req.body;
-    saveServers(cfg);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[api:/notifications/rules PUT] error:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Function to get balance update data for all servers
-async function getBalanceUpdateData() {
-  const cfg = loadServers();
-  const result = [];
-  
-  for (const server of cfg.servers) {
-    const db = ensureDb(server.id);
-    
-    // Get latest balance snapshot
-    const balanceRow = db.prepare('SELECT raw_data FROM balances_history ORDER BY id DESC LIMIT 1').get();
-    let totalUSDT = null;
-    let binanceFUSDT = null;
-    let dexUSDT = null;
-    
-    if (balanceRow) {
-      const snapshot = safeJsonParse(balanceRow.raw_data);
-      const { combined, cexTotal, dexTotal } = computeDexCex(snapshot);
-      totalUSDT = combined;
-      binanceFUSDT = cexTotal;
-      dexUSDT = dexTotal;
-    }
-    
-    // Calculate profit and trade counts for different periods
-    const now = Date.now();
-    const periods = {
-      '1h': now - (1 * 60 * 60 * 1000),
-      '4h': now - (4 * 60 * 60 * 1000),
-      '8h': now - (8 * 60 * 60 * 1000),
-      '12h': now - (12 * 60 * 60 * 1000),
-      '24h': now - (24 * 60 * 60 * 1000)
-    };
-    
-    const periodData = {};
-    for (const [label, startTimestamp] of Object.entries(periods)) {
-      const trades = db.prepare('SELECT * FROM completed_trades WHERE lastUpdateTime >= ?').all(startTimestamp);
-      const netProfit = trades.reduce((sum, t) => {
-        const profit = (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
-        return sum + (Number.isFinite(profit) ? profit : 0);
-      }, 0);
-      
-      periodData[label] = {
-        profit: netProfit,
-        trades: trades.length
-      };
-    }
-    
-    result.push({
-      server: server.label,
-      totalUSDT: totalUSDT,
-      binanceFUSDT: binanceFUSDT,
-      dexUSDT: dexUSDT,
-      periodData: periodData
-    });
-  }
-  
-  return result;
-}
-
-// Endpoint to retrieve balance update data
-app.get('/notifications/balance-update-data', async (req, res) => {
-  try {
-    const data = await getBalanceUpdateData();
-    res.json(data);
-  } catch (err) {
-    console.error('[api:/notifications/balance-update-data] error:', err.message);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Function to send balance update notifications
-async function sendBalanceUpdate() {
-  const cfg = loadServers();
-  const data = await getBalanceUpdateData();
-  
-  // Format the message
-  let message = '';
-  for (const serverData of data) {
-    message += `📊 *SERVER: ${serverData.server}*\n`;
-    message += `Total (USDT)    : ${serverData.totalUSDT?.toLocaleString() || 'N/A'}\n`;
-    message += `BinanceF (USDT) : ${serverData.binanceFUSDT?.toLocaleString() || 'N/A'}\n`;
-    message += `DEX (USDT)      : ${serverData.dexUSDT?.toLocaleString() || 'N/A'}\n\n`;
-    
-    message += `Period       Profit (USD)   Number of Trades\n`;
-    for (const [period, stats] of Object.entries(serverData.periodData)) {
-      message += `Last ${period.padEnd(2, ' ')}     ${stats.profit.toFixed(2).padStart(7, ' ')}      ${stats.trades.toString().padStart(3, ' ')}\n`;
-    }
-    message += '\n';
-  }
-  
-  // Send notification for each server
-  for (const server of cfg.servers) {
-    const notifier = ensureNotifier(server.id);
-    if (!notifier) continue;
-    
-    // Use channels specified in the rule configuration
-    const ruleChannels = notifier.getRuleConfig('balanceUpdate')?.channels;
-    const channels = ruleChannels || ['slack']; // Default to slack
-    
-    await notifier.notify('balanceUpdate', {
-      title: `Balance Update for All Servers`,
-      message: message,
-      channels: channels
-    });
-  }
-}
-
-// Schedule balance update notifications (default every hour)
-cron.schedule('0 * * * *', () => {
-  console.log('[cron] Running balance update notification...');
-  sendBalanceUpdate();
 });
 
 // Bot status summary endpoint
@@ -2258,7 +2376,6 @@ function maskEtherscanUrl(url) {
   } catch {
     return url;
   }
-}
 
 const etherscanQueue = [];
 let isEtherscanProcessing = false;
@@ -2283,14 +2400,12 @@ async function processEtherscanQueue() {
     isEtherscanProcessing = false;
     processEtherscanQueue();
   }, 1000); // 1 request per second
-}
 
 function fetchThrottledEtherscan(url) {
   return new Promise((resolve, reject) => {
     etherscanQueue.push({ url, resolve, reject });
     processEtherscanQueue();
   });
-}
 
 // Contract analysis for configured server
 app.get('/contracts/analysis', async (req, res) => {
@@ -2443,3 +2558,6 @@ process.on('SIGINT', () => {
   try { for (const d of dbCache.values()) d.close(); } catch (_) {}
   process.exit(0);
 });
+
+
+

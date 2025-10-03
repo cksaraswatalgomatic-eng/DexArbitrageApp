@@ -1,0 +1,1 @@
+        { id: 'default', label: 'Default', baseUrl: (BALANCES_URL || '').replace(/\\/(balance|balances).*/, ''), balancesPath: '/balance', completedPath: '/completed' },

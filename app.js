@@ -6,7 +6,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
-const { Notifier } = require('./notifier.js');
+const { Notifier } = require('./notifier');
+const bcrypt = require('bcrypt');
 
 let ethPrice = null;
 async function getEthPrice() {
@@ -2260,7 +2261,7 @@ app.post('/login', (req, res) => {
   const { username, password } = req.body;
   try {
     const users = JSON.parse(fs.readFileSync(SERVERS_FILE.replace('servers.json', 'users.json'), 'utf8'));
-    if (users[username] === password) {
+    if (users[username] && bcrypt.compareSync(password, users[username])) {
       // Insecure: For demonstration only. In production, use secure, signed, HTTP-only cookies.
       const role = username === 'admin' ? 'admin' : 'user';
       const cookieOptions = { httpOnly: false, secure: false, maxAge: 3600000 };

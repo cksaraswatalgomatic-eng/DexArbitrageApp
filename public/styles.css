@@ -60,6 +60,24 @@ main {
   gap: 1.5rem;
 }
 
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.vertical-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.full-width {
+  width: 100%;
+  grid-column: 1 / -1; /* Span across all columns in a grid */
+}
+
 /* 4. Header & Navigation */
 header {
   display: flex;
@@ -229,6 +247,7 @@ tbody tr:hover {
 .chart-container {
   position: relative;
   width: 100%;
+  overflow-y: hidden;
 }
 
 #lastUpdated {

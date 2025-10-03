@@ -32,7 +32,7 @@
         <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
         <a class="nav-link" href="/diff-analysis.html">Diff Analysis</a>
         <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
-        <a class="nav-link" href="/docs.html">Docs</a>
+        <a class="icon-btn" href="/docs.html" title="Documentation" aria-label="Documentation">&#128218;</a>
         <button id="refreshBtn" class="btn-orange" title="Refresh now">Refresh</button>
         <button id="resetZoomBtn" class="btn" title="Reset zoom">Reset Zoom</button>
         <span id="lastUpdated">?</span>
@@ -56,15 +56,49 @@
             <div id="tradeStats"></div>
           </div>
         </section>
-        <section class="card">
-          <h2>Total USDT Balance Over Time <button class="info-btn" data-help="total-chart">i</button></h2>
-          <div class="chart-container" style="height: 450px;">
-            <canvas id="balancesChart"></canvas>
+        <div class="vertical-stack">
+          <section class="card" aria-labelledby="balance-history">
+          <div class="card-header chart-header">
+            <div>
+              <h2 id="balance-history">Total USDT Balance Over Time</h2>
+              <p class="card-subtitle">Combined totals across DEX venues and BinanceF. Scroll or pinch to explore history.</p>
+            </div>
+            <div class="chart-nav">
+              <button id="resetZoomBtn" class="btn-orange" type="button">Reset Zoom</button>
+              <button class="info-btn" type="button" data-help="total-chart" aria-label="About total balance chart">i</button>
+            </div>
           </div>
-          <div id="totalBalanceSummary" class="muted" style="margin-top:8px"></div>
+          <div class="chart-container" aria-live="polite" style="height: 180px;">
+            <div class="skeleton" aria-hidden="true"></div>
+            <canvas id="balancesChart" aria-label="Total USDT balance chart"></canvas>
+          </div>
+          <div id="totalBalanceSummary" class="muted"></div>
+
+
         </section>
-      </div>
-      <div class="grid-2">
+        
+        <!-- Daily Profit Chart Section -->
+        <section class="card">
+          <div class="card-header chart-header">
+            <div>
+              <h2>Daily Profit</h2>
+              <p class="card-subtitle">Profit over the last several days. Use the buttons below to navigate weeks.</p>
+            </div>
+            <div class="chart-nav">
+              <button id="prevWeekBtn" class="btn" type="button">← Prev Week</button>
+              <button id="nextWeekBtn" class="btn" type="button">Next Week →</button>
+            </div>
+          </div>
+          <div class="chart-container" style="height: 180px;">
+            <div class="skeleton" aria-hidden="true"></div>
+            <canvas id="dailyProfitChart" aria-label="Daily profit chart"></canvas>
+          </div>
+        </section>
+      </div>  <!-- End of vertical-stack -->
+      </div> <!-- Close the first grid-2 container -->
+
+      <!-- Second Row: DEX, CEX Balances and Comparison -->
+      <div class="grid-3">
         <section class="card">
           <h2>DEX Exchange Balances <button class="info-btn" data-help="dex-table">i</button></h2>
           <div id="dexSummary" class="muted"></div>
@@ -104,24 +138,26 @@
             </table>
           </div>
         </section>
+        <section class="card">
+          <h2>DEX vs CEX Comparison</h2>
+          <div class="table-wrap">
+            <table id="comparisonTable">
+              <thead>
+                <tr>
+                  <th>Token</th>
+                  <th>DEX Total USDT</th>
+                  <th>CEX Total USDT</th>
+                  <th>Difference</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
       </div>
-      <section class="card">
-        <h2>DEX vs CEX Comparison</h2>
-        <div class="table-wrap">
-          <table id="comparisonTable">
-            <thead>
-              <tr>
-                <th>Token</th>
-                <th>DEX Total USDT</th>
-                <th>CEX Total USDT</th>
-                <th>Difference</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
-      <section class="card">
+
+      <!-- Third Row: Completed Trades -->
+      <section class="card full-width">
         <h2>Completed Trades <button class="info-btn" data-help="trades-table">i</button></h2>
         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
           <input id="tradesSearch" placeholder="Search trades..." />

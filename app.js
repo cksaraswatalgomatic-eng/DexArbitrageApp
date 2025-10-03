@@ -1654,6 +1654,43 @@ app.get('/trades/analytics/tokens', (req, res) => {
   }
 });
 
+app.get('/trades/daily-profit', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const start = req.query.start ? new Date(req.query.start) : null;
+    const end = req.query.end ? new Date(req.query.end) : null;
+
+    if (!start || !end) {
+      return res.status(400).json({ error: 'start and end date parameters are required' });
+    }
+
+    const rows = db.prepare(
+      `SELECT lastUpdateTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades WHERE lastUpdateTime BETWEEN ? AND ?`
+    ).all(start.getTime(), end.getTime());
+
+    const dailyProfits = {};
+
+    for (const row of rows) {
+      const date = new Date(row.lastUpdateTime).toISOString().split('T')[0];
+      const netProfit = (row.executedQtyDst * row.executedDstPrice) - (row.executedSrcPrice * row.executedQtySrc) - (0.0002 * row.executedQtyDst * row.executedDstPrice);
+      if (!dailyProfits[date]) {
+        dailyProfits[date] = 0;
+      }
+      dailyProfits[date] += netProfit;
+    }
+
+    const result = Object.keys(dailyProfits).map(date => ({
+      date: date,
+      profit: dailyProfits[date]
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error('[api:/trades/daily-profit] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/notifications/recent', (req, res) => {
   try {
     const db = getDbFromReq(req);

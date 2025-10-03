@@ -2,6 +2,10 @@ const tableBody = document.querySelector('#notificationsTable tbody');
 const statusEl = document.getElementById('notificationsStatus');
 const limitEl = document.getElementById('notificationsLimit');
 const refreshBtn = document.getElementById('refreshNotifications');
+const selectAllCheckbox = document.getElementById('selectAllNotifications');
+const markAsReadBtn = document.getElementById('markAsReadBtn');
+const markAsUnreadBtn = document.getElementById('markAsUnreadBtn');
+const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 
 function truncate(value, max = 400) {
   if (value == null) return '';
@@ -71,6 +75,18 @@ function renderNotifications(items) {
   statusEl.textContent = `Showing ${items.length} notification${items.length === 1 ? '' : 's'}.`;
   for (const item of items) {
     const tr = document.createElement('tr');
+    tr.dataset.id = item.id; // Store ID on the row
+    if (!item.read) {
+      tr.classList.add('notification-unread');
+    }
+
+    const checkboxTd = document.createElement('td');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'notification-checkbox';
+    checkbox.dataset.id = item.id;
+    checkboxTd.appendChild(checkbox);
+    tr.appendChild(checkboxTd);
 
     const cells = [
       fmtTime(item.createdAt),
@@ -91,7 +107,71 @@ function renderNotifications(items) {
 
     tableBody.appendChild(tr);
   }
+  updateActionButtons();
 }
+
+function getSelectedNotificationIds() {
+  const checkboxes = document.querySelectorAll('.notification-checkbox:checked');
+  return Array.from(checkboxes).map(cb => cb.dataset.id);
+}
+
+function updateActionButtons() {
+  const selectedIds = getSelectedNotificationIds();
+  const hasSelection = selectedIds.length > 0;
+  markAsReadBtn.disabled = !hasSelection;
+  markAsUnreadBtn.disabled = !hasSelection;
+  deleteSelectedBtn.disabled = !hasSelection;
+}
+
+async function sendNotificationAction(urlPath, ids) {
+  if (!ids.length) return;
+  try {
+    const resp = await fetch(urlPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    loadNotifications(); // Reload notifications after action
+  } catch (err) {
+    console.error(`Failed to perform action on notifications: ${urlPath}`, err);
+    alert(`Error: ${err.message}`);
+  }
+}
+
+selectAllCheckbox?.addEventListener('change', (e) => {
+  const isChecked = e.target.checked;
+  document.querySelectorAll('.notification-checkbox').forEach(cb => {
+    cb.checked = isChecked;
+  });
+  updateActionButtons();
+});
+
+tableBody?.addEventListener('change', (e) => {
+  if (e.target.classList.contains('notification-checkbox')) {
+    updateActionButtons();
+    const allCheckboxes = document.querySelectorAll('.notification-checkbox');
+    const checkedCheckboxes = document.querySelectorAll('.notification-checkbox:checked');
+    selectAllCheckbox.checked = allCheckboxes.length > 0 && allCheckboxes.length === checkedCheckboxes.length;
+  }
+});
+
+markAsReadBtn?.addEventListener('click', () => {
+  const selectedIds = getSelectedNotificationIds();
+  sendNotificationAction('/notifications/mark-read', selectedIds);
+});
+
+markAsUnreadBtn?.addEventListener('click', () => {
+  const selectedIds = getSelectedNotificationIds();
+  sendNotificationAction('/notifications/mark-unread', selectedIds);
+});
+
+deleteSelectedBtn?.addEventListener('click', () => {
+  if (confirm('Are you sure you want to delete the selected notifications?')) {
+    const selectedIds = getSelectedNotificationIds();
+    sendNotificationAction('/notifications/delete', selectedIds);
+  }
+});
 
 async function loadNotifications() {
   const limit = parseInt(limitEl.value, 10) || 50;

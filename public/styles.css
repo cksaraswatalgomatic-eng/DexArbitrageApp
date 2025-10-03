@@ -211,7 +211,6 @@ th, td {
   padding: 0.75rem 1rem;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
-  white-space: nowrap;
 }
 
 th {
@@ -345,3 +344,9 @@ tbody tr:hover {
   font-size: 16px;
 }
 .popover .close:hover { color: var(--accent-cyan); }
+
+/* Notification specific styles */
+.notification-unread {
+  font-weight: bold;
+  background-color: rgba(0, 229, 255, 0.05);
+}

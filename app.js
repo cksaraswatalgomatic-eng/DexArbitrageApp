@@ -230,6 +230,7 @@ function ensureDb(serverId) {
     );
   `);
   ensureDiffHistoryColumns(_db);
+  ensureNotificationsLogColumns(_db);
   dbCache.set(serverId, _db);
   return _db;
 }
@@ -247,6 +248,19 @@ function ensureDiffHistoryColumns(db) {
       db.exec(sql);
     } catch (err) {
       console.error('[db] diff_history migration failed:', err.message);
+    }
+  }
+}
+
+function ensureNotificationsLogColumns(db) {
+  const columns = new Set(db.prepare('PRAGMA table_info(notifications_log)').all().map(col => col.name));
+  const migrations = [];
+  if (!columns.has('read')) migrations.push('ALTER TABLE notifications_log ADD COLUMN read INTEGER DEFAULT 0');
+  for (const sql of migrations) {
+    try {
+      db.exec(sql);
+    } catch (err) {
+      console.error('[db] notifications_log migration failed:', err.message);
     }
   }
 }
@@ -1698,7 +1712,8 @@ app.get('/notifications/recent', (req, res) => {
     const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 100, 500));
     // Map the database field 'created_at' to 'createdAt' for JavaScript convention
     const items = db.prepare(`
-      SELECT 
+      SELECT
+        id,
         server_id as serverId,
         rule,
         title,
@@ -1706,20 +1721,75 @@ app.get('/notifications/recent', (req, res) => {
         status,
         message,
         details,
-        created_at as createdAt
-      FROM notifications_log 
-      ORDER BY created_at DESC 
+        created_at as createdAt,
+        read
+      FROM notifications_log
+      ORDER BY created_at DESC
       LIMIT ?
     `).all(limit);
-    res.json({ items });
+    const itemsWithBooleanRead = items.map(item => ({
+      ...item,
+      read: item.read === 1
+    }));
+    res.json({ items: itemsWithBooleanRead });
   } catch (err) {
     console.error('[api:/notifications/recent] error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.delete('/trades/:id', (req, res) => {
+app.post('/notifications/mark-read', (req, res) => {
   try {
+    const db = getDbFromReq(req);
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Array of notification IDs is required' });
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    const stmt = db.prepare(`UPDATE notifications_log SET read = 1 WHERE id IN (${placeholders})`);
+    const info = stmt.run(ids);
+    res.json({ success: true, changes: info.changes });
+  } catch (err) {
+    console.error('[api:/notifications/mark-read] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/notifications/mark-unread', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Array of notification IDs is required' });
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    const stmt = db.prepare(`UPDATE notifications_log SET read = 0 WHERE id IN (${placeholders})`);
+    const info = stmt.run(ids);
+    res.json({ success: true, changes: info.changes });
+  } catch (err) {
+    console.error('[api:/notifications/mark-unread] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/notifications/delete', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Array of notification IDs is required' });
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    const stmt = db.prepare(`DELETE FROM notifications_log WHERE id IN (${placeholders})`);
+    const info = stmt.run(ids);
+    res.json({ success: true, changes: info.changes });
+  } catch (err) {
+    console.error('[api:/notifications/delete] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.delete('/trades/:id', (req, res) => {  try {
     const db = getDbFromReq(req);
     const id = req.params.id;
     const stmt = db.prepare('DELETE FROM completed_trades WHERE id = ?');

@@ -44,6 +44,9 @@
               items
             </label>
             <button id="refreshNotifications" class="btn">Refresh</button>
+            <button id="markAsReadBtn" class="btn">Mark as Read</button>
+            <button id="markAsUnreadBtn" class="btn">Mark as Unread</button>
+            <button id="deleteSelectedBtn" class="btn btn-danger">Delete Selected</button>
           </div>
         </div>
         <div id="notificationsStatus" class="muted" style="margin:12px 0">Loading...</div>
@@ -51,6 +54,7 @@
           <table id="notificationsTable">
             <thead>
               <tr>
+                <th><input type="checkbox" id="selectAllNotifications"></th>
                 <th>Sent At</th>
                 <th>Rule</th>
                 <th>Channel</th>

@@ -69,6 +69,17 @@ app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+app.get('/notifications.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'notifications.html'));
+});
+
+app.get('/consolidated-tracking.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'consolidated-tracking.html'));
+});
+
 // Multi-server config
 function loadServers() {
   if (!fs.existsSync(SERVERS_FILE)) {
@@ -1785,6 +1796,230 @@ app.post('/notifications/delete', (req, res) => {
     res.json({ success: true, changes: info.changes });
   } catch (err) {
     console.error('[api:/notifications/delete] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/notifications/delete', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Array of notification IDs is required' });
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    const stmt = db.prepare(`DELETE FROM notifications_log WHERE id IN (${placeholders})`);
+    const info = stmt.run(ids);
+    res.json({ success: true, changes: info.changes });
+  } catch (err) {
+    console.error('[api:/notifications/delete] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Consolidated Tracking Endpoints
+app.get('/consolidated/balances/history', async (req, res) => {
+  try {
+    const cfg = loadServers();
+    const allServersBalances = [];
+
+    for (const server of cfg.servers) {
+      const db = ensureDb(server.id);
+      const rows = db.prepare(
+        'SELECT timestamp, total_usdt, raw_data FROM balances_history ORDER BY timestamp ASC'
+      ).all();
+
+      const enriched = rows.map(r => {
+        let snapshot;
+        try { snapshot = JSON.parse(r.raw_data); } catch { snapshot = null; }
+        const parts = computeDexCex(snapshot);
+        const combined = Number.isFinite(parts.combined) && parts.combined !== 0 ? parts.combined : r.total_usdt;
+        return {
+          timestamp: r.timestamp,
+          total_usdt: combined,
+          total_dex_usdt: parts.dexTotal,
+          total_cex_usdt: parts.cexTotal,
+          serverId: server.id,
+          serverLabel: server.label
+        };
+      });
+      allServersBalances.push(...enriched);
+    }
+
+    // Aggregate balances by timestamp
+    const consolidated = {};
+    for (const item of allServersBalances) {
+      if (!consolidated[item.timestamp]) {
+        consolidated[item.timestamp] = { timestamp: item.timestamp, total_usdt: 0, total_dex_usdt: 0, total_cex_usdt: 0 };
+      }
+      consolidated[item.timestamp].total_usdt += item.total_usdt || 0;
+      consolidated[item.timestamp].total_dex_usdt += item.total_dex_usdt || 0;
+      consolidated[item.timestamp].total_cex_usdt += item.total_cex_usdt || 0;
+    }
+
+    const sortedConsolidated = Object.values(consolidated).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    res.json(sortedConsolidated);
+  } catch (err) {
+    console.error('[api:/consolidated/balances/history] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/consolidated/daily-profit', async (req, res) => {
+  try {
+    const cfg = loadServers();
+    const allServersDailyProfits = {};
+
+    for (const server of cfg.servers) {
+      const db = ensureDb(server.id);
+      const rows = db.prepare(
+        `SELECT lastUpdateTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades`
+      ).all();
+
+      for (const row of rows) {
+        const date = new Date(row.lastUpdateTime).toISOString().split('T')[0];
+        const netProfit = (row.executedQtyDst * row.executedDstPrice) - (row.executedSrcPrice * row.executedQtySrc) - (0.0002 * row.executedQtyDst * row.executedDstPrice);
+        if (!allServersDailyProfits[date]) {
+          allServersDailyProfits[date] = 0;
+        }
+        allServersDailyProfits[date] += netProfit;
+      }
+    }
+
+    const result = Object.keys(allServersDailyProfits).map(date => ({
+      date: date,
+      profit: allServersDailyProfits[date]
+    })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    res.json(result);
+  } catch (err) {
+    console.error('[api:/consolidated/daily-profit] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/consolidated/balances/latest', async (req, res) => {
+  try {
+    const cfg = loadServers();
+    const latestBalances = [];
+
+    for (const server of cfg.servers) {
+      const db = ensureDb(server.id);
+      const row = db.prepare(
+        'SELECT timestamp, total_usdt, raw_data FROM balances_history ORDER BY id DESC LIMIT 1'
+      ).get();
+
+      if (row) {
+        let snapshot;
+        try { snapshot = JSON.parse(row.raw_data); } catch { snapshot = null; }
+        const parts = computeDexCex(snapshot);
+        const combined = Number.isFinite(parts.combined) && parts.combined !== 0 ? parts.combined : row.total_usdt;
+        latestBalances.push({
+          serverId: server.id,
+          serverLabel: server.label,
+          timestamp: row.timestamp,
+          totalUsdt: combined,
+          dexTotalUsdt: parts.dexTotal,
+          cexTotalUsdt: parts.cexTotal
+        });
+      }
+    }
+    res.json(latestBalances);
+  } catch (err) {
+    console.error('[api:/consolidated/balances/latest] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/consolidated/daily-profit/latest', async (req, res) => {
+  try {
+    const cfg = loadServers();
+    const latestDailyProfits = [];
+    const now = Date.now();
+    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+
+    for (const server of cfg.servers) {
+      const db = ensureDb(server.id);
+      const tradesLast24h = db.prepare('SELECT executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades WHERE lastUpdateTime >= ?').all(twentyFourHoursAgo);
+      const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
+      const profitLast24h = tradesLast24h.reduce((acc, t) => acc + netProfit(t), 0);
+
+      latestDailyProfits.push({
+        serverId: server.id,
+        serverLabel: server.label,
+        profit: profitLast24h
+      });
+    }
+    res.json(latestDailyProfits);
+  } catch (err) {
+    console.error('[api:/consolidated/daily-profit/latest] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/consolidated/balances/distribution', async (req, res) => {
+  try {
+    const cfg = loadServers();
+    const distribution = {}; // { serverId: totalUsdt }
+
+    for (const server of cfg.servers) {
+      const db = ensureDb(server.id);
+      const row = db.prepare(
+        'SELECT total_usdt, raw_data FROM balances_history ORDER BY id DESC LIMIT 1'
+      ).get();
+
+      if (row) {
+        let snapshot;
+        try { snapshot = JSON.parse(row.raw_data); } catch { snapshot = null; }
+        const parts = computeDexCex(snapshot);
+        const combined = Number.isFinite(parts.combined) && parts.combined !== 0 ? parts.combined : row.total_usdt;
+        distribution[server.id] = {
+          label: server.label,
+          totalUsdt: combined || 0
+        };
+      }
+    }
+
+    const result = Object.values(distribution);
+    res.json(result);
+  } catch (err) {
+    console.error('[api:/consolidated/balances/distribution] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/consolidated/token-performance', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 1000; // Default to 1000 trades
+    const cfg = loadServers();
+    const allTrades = [];
+
+    for (const server of cfg.servers) {
+      const db = ensureDb(server.id);
+      const trades = db.prepare(
+        'SELECT pair, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, props, raw_data FROM completed_trades ORDER BY lastUpdateTime DESC LIMIT ?'
+      ).all(limit);
+      allTrades.push(...trades);
+    }
+
+    const metrics = aggregateTokenMetrics(allTrades);
+
+    const result = Array.from(metrics.values()).map(r => ({
+      token: r.token,
+      trades: r.trades,
+      wins: r.wins,
+      losses: r.losses,
+      totalNetProfit: r.totalNetProfit,
+      avgNetProfit: r.trades ? r.totalNetProfit / r.trades : null,
+    }));
+
+    const topPerformers = [...result].sort((a, b) => b.totalNetProfit - a.totalNetProfit).slice(0, 10);
+    const worstPerformers = [...result].sort((a, b) => a.totalNetProfit - b.totalNetProfit).slice(0, 10);
+
+    res.json({ limit, topPerformers, worstPerformers });
+  } catch (err) {
+    console.error('[api:/consolidated/token-performance] error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

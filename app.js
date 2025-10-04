@@ -387,6 +387,217 @@ function safeJsonParse(value, fallback = null) {
   }
 }
 
+function getMlServiceBaseUrl() {
+  const base = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8100';
+  return (typeof base === 'string' ? base : '').replace(/\/$/, '');
+}
+
+function sanitizeMlPayload(payload) {
+  const clean = {};
+  if (!payload || typeof payload !== 'object') return clean;
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === '' || value === undefined || value === null) {
+      clean[key] = null;
+      continue;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        clean[key] = null;
+        continue;
+      }
+      const lowered = trimmed.toLowerCase();
+      if (lowered === 'true' || lowered === 'false') {
+        clean[key] = lowered === 'true';
+        continue;
+      }
+      const num = Number(trimmed);
+      if (Number.isFinite(num)) {
+        clean[key] = num;
+        continue;
+      }
+      clean[key] = trimmed;
+      continue;
+    }
+    if (typeof value === 'number') {
+      clean[key] = Number.isFinite(value) ? value : null;
+      continue;
+    }
+    if (typeof value === 'boolean') {
+      clean[key] = value;
+      continue;
+    }
+    clean[key] = value;
+  }
+  return clean;
+}
+
+
+async function proxyMlServicePredict(baseUrl, payloads, includeProbabilities, modelPath) {
+  if (!baseUrl) {
+    throw new Error('ML service base URL is not configured.');
+  }
+  const response = await axios.post(`${baseUrl}/predict`, {
+    payloads,
+    include_probabilities: includeProbabilities,
+    model_path: modelPath,
+  }, { timeout: 15000 });
+  const data = normalizePredictionResponse(response.data, payloads.length);
+  data.source = data.source || 'ml-service';
+  return data;
+}
+
+function normalizePredictionResponse(raw, payloadCount) {
+  const data = raw && typeof raw === 'object' ? { ...raw } : {};
+  if (payloadCount === 1 && data.success_probability == null) {
+    const probability = extractSuccessProbability(data.probabilities);
+    if (probability != null) data.success_probability = probability;
+  }
+  return data;
+}
+
+function extractSuccessProbability(probabilities) {
+  if (!Array.isArray(probabilities) || !probabilities.length) return null;
+  const first = probabilities[0];
+  if (Array.isArray(first) && first.length > 1 && Number.isFinite(first[1])) return Number(first[1]);
+  if (Number.isFinite(first)) return Number(first);
+  return null;
+}
+
+async function runLocalPredictBatch(payloads) {
+  const scriptPath = path.join(__dirname, 'predict.py');
+  if (!fs.existsSync(scriptPath)) {
+    throw new Error('predict.py script is missing; cannot run local predictions.');
+  }
+  const results = [];
+  for (const payload of payloads) {
+    results.push(await runPredictScriptOnce(scriptPath, payload));
+  }
+  return buildLocalPredictResponse(results, payloads.length);
+}
+
+function buildLocalPredictResponse(results, payloadCount) {
+  const probabilities = results.map((entry) => {
+    const prob = Number.isFinite(entry.success_probability) ? entry.success_probability : 0;
+    const clamped = prob < 0 ? 0 : prob > 1 ? 1 : prob;
+    return [Number((1 - clamped).toFixed(6)), Number(clamped.toFixed(6))];
+  });
+  const predictions = results.map((entry) => {
+    if (Number.isFinite(entry.prediction)) return entry.prediction;
+    const prob = Number.isFinite(entry.success_probability) ? entry.success_probability : 0;
+    return prob >= 0.5 ? 1 : 0;
+  });
+  const response = { predictions, probabilities, source: 'local-script' };
+  if (payloadCount === 1 && Number.isFinite(results[0]?.success_probability)) {
+    response.success_probability = results[0].success_probability;
+  }
+  return response;
+}
+
+function getPythonCommandCandidates() {
+  const candidates = [];
+  if (process.env.PYTHON_BIN) candidates.push(process.env.PYTHON_BIN);
+  if (process.platform === 'win32') {
+    candidates.push('python', 'python3');
+  } else {
+    candidates.push('python3', 'python');
+  }
+  const unique = [];
+  for (const cmd of candidates) {
+    if (cmd && !unique.includes(cmd)) unique.push(cmd);
+  }
+  return unique;
+}
+
+async function runPredictScriptOnce(scriptPath, payload) {
+  const values = [
+    payload.buyDiffBps,
+    payload.sellDiffBps,
+    payload.Diff,
+    payload.DexSlip,
+    payload.CexSlip,
+  ].map((value) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  });
+
+  const args = [scriptPath, ...values.map((value) => String(value))];
+  const candidates = getPythonCommandCandidates();
+  let lastErr = null;
+
+  for (const cmd of candidates) {
+    try {
+      const result = await spawnPredictProcess(cmd, args);
+      const successProbability = Number(result.success_probability);
+      if (!Number.isFinite(successProbability)) {
+        throw new Error('predict.py did not return a numeric success_probability');
+      }
+      return {
+        success_probability: successProbability,
+        prediction: Number.isFinite(result.prediction) ? Number(result.prediction) : undefined,
+      };
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        lastErr = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastErr || new Error('Unable to locate a usable Python interpreter for predict.py');
+}
+
+function spawnPredictProcess(command, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd: __dirname });
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    child.on('error', (err) => {
+      reject(err);
+    });
+    child.on('close', (code) => {
+      if (code !== 0) {
+        const error = new Error(`predict.py exited with code ${code}`);
+        error.stdout = stdout;
+        error.stderr = stderr;
+        error.code = code;
+        return reject(error);
+      }
+      const trimmed = stdout.trim();
+      if (!trimmed) {
+        const error = new Error('predict.py returned empty output');
+        error.stdout = stdout;
+        error.stderr = stderr;
+        return reject(error);
+      }
+      try {
+        const parsed = JSON.parse(trimmed);
+        resolve(parsed);
+      } catch (err) {
+        err.stdout = stdout;
+        err.stderr = stderr;
+        reject(err);
+      }
+    });
+  });
+}
+
+function shouldFallbackToLocal(err) {
+  if (!err) return false;
+  if (err.code && ['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT'].includes(err.code)) return true;
+  if (err.response?.status >= 500) return true;
+  if (err.isAxiosError && !err.response) return true;
+  return false;
+}
+
 function propsHasCurId(rawProps, curId) {
   if (!curId) return false;
   try {
@@ -1332,6 +1543,222 @@ app.get('/diffdata/history', (req, res) => {
       return normalized;
     });
 
+    const buyDiffValues = [];
+    const sellDiffValues = [];
+    const cexVolValues = [];
+    const serverBuyValues = [];
+    const serverSellValues = [];
+    const dexVolumeValues = [];
+    const median = (arr) => {
+      const filtered = arr.filter((val) => Number.isFinite(val)).sort((a, b) => a - b);
+      if (!filtered.length) return null;
+      const mid = Math.floor(filtered.length / 2);
+      return filtered.length % 2 === 0 ? (filtered[mid - 1] + filtered[mid]) / 2 : filtered[mid];
+    };
+
+    for (const row of normalizedRows) {
+      if (Number.isFinite(row.buyDiffBps)) buyDiffValues.push(row.buyDiffBps);
+      if (Number.isFinite(row.sellDiffBps)) sellDiffValues.push(row.sellDiffBps);
+      if (Number.isFinite(row.cexVol)) cexVolValues.push(row.cexVol);
+      if (Number.isFinite(row.serverBuy)) serverBuyValues.push(row.serverBuy);
+      if (Number.isFinite(row.serverSell)) serverSellValues.push(row.serverSell);
+      if (Number.isFinite(row.dexVolume)) dexVolumeValues.push(row.dexVolume);
+    }
+
+    let latestBuyDiffBps = null;
+    let latestSellDiffBps = null;
+    let latestCexVol = null;
+    let latestServerBuy = null;
+    let latestServerSell = null;
+    let latestDexVolume = null;
+    for (let i = normalizedRows.length - 1; i >= 0; i -= 1) {
+      const row = normalizedRows[i];
+      if (latestBuyDiffBps === null && Number.isFinite(row.buyDiffBps)) latestBuyDiffBps = row.buyDiffBps;
+      if (latestSellDiffBps === null && Number.isFinite(row.sellDiffBps)) latestSellDiffBps = row.sellDiffBps;
+      if (latestCexVol === null && Number.isFinite(row.cexVol)) latestCexVol = row.cexVol;
+      if (latestServerBuy === null && Number.isFinite(row.serverBuy)) latestServerBuy = row.serverBuy;
+      if (latestServerSell === null && Number.isFinite(row.serverSell)) latestServerSell = row.serverSell;
+      if (latestDexVolume === null && Number.isFinite(row.dexVolume)) latestDexVolume = row.dexVolume;
+      if (
+        latestBuyDiffBps !== null &&
+        latestSellDiffBps !== null &&
+        latestCexVol !== null &&
+        latestServerBuy !== null &&
+        latestServerSell !== null &&
+        latestDexVolume !== null
+      ) break;
+    }
+
+    const diffStats = {
+      latestBuyDiffBps,
+      latestSellDiffBps,
+      medianBuyDiffBps: median(buyDiffValues),
+      medianSellDiffBps: median(sellDiffValues),
+      latestCexVol,
+      medianCexVol: median(cexVolValues),
+      latestServerBuy,
+      medianServerBuy: median(serverBuyValues),
+      latestServerSell,
+      medianServerSell: median(serverSellValues),
+      latestDexVolume,
+      medianDexVolume: median(dexVolumeValues),
+    };
+
+    let featureInsights = null;
+    if (normalizedRows.length) {
+      const timestamps = normalizedRows.map(row => row.ts).filter(ts => Number.isFinite(ts));
+      if (timestamps.length) {
+        const minTs = Math.min(...timestamps);
+        const maxTs = Math.max(...timestamps);
+        const windowMs = 15 * 60 * 1000;
+        const tradeLimit = Math.min(2000, Math.max(500, normalizedRows.length * 2));
+        const trades = db.prepare(`
+          SELECT id, lastUpdateTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, executedGrossProfit, props, raw_data
+          FROM completed_trades
+          WHERE lastUpdateTime BETWEEN ? AND ?
+            AND (
+              instr(COALESCE(props, ''), ?) > 0
+              OR instr(COALESCE(raw_data, ''), ?) > 0
+            )
+          ORDER BY lastUpdateTime ASC
+          LIMIT ?
+        `).all(minTs - windowMs, maxTs + windowMs, curId, curId, tradeLimit);
+
+        const tradeFeatures = [];
+        for (const trade of trades) {
+          const tradeTs = safeNumber(trade.lastUpdateTime);
+          if (!Number.isFinite(tradeTs)) continue;
+          let mergedProps = normalizePropsRaw(trade.props);
+          const rawProps = getTradeRawProps(trade);
+          if (rawProps) {
+            const normalizedRaw = normalizePropsRaw(rawProps);
+            mergedProps = { ...normalizedRaw, ...mergedProps };
+          }
+          const diffVal = Number.isFinite(mergedProps?.Diff) ? mergedProps.Diff : null;
+          const dexSlipVal = Number.isFinite(mergedProps?.DexSlip) ? mergedProps.DexSlip : null;
+          const cexSlipVal = Number.isFinite(mergedProps?.CexSlip) ? mergedProps.CexSlip : null;
+          if (diffVal == null && dexSlipVal == null && cexSlipVal == null) continue;
+
+          const qtyDst = Number(trade.executedQtyDst);
+          const dstPrice = Number(trade.executedDstPrice);
+          const srcPrice = Number(trade.executedSrcPrice);
+          const qtySrc = Number(trade.executedQtySrc);
+          let netProfit = null;
+          if ([qtyDst, dstPrice, srcPrice, qtySrc].every(v => Number.isFinite(v))) {
+            netProfit = (qtyDst * dstPrice) - (srcPrice * qtySrc) - (0.0002 * qtyDst * dstPrice);
+          }
+          const grossProfit = Number(trade.executedGrossProfit);
+          tradeFeatures.push({
+            ts: tradeTs,
+            diff: diffVal,
+            dexSlip: dexSlipVal,
+            cexSlip: cexSlipVal,
+            netProfit: Number.isFinite(netProfit) ? netProfit : null,
+            grossProfit: Number.isFinite(grossProfit) ? grossProfit : null,
+          });
+        }
+
+        if (tradeFeatures.length) {
+          const matchWindowMs = 10 * 60 * 1000;
+          let featureIdx = 0;
+          for (const row of normalizedRows) {
+            const ts = row.ts;
+            if (!Number.isFinite(ts)) continue;
+            while (featureIdx + 1 < tradeFeatures.length && tradeFeatures[featureIdx + 1].ts <= ts) {
+              featureIdx += 1;
+            }
+            const candidates = [];
+            if (tradeFeatures[featureIdx]) candidates.push(tradeFeatures[featureIdx]);
+            if (tradeFeatures[featureIdx + 1]) candidates.push(tradeFeatures[featureIdx + 1]);
+            let best = null;
+            let bestDelta = Infinity;
+            for (const cand of candidates) {
+              const delta = Math.abs(cand.ts - ts);
+              if (delta <= matchWindowMs && delta < bestDelta) {
+                best = cand;
+                bestDelta = delta;
+              }
+            }
+            if (best) {
+              if (best.diff != null) row.Diff = best.diff;
+              if (best.dexSlip != null) row.DexSlip = best.dexSlip;
+              if (best.cexSlip != null) row.CexSlip = best.cexSlip;
+              row.featureTimestamp = best.ts;
+              row.featureSource = 'trade-props';
+            }
+          }
+
+          const diffBuckets = new Map();
+          const buyBuckets = new Map();
+          const sellBuckets = new Map();
+          const accumulateBucket = (map, rawValue, netValue) => {
+            const bucket = Math.round(rawValue);
+            let rec = map.get(bucket);
+            if (!rec) {
+              rec = { value: bucket, total: 0, wins: 0, sumProfit: 0 };
+              map.set(bucket, rec);
+            }
+            rec.total += 1;
+            if (Number.isFinite(netValue)) {
+              if (netValue > 0) rec.wins += 1;
+              rec.sumProfit += netValue;
+            }
+          };
+
+          for (const feat of tradeFeatures) {
+            if (feat.diff != null) accumulateBucket(diffBuckets, Math.round(feat.diff * 100) / 100, feat.netProfit);
+          }
+
+          for (const row of normalizedRows) {
+            if (row.featureSource !== 'trade-props') continue;
+            const matched = tradeFeatures.find((feat) => feat.ts === row.featureTimestamp);
+            const netProfit = matched?.netProfit;
+            if (Number.isFinite(row.buyDiffBps)) accumulateBucket(buyBuckets, row.buyDiffBps, netProfit);
+            if (Number.isFinite(row.sellDiffBps)) accumulateBucket(sellBuckets, row.sellDiffBps, netProfit);
+          }
+
+          const summarizeBuckets = (map) => Array.from(map.values()).map((rec) => ({
+            value: rec.value,
+            wins: rec.wins,
+            total: rec.total,
+            winRate: rec.total ? rec.wins / rec.total : null,
+            avgProfit: rec.total ? rec.sumProfit / rec.total : null,
+          })).sort((a, b) => a.value - b.value);
+
+          const diffSummary = summarizeBuckets(diffBuckets);
+          const buySummary = summarizeBuckets(buyBuckets);
+          const sellSummary = summarizeBuckets(sellBuckets);
+
+          let bestBucket = null;
+          for (const rec of diffSummary) {
+            const candidate = { ...rec };
+            if (
+              !bestBucket ||
+              candidate.wins > bestBucket.wins ||
+              (candidate.wins === bestBucket.wins && (candidate.winRate ?? 0) > (bestBucket.winRate ?? 0)) ||
+              (candidate.wins === bestBucket.wins && candidate.winRate === bestBucket.winRate && (candidate.avgProfit ?? 0) > (bestBucket.avgProfit ?? 0))
+            ) {
+              bestBucket = candidate;
+            }
+          }
+
+          featureInsights = featureInsights || {};
+          if (bestBucket) {
+            featureInsights.optimalDiff = {
+              value: bestBucket.value,
+              wins: bestBucket.wins,
+              total: bestBucket.total,
+              winRate: bestBucket.winRate,
+              avgProfit: bestBucket.avgProfit,
+            };
+          }
+          featureInsights.buckets = diffSummary;
+          featureInsights.buyBuckets = buySummary;
+          featureInsights.sellBuckets = sellSummary;
+        }
+      }
+    }
+
     const normalizedServerToken = serverToken ? {
       buy: safeNumber(serverToken.buy),
       sell: safeNumber(serverToken.sell),
@@ -1339,13 +1766,26 @@ app.get('/diffdata/history', (req, res) => {
 
     res.json({
       diffData: normalizedRows,
-      serverToken: normalizedServerToken
+      serverToken: normalizedServerToken,
+      featureInsights,
+      diffStats,
     });
   } catch (err) {
     console.error('[api:/diffdata/history] error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+app.post('/admin/fetch-all', async (req, res) => {
+  try {
+    await fetchAllAndStore();
+    res.json({ status: 'ok', runAt: Date.now() });
+  } catch (err) {
+    console.error('[api:/admin/fetch-all] error:', err.message);
+    res.status(500).json({ error: 'Failed to trigger fetch', details: err.message });
+  }
+});
+
 
 // API Endpoints
 function getDbFromReq(req) {
@@ -2608,11 +3048,12 @@ app.get('/status/server', async (req, res) => {
       const propsIndex = sdiffLine.indexOf('Mindiff:');
       const propsStr = propsIndex > -1 ? sdiffLine.substring(propsIndex) : '';
 
-      const tokens = propsStr.match(/\w+\([\d.]+,[\d.]+\)/g)?.map(t => {
-        const [name, values] = t.split('(');
-        const [buy, sell] = values.slice(0, -1).split(',');
-        return { name, buy, sell };
-      });
+      const tokenMatches = [...propsStr.matchAll(/\b([A-Za-z0-9_]+)\(([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)\)/g)];
+      const tokens = tokenMatches.map(match => ({
+        name: match[1],
+        buy: match[2],
+        sell: match[3],
+      }));
 
       const m1Index = parts.findIndex(p => p === 'M1');
       const up = m1Index !== -1 && parts.length > m1Index + 1 ? parts[m1Index + 1] : null;
@@ -2818,19 +3259,210 @@ app.get('/contracts/analysis', async (req, res) => {
 
 const { spawn } = require('child_process');
 
-app.post('/ml/train', (req, res) => {
-    const pythonProcess = spawn('python', ['train.py']);
+// Endpoint to get the latest trades for ML training
+app.get('/ml/training-data', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20000; // Default to 20000 trades
+    const serverId = req.query.serverId || loadServers().activeId;
+    const db = ensureDb(serverId);
+    
+    // Get the latest trades from completed_trades table
+    const trades = db.prepare(
+      "SELECT * FROM completed_trades ORDER BY COALESCE(lastUpdateTime, creationTime) DESC LIMIT ?"
+    ).all(limit);
+    
+    // Process trades to extract features and outcomes for ML
+    const processedTrades = trades.map(trade => {
+      // Extract features from trade props
+      const props = normalizePropsRaw(trade.props);
+      const rawProps = getTradeRawProps(trade);
+      const rawPropsNormalized = rawProps ? normalizePropsRaw(rawProps) : {};
+      
+      // Calculate net profit as outcome
+      const netProfit = (trade.executedQtyDst * trade.executedDstPrice) - 
+                       (trade.executedSrcPrice * trade.executedQtySrc) - 
+                       (0.0002 * trade.executedQtyDst * trade.executedDstPrice);
+      
+      return {
+        id: trade.id,
+        pair: trade.pair,
+        serverId: serverId,
+        buyDiffBps: props.Diff || rawPropsNormalized.Diff || 0,  // Use Diff as proxy for buyDiffBps
+        sellDiffBps: 0, // Not directly available from props, using 0 as placeholder
+        // Use extracted features
+        Diff: props.Diff || rawPropsNormalized.Diff || 0,
+        DexSlip: props.DexSlip || rawPropsNormalized.DexSlip || 0,
+        CexSlip: props.CexSlip || rawPropsNormalized.CexSlip || 0,
+        // Outcome variable
+        netProfit: netProfit,
+        isProfitable: netProfit > 0 ? 1 : 0,
+        // Timestamp for matching with diff data if needed
+        timestamp: trade.lastUpdateTime || trade.creationTime,
+        // Additional features from trade
+        executedQtyDst: trade.executedQtyDst,
+        executedDstPrice: trade.executedDstPrice,
+        executedQtySrc: trade.executedQtySrc,
+        executedSrcPrice: trade.executedSrcPrice
+      };
+    });
+    
+    res.json({
+      count: processedTrades.length,
+      trades: processedTrades,
+      message: `Retrieved ${processedTrades.length} trades for ML training`
+    });
+  } catch (err) {
+    console.error('[api:/ml/training-data] error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch training data', details: err.message });
+  }
+});
 
+app.post('/ml/train', (req, res) => {
+    // First, fetch the last 20000 trades for training
+    const serverId = req.body.serverId || loadServers().activeId;
+    const db = ensureDb(serverId);
+    
+    // Get the latest trades from completed_trades table
+    const trades = db.prepare(
+      "SELECT * FROM completed_trades ORDER BY COALESCE(lastUpdateTime, creationTime) DESC LIMIT 20000"
+    ).all();
+    
+    // Process trades to extract features and outcomes for ML
+    const processedTrades = trades.map(trade => {
+      // Extract features from trade props
+      const props = normalizePropsRaw(trade.props);
+      const rawProps = getTradeRawProps(trade);
+      const rawPropsNormalized = rawProps ? normalizePropsRaw(rawProps) : {};
+      
+      // Calculate net profit as outcome
+      const netProfit = (trade.executedQtyDst * trade.executedDstPrice) - 
+                       (trade.executedSrcPrice * trade.executedQtySrc) - 
+                       (0.0002 * trade.executedQtyDst * trade.executedDstPrice);
+      
+      return {
+        id: trade.id,
+        pair: trade.pair,
+        buyDiffBps: props.Diff || rawPropsNormalized.Diff || 0,  // Use Diff as proxy for buyDiffBps
+        sellDiffBps: 0, // Not directly available from props, using 0 as placeholder
+        // Use extracted features
+        Diff: props.Diff || rawPropsNormalized.Diff || 0,
+        DexSlip: props.DexSlip || rawPropsNormalized.DexSlip || 0,
+        CexSlip: props.CexSlip || rawPropsNormalized.CexSlip || 0,
+        // Outcome variable
+        netProfit: netProfit,
+        isProfitable: netProfit > 0 ? 1 : 0,
+        // Timestamp for matching with diff data if needed
+        timestamp: trade.lastUpdateTime || trade.creationTime,
+        // Additional features from trade
+        executedQtyDst: trade.executedQtyDst,
+        executedDstPrice: trade.executedDstPrice,
+        executedQtySrc: trade.executedQtySrc,
+        executedSrcPrice: trade.executedSrcPrice
+      };
+    });
+    
+    // Save the processed training data to a temporary file for the Python script to use
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Create directory if it doesn't exist
+    const dataDir = path.join(__dirname, 'data_exports', serverId);
+    if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    // Write training data to a file
+    const trainingDataPath = path.join(dataDir, 'trades_for_ml.json');
+    fs.writeFileSync(trainingDataPath, JSON.stringify(processedTrades));
+    
+    // Also write to CSV format for the Python ML pipeline
+    const csvHeader = 'buyDiffBps,sellDiffBps,Diff,DexSlip,CexSlip,netProfit,isProfitable,executedQtyDst,executedDstPrice,executedQtySrc,executedSrcPrice\n';
+    const csvRows = processedTrades.map(trade => 
+      [
+        trade.buyDiffBps, trade.sellDiffBps, trade.Diff, 
+        trade.DexSlip, trade.CexSlip, trade.netProfit, 
+        trade.isProfitable, trade.executedQtyDst, trade.executedDstPrice, 
+        trade.executedQtySrc, trade.executedSrcPrice
+      ].join(',')
+    ).join('\n');
+    
+    const csvPath = path.join(dataDir, 'trades_for_ml.csv');
+    fs.writeFileSync(csvPath, csvHeader + csvRows);
+    
+    // Create subdirectories for the expected structure
+    const tradesDir = path.join(dataDir, 'trades_with_diff.parquet');
+    
+    // Write training data in parquet format (expected by the training script)
+    // We'll write a simplified version with the required columns
+    
+    // Write the trades data in a format more compatible with the training script
+    const formattedTrades = processedTrades.map(trade => ({
+      ...trade,
+      trade_ts: new Date(trade.timestamp).toISOString(), // Ensure proper timestamp
+      label_regression: trade.netProfit, // Use net profit as regression target
+      label_class: trade.isProfitable, // Use profitability as classification target
+    }));
+    
+    // Write the data in a format compatible with the training script
+    // Since the original training script expects a parquet file, we'll create both
+    const parquetPath = path.join(dataDir, 'trades_with_diff.parquet');
+    const csvPathDetailed = path.join(dataDir, 'trades_with_diff.csv');
+    
+    // Write as CSV since we may not have pyarrow installed
+    const csvHeaderDetailed = 'id,pair,buyDiffBps,sellDiffBps,Diff,DexSlip,CexSlip,netProfit,isProfitable,executedQtyDst,executedDstPrice,executedQtySrc,executedSrcPrice,trade_ts,label_regression,label_class\n';
+    const csvRowsDetailed = formattedTrades.map(trade => 
+      [
+        trade.id, `"${trade.pair}"`, trade.buyDiffBps, trade.sellDiffBps, trade.Diff, 
+        trade.DexSlip, trade.CexSlip, trade.netProfit, trade.isProfitable, 
+        trade.executedQtyDst, trade.executedDstPrice, trade.executedQtySrc, 
+        trade.executedSrcPrice, trade.trade_ts || new Date(trade.timestamp).toISOString(), 
+        trade.label_regression, trade.label_class
+      ].join(',')
+    ).join('\n');
+    
+    fs.writeFileSync(csvPathDetailed, csvHeaderDetailed + csvRowsDetailed);
+    
+    // Create empty context files with headers to avoid pandas empty data error
+    // These files are expected by the training script 
+    const contextFiles = [
+        { name: 'balances_history.csv', header: 'id,timestamp,total_usdt,total_coin,raw_data\n' },
+        { name: 'gas_balances.csv', header: 'id,timestamp,contract,gas,is_low\n' },
+        { name: 'contract_transactions.csv', header: 'hash,serverId,timestamp,isError,reason,ethPrice,polPrice,raw_data\n' },
+        { name: 'server_tokens.csv', header: 'id,timestamp,name,buy,sell\n' }
+    ];
+    
+    for (const file of contextFiles) {
+        const filePath = path.join(dataDir, file.name);
+        // Only create if it doesn't exist to avoid overwriting
+        if (!fs.existsSync(filePath)) {
+            fs.writeFileSync(filePath, file.header);
+        }
+    }
+    
+    // Now run the training script with appropriate parameters
+    // Get the actual server ID from the request body or use the active server
+    const actualServerId = req.body.serverId || loadServers().activeId || serverId;
+    
+    const pythonProcess = spawn('python', [
+      'train.py', 
+      '--data-root', 'data_exports', 
+      '--servers', actualServerId, 
+      '--task', 'classification',  // Use classification for profitable/not profitable
+      '--model-type', 'random_forest',
+      '--export-formats', 'csv',
+      '--n-jobs', '1'  // Use single job to avoid resource issues
+    ]);
+    
     let dataToSend = '';
     pythonProcess.stdout.on('data', (data) => {
         dataToSend += data.toString();
     });
-
+    
     let errorToSend = '';
     pythonProcess.stderr.on('data', (data) => {
         errorToSend += data.toString();
     });
-
+    
     pythonProcess.on('close', (code) => {
         if (code !== 0) {
             console.error(`train.py stderr: ${errorToSend}`);
@@ -2840,44 +3472,104 @@ app.post('/ml/train', (req, res) => {
     });
 });
 
-app.post('/ml/predict', (req, res) => {
-    const { buyDiffBps, sellDiffBps, Diff, DexSlip, CexSlip } = req.body;
+app.post('/ml/predict', async (req, res) => {
+  try {
+    let payloads = Array.isArray(req.body?.payloads) ? req.body.payloads : null;
 
-    if ([buyDiffBps, sellDiffBps, Diff, DexSlip, CexSlip].some(v => v === undefined)) {
-        return res.status(400).json({ error: 'Missing one or more required features.' });
+    if (!payloads) {
+      const { buyDiffBps, sellDiffBps, Diff, DexSlip, CexSlip } = req.body || {};
+      const legacyValues = [buyDiffBps, sellDiffBps, Diff, DexSlip, CexSlip];
+      const hasLegacy = legacyValues.some(v => v !== undefined);
+      if (hasLegacy) {
+        if (legacyValues.some(v => v === undefined)) {
+          return res.status(400).json({ error: 'Missing one or more required features.' });
+        }
+        payloads = [{
+          buyDiffBps: safeNumber(buyDiffBps),
+          sellDiffBps: safeNumber(sellDiffBps),
+          Diff: safeNumber(Diff),
+          DexSlip: safeNumber(DexSlip),
+          CexSlip: safeNumber(CexSlip),
+        }];
+      }
     }
 
-    const pythonProcess = spawn('python', [
-        'predict.py',
-        buyDiffBps,
-        sellDiffBps,
-        Diff,
-        DexSlip,
-        CexSlip
-    ]);
+    if (!payloads || !Array.isArray(payloads) || !payloads.length) {
+      return res.status(400).json({ error: 'payloads array is required.' });
+    }
 
-    let dataToSend = '';
-    pythonProcess.stdout.on('data', (data) => {
-        dataToSend += data.toString();
-    });
+    const sanitizedPayloads = payloads.map(sanitizeMlPayload);
+    const includeProbabilities = req.body?.includeProbabilities !== false;
+    const modelPath = req.body?.modelPath || null;
+    const preferMode = (process.env.ML_PREDICT_MODE || '').toLowerCase();
+    const preferLocal = preferMode === 'local';
+    const forceRemote = preferMode === 'remote';
+    const baseUrl = getMlServiceBaseUrl();
+    let result = null;
 
-    let errorToSend = '';
-    pythonProcess.stderr.on('data', (data) => {
-        errorToSend += data.toString();
-    });
-
-    pythonProcess.on('close', (code) => {
-        if (code !== 0) {
-            console.error(`predict.py stderr: ${errorToSend}`);
-            return res.status(500).json({ error: 'Failed to get prediction.', details: errorToSend });
+    if (!preferLocal) {
+      try {
+        result = await proxyMlServicePredict(baseUrl, sanitizedPayloads, includeProbabilities, modelPath);
+      } catch (serviceErr) {
+        if (forceRemote || !shouldFallbackToLocal(serviceErr)) {
+          throw serviceErr;
         }
-        try {
-            const result = JSON.parse(dataToSend);
-            res.json(result);
-        } catch (e) {
-            res.status(500).json({ error: 'Failed to parse prediction output.', details: dataToSend });
-        }
+        console.warn('[api:/ml/predict] Remote ML service unavailable, falling back to local script:', serviceErr.message);
+      }
+    }
+
+    if (!result) {
+      result = await runLocalPredictBatch(sanitizedPayloads);
+    }
+
+    if (sanitizedPayloads.length === 1 && result.success_probability == null) {
+      const probability = extractSuccessProbability(result.probabilities);
+      if (probability != null) {
+        result.success_probability = probability;
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    const status = err.response?.status || 500;
+    const detail = err.response?.data || err.message || 'Prediction request failed';
+    console.error('[api:/ml/predict] error:', detail);
+    res.status(status).json({ error: 'Failed to proxy prediction', details: detail });
+  }
+});
+
+app.get('/ml/metadata', async (req, res) => {
+  try {
+    const baseUrl = getMlServiceBaseUrl();
+    const response = await axios.get(`${baseUrl}/metadata`, {
+      params: { model_path: req.query?.modelPath || null },
+      timeout: 10000,
     });
+    res.json(response.data);
+  } catch (err) {
+    const status = err.response?.status || 500;
+    const detail = err.response?.data || err.message || 'Metadata request failed';
+    console.error('[api:/ml/metadata] error:', detail);
+    res.status(status).json({ error: 'Failed to fetch metadata', details: detail });
+  }
+});
+
+app.get('/ml/explain', async (req, res) => {
+  try {
+    const baseUrl = getMlServiceBaseUrl();
+    const topK = Number.parseInt(req.query?.topK, 10);
+    const body = {
+      top_k: Number.isFinite(topK) && topK > 0 ? topK : 15,
+      model_path: req.query?.modelPath || null,
+    };
+    const response = await axios.post(`${baseUrl}/explain`, body, { timeout: 15000 });
+    res.json(response.data);
+  } catch (err) {
+    const status = err.response?.status || 500;
+    const detail = err.response?.data || err.message || 'Explain request failed';
+    console.error('[api:/ml/explain] error:', detail);
+    res.status(status).json({ error: 'Failed to fetch explanation', details: detail });
+  }
 });
 
 // Start server

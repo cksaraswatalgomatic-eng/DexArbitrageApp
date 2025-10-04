@@ -28,42 +28,57 @@
         <a class="nav-link" href="/diff-analysis.html">Diff Analysis</a>
         <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
         <a class="icon-btn" href="/docs.html" title="Documentation" aria-label="Documentation">&#128218;</a>
-
         <a class="icon-btn requires-admin" href="/servers.html" data-requires-role="admin" title="Server settings" aria-label="Server settings">&#9881;</a>
         <a class="icon-btn" href="/notifications.html" title="Notifications" aria-label="Notifications">&#128276;</a>
         <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
       </div>
     </header>
     <main>
-        <section class="card">
-            <h2>Trade Success Prediction</h2>
-            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
-                <label>Select Token:
-                    <select id="tokenSelect" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--background-panel);color:var(--text-primary);min-width:200px">
-                      <option value="">-- Select a Token --</option>
-                    </select>
-                  </label>
-                  <button id="trainModelBtn" class="btn-orange">Train Model</button>
-                  <span id="trainingStatus" class="muted"></span>
-            </div>
-            <div class="table-wrap" style="margin-top: 20px;">
-                <table id="predictionTable">
-                  <thead>
-                    <tr>
-                      <th>Token</th>
-                      <th>Buy Diff Bps</th>
-                      <th>Sell Diff Bps</th>
-                      <th>Diff</th>
-                      <th>DexSlip</th>
-                      <th>CexSlip</th>
-                      <th>Actions</th>
-                      <th>Success Probability</th>
-                    </tr>
-                  </thead>
-                  <tbody></tbody>
-                </table>
-              </div>
-        </section>
+      <section class="card">
+        <h2>Trade Success Prediction</h2>
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+          <label>Select Token:
+            <select id="tokenSelect" style="margin-left:6px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--background-panel);color:var(--text-primary);min-width:200px">
+              <option value="">-- Select a Token --</option>
+            </select>
+          </label>
+          <button id="trainModelBtn" class="btn-orange">Train Model</button>
+          <span id="trainingStatus" class="muted"></span>
+        </div>
+        <div class="sweep-controls" style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end">
+          <label style="display:flex; flex-direction:column; gap:4px;">
+            <span>Buy Diff baseline (bps)</span>
+            <input id="buyBaseline" type="number" min="-99" max="99" step="1" style="width:80px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; background:var(--background-panel); color:var(--text-primary);"/>
+          </label>
+          <label style="display:flex; flex-direction:column; gap:4px;">
+            <span>Sell Diff baseline (bps)</span>
+            <input id="sellBaseline" type="number" min="-99" max="99" step="1" style="width:80px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; background:var(--background-panel); color:var(--text-primary);"/>
+          </label>
+          <button id="applySweep" class="btn-secondary" style="height:36px;">Update Chart</button>
+        </div>
+        <div class="chart-wrap" style="margin-top:18px; min-height:260px;">
+          <canvas id="diffChart" height="220"></canvas>
+        </div>
+        <p id="optimalDiff" class="muted" style="margin-top:8px">Optimal Diff: --</p>
+        <div class="table-wrap" style="margin-top: 20px;">
+          <table id="predictionTable">
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Time (UTC)</th>
+                <th>Buy Diff Bps</th>
+                <th>Sell Diff Bps</th>
+                <th>Diff</th>
+                <th>DexSlip</th>
+                <th>CexSlip</th>
+                <th>Actions</th>
+                <th>Success Probability</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
     </main>
     <footer>
       <small>Predict the success of a trade based on historical data.</small>

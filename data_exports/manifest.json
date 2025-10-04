@@ -1,0 +1,203 @@
+{
+  "generatedAt": "2025-10-03T18:25:36.848770+00:00",
+  "toleranceMinutes": 2.0,
+  "direction": "backward",
+  "formats": [
+    "csv"
+  ],
+  "serversConfig": "servers.json",
+  "servers": [
+    {
+      "serverId": "base",
+      "dbPath": "data-base.sqlite",
+      "exists": true,
+      "tables": {
+        "completed_trades": {
+          "rows": 500,
+          "artifacts": [
+            "data_exports\\base\\completed_trades.csv"
+          ]
+        },
+        "diff_history": {
+          "rows": 500,
+          "artifacts": [
+            "data_exports\\base\\diff_history.csv"
+          ]
+        },
+        "balances_history": {
+          "rows": 500,
+          "artifacts": [
+            "data_exports\\base\\balances_history.csv"
+          ]
+        },
+        "server_tokens": {
+          "rows": 500,
+          "artifacts": [
+            "data_exports\\base\\server_tokens.csv"
+          ]
+        },
+        "gas_balances": {
+          "rows": 500,
+          "artifacts": [
+            "data_exports\\base\\gas_balances.csv"
+          ]
+        },
+        "contract_transactions": {
+          "rows": 0
+        }
+      },
+      "tokens": {
+        "aave": {
+          "tradeRows": 195,
+          "trades": {
+            "rows": 195,
+            "artifacts": [
+              "data_exports\\base\\aave\\trades.csv"
+            ]
+          },
+          "diff": {
+            "rows": 26,
+            "artifacts": [
+              "data_exports\\base\\aave\\diff_history.csv"
+            ]
+          },
+          "merged": {
+            "rows": 195,
+            "artifacts": [
+              "data_exports\\base\\aave\\merged.csv"
+            ]
+          }
+        },
+        "aero": {
+          "tradeRows": 3,
+          "trades": {
+            "rows": 3,
+            "artifacts": [
+              "data_exports\\base\\aero\\trades.csv"
+            ]
+          },
+          "merged": {
+            "rows": 3,
+            "artifacts": [
+              "data_exports\\base\\aero\\merged.csv"
+            ]
+          }
+        },
+        "bio": {
+          "tradeRows": 72,
+          "trades": {
+            "rows": 72,
+            "artifacts": [
+              "data_exports\\base\\bio\\trades.csv"
+            ]
+          },
+          "diff": {
+            "rows": 13,
+            "artifacts": [
+              "data_exports\\base\\bio\\diff_history.csv"
+            ]
+          },
+          "merged": {
+            "rows": 72,
+            "artifacts": [
+              "data_exports\\base\\bio\\merged.csv"
+            ]
+          }
+        },
+        "btc": {
+          "tradeRows": 15,
+          "trades": {
+            "rows": 15,
+            "artifacts": [
+              "data_exports\\base\\btc\\trades.csv"
+            ]
+          },
+          "diff": {
+            "rows": 12,
+            "artifacts": [
+              "data_exports\\base\\btc\\diff_history.csv"
+            ]
+          },
+          "merged": {
+            "rows": 15,
+            "artifacts": [
+              "data_exports\\base\\btc\\merged.csv"
+            ]
+          }
+        },
+        "cake": {
+          "tradeRows": 69,
+          "trades": {
+            "rows": 69,
+            "artifacts": [
+              "data_exports\\base\\cake\\trades.csv"
+            ]
+          },
+          "merged": {
+            "rows": 69,
+            "artifacts": [
+              "data_exports\\base\\cake\\merged.csv"
+            ]
+          }
+        },
+        "eth": {
+          "tradeRows": 143,
+          "trades": {
+            "rows": 143,
+            "artifacts": [
+              "data_exports\\base\\eth\\trades.csv"
+            ]
+          },
+          "diff": {
+            "rows": 31,
+            "artifacts": [
+              "data_exports\\base\\eth\\diff_history.csv"
+            ]
+          },
+          "merged": {
+            "rows": 143,
+            "artifacts": [
+              "data_exports\\base\\eth\\merged.csv"
+            ]
+          }
+        },
+        "virtual": {
+          "tradeRows": 3,
+          "trades": {
+            "rows": 3,
+            "artifacts": [
+              "data_exports\\base\\virtual\\trades.csv"
+            ]
+          },
+          "diff": {
+            "rows": 27,
+            "artifacts": [
+              "data_exports\\base\\virtual\\diff_history.csv"
+            ]
+          },
+          "merged": {
+            "rows": 3,
+            "artifacts": [
+              "data_exports\\base\\virtual\\merged.csv"
+            ]
+          }
+        }
+      },
+      "quality": {
+        "rows": 7
+      },
+      "merged": {
+        "rows": 500,
+        "artifacts": [
+          "data_exports\\base\\trades_with_diff.csv"
+        ]
+      }
+    }
+  ],
+  "rowLimit": 500,
+  "filters": {
+    "servers": [
+      "base"
+    ]
+  }
+}

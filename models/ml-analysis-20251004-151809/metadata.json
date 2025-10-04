@@ -1,0 +1,217 @@
+{
+  "dataset": {
+    "rows": 8279,
+    "train_rows": 632,
+    "holdout_rows": 7647,
+    "servers": [
+      "base"
+    ],
+    "tokens": null,
+    "time_start": "2025-09-17 07:28:11.370000+00:00",
+    "time_end": "2025-10-04 15:08:24.788000+00:00"
+  },
+  "cv": {
+    "folds": [
+      {
+        "roc_auc": 1.0,
+        "avg_precision": 1.0,
+        "precision": 0.9871794871794872,
+        "recall": 1.0,
+        "f1": 0.9935483870967742,
+        "fold": 1
+      },
+      {
+        "roc_auc": 1.0,
+        "avg_precision": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "fold": 2
+      },
+      {
+        "roc_auc": 1.0,
+        "avg_precision": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "fold": 3
+      },
+      {
+        "roc_auc": 1.0,
+        "avg_precision": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "fold": 4
+      },
+      {
+        "roc_auc": 1.0,
+        "avg_precision": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "fold": 5
+      }
+    ],
+    "mean": {
+      "roc_auc": 1.0,
+      "avg_precision": 1.0,
+      "precision": 0.9974358974358974,
+      "recall": 1.0,
+      "f1": 0.9987096774193549,
+      "fold": 3.0
+    },
+    "std": {
+      "roc_auc": 0.0,
+      "avg_precision": 0.0,
+      "precision": 0.005733507634614825,
+      "recall": 0.0,
+      "f1": 0.0028852490032255425,
+      "fold": 1.5811388300841898
+    }
+  },
+  "holdout": {
+    "roc_auc": 1.0,
+    "avg_precision": 1.0,
+    "precision": 0.9990948178320888,
+    "recall": 1.0,
+    "f1": 0.999547203984605
+  },
+  "features": {
+    "numeric": [
+      "id",
+      "buyDiffBps",
+      "sellDiffBps",
+      "Diff",
+      "DexSlip",
+      "CexSlip",
+      "netProfit",
+      "isProfitable",
+      "executedQtyDst",
+      "executedDstPrice",
+      "executedQtySrc",
+      "executedSrcPrice",
+      "label_regression",
+      "grossNotionalDst",
+      "grossNotionalSrc",
+      "tradePnLRatio",
+      "spreadMid",
+      "hasRejectReason",
+      "balanceDelta_4h",
+      "balanceDelta_12h",
+      "balanceDelta_24h",
+      "total_usdt",
+      "gasBalance",
+      "isLowGas"
+    ],
+    "categorical": [
+      "pair",
+      "serverId",
+      "token"
+    ],
+    "all": [
+      "id",
+      "pair",
+      "buyDiffBps",
+      "sellDiffBps",
+      "Diff",
+      "DexSlip",
+      "CexSlip",
+      "netProfit",
+      "isProfitable",
+      "executedQtyDst",
+      "executedDstPrice",
+      "executedQtySrc",
+      "executedSrcPrice",
+      "label_regression",
+      "token",
+      "serverId",
+      "grossNotionalDst",
+      "grossNotionalSrc",
+      "tradePnLRatio",
+      "spreadMid",
+      "hasRejectReason",
+      "balanceDelta_4h",
+      "balanceDelta_12h",
+      "balanceDelta_24h",
+      "total_usdt",
+      "gasBalance",
+      "isLowGas"
+    ]
+  },
+  "feature_importance": {
+    "id": 0.0,
+    "pair": 0.0,
+    "buyDiffBps": 0.0,
+    "sellDiffBps": 0.0,
+    "Diff": 0.0,
+    "DexSlip": 0.0,
+    "CexSlip": 0.0,
+    "netProfit": 0.0,
+    "isProfitable": 0.0,
+    "executedQtyDst": 0.0,
+    "executedDstPrice": 0.0,
+    "executedQtySrc": 0.0,
+    "executedSrcPrice": 0.0,
+    "label_regression": 0.0,
+    "token": 0.0,
+    "serverId": 0.0,
+    "grossNotionalDst": 0.0,
+    "grossNotionalSrc": 0.0,
+    "tradePnLRatio": 0.0,
+    "spreadMid": 0.0,
+    "hasRejectReason": 0.0,
+    "balanceDelta_4h": 0.0,
+    "balanceDelta_12h": 0.0,
+    "balanceDelta_24h": 0.0,
+    "total_usdt": 0.0,
+    "gasBalance": 0.0,
+    "isLowGas": 0.0
+  },
+  "config": {
+    "data_root": "data_exports",
+    "servers": [
+      "base"
+    ],
+    "tokens": null,
+    "task": "classification",
+    "target_column": "label_class",
+    "regression_target": "label_regression",
+    "classification_threshold": 0.0,
+    "tolerance_minutes": 2.0,
+    "row_limit": null,
+    "refresh_data": false,
+    "refresh_args": null,
+    "model_type": "random_forest",
+    "model_params": {
+      "class_weight": "balanced"
+    },
+    "cv_splits": 5,
+    "cv_gap_minutes": 5.0,
+    "validation_holdout_days": 14,
+    "feature_windows_minutes": [
+      5,
+      15,
+      30,
+      60
+    ],
+    "feature_windows_hours": [
+      4,
+      12,
+      24
+    ],
+    "imbalance_eps": 1e-06,
+    "output_root": "models",
+    "experiment_name": "ml-analysis",
+    "n_jobs": 1,
+    "random_state": 42,
+    "max_training_rows": null,
+    "scoring_metric": null,
+    "use_optuna": false,
+    "optuna_trials": 0,
+    "optuna_timeout": null,
+    "time_column": "trade_ts",
+    "server_column": "serverId",
+    "token_column": "token"
+  }
+}

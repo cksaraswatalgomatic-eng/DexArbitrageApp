@@ -27,16 +27,18 @@
         <label>Server:
           <select id="serverSelect"></select>
         </label>
+        <div class="nav-links-container" id="nav-links-container">
         <a class="nav-link" href="/">Dashboard</a>
         <a class="nav-link" href="/ml-analysis.html">ML Analysis</a>
         <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
         <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
-        <a class="icon-btn" href="/docs.html" title="Documentation" aria-label="Documentation">&#128218;</a>
         <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
+        </div>
 
         <a class="icon-btn requires-admin" href="/servers.html" data-requires-role="admin" title="Server settings" aria-label="Server settings">&#9881;</a>
         <a class="icon-btn" href="/notifications.html" title="Notifications" aria-label="Notifications">&#128276;</a>
         <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
+        <button id="mobile-menu-button" class="mobile-menu-button">&#9776;</button>
       </div>
     </header>
     <main>
@@ -105,5 +107,6 @@
     <script src="/help.js"></script>
     <script src="/theme-switcher.js"></script>
     <script src="/logout.js"></script>
+    <script src="/mobile-menu.js"></script>
   </body>
 </html>

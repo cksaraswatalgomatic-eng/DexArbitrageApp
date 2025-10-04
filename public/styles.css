@@ -125,6 +125,10 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
   margin-left: 0.5rem;
 }
 
+.nav-links-container {
+  display: contents;
+}
+
 .nav-link {
   color: var(--text-muted);
   text-decoration: none;
@@ -272,18 +276,47 @@ tbody tr:hover {
 }
 
 /* 9. Responsive Design */
-@media (max-width: 860px) {
+.mobile-menu-button {
+  display: none; /* Hidden by default */
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+@media (max-width: 1024px) {
   .nav-link {
-    display: none; /* Hide all nav links by default on smaller screens */
+    display: none;
   }
-
-  /* Show essential links */
-  .nav-link[href="/"], 
-  .nav-link[href="/docs.html"],
-  .nav-link[href="/servers.html"] {
-    display: inline-block;
+  .mobile-menu-button {
+    display: block;
   }
+  .nav-links-container {
+    display: none;
+    position: absolute;
+    top: 60px;
+    right: 1rem;
+    background: var(--background-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.5rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 200;
+  }
+  .nav-links-container.open {
+    display: flex;
+  }
+  .nav-links-container .nav-link {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 1rem;
+  }
+}
 
+@media (max-width: 860px) {
   .controls {
     gap: 0.5rem;
   }
@@ -301,6 +334,12 @@ tbody tr:hover {
 
   header {
     padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+  }
+
+  .controls {
+    flex-basis: 100%;
+    justify-content: flex-end;
   }
 }
 
@@ -349,4 +388,72 @@ tbody tr:hover {
 .notification-unread {
   font-weight: bold;
   background-color: rgba(0, 229, 255, 0.05);
+}
+
+/* NEW RESPONSIVE STYLES */
+
+/* For tablets and smaller desktops */
+@media (max-width: 1024px) {
+  main {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  .card {
+    padding: 1rem;
+  }
+}
+
+/* For mobile devices */
+@media (max-width: 768px) {
+  body {
+    font-size: 13px;
+  }
+
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1rem;
+  }
+
+  #brand {
+    margin-bottom: 1rem;
+  }
+
+  h1 {
+    font-size: 1.2rem;
+  }
+
+  .controls {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .grid-2, .grid-3 {
+    grid-template-columns: 1fr; /* Stack grid items */
+  }
+
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chart-nav {
+    margin-top: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 12px;
+  }
+  
+  .controls {
+    font-size: 11px;
+  }
+
+  .btn, button, select, input {
+    padding: 0.4rem 0.8rem;
+    font-size: 12px;
+  }
 }

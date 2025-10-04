@@ -49,56 +49,7 @@
         </div>
         <div id="summary"></div>
       </section>
-      <section class="card" id="mlInsightsCard">
-        <div class="chart-header">
-          <h2>ML Insights <button class="info-btn" data-help="contract-ml">i</button></h2>
-          <div class="chart-nav">
-            <button id="mlRefreshExplainBtn" class="btn" type="button">Refresh Factors</button>
-          </div>
-        </div>
-        <p id="mlStatus" class="muted">Loading model metadata...</p>
-        <form id="mlPredictForm" class="form-grid" autocomplete="off">
-          <div class="grid-3">
-            <label>Buy Diff (bps)
-              <input type="number" step="0.01" name="buyDiffBps" placeholder="e.g. 25" />
-            </label>
-            <label>Sell Diff (bps)
-              <input type="number" step="0.01" name="sellDiffBps" placeholder="e.g. -12" />
-            </label>
-            <label>CEX Volume
-              <input type="number" step="0.01" name="cexVol" placeholder="e.g. 50000" />
-            </label>
-          </div>
-          <div class="grid-3">
-            <label>DEX Volume
-              <input type="number" step="0.01" name="dexVolume" placeholder="e.g. 15000" />
-            </label>
-            <label>Server ID
-              <input type="text" name="serverId" placeholder="e.g. base" />
-            </label>
-            <label>Token
-              <input type="text" name="token" placeholder="e.g. aave" />
-            </label>
-          </div>
-          <div class="grid-3">
-            <label>Prop Diff
-              <input type="number" step="0.01" name="propDiff" placeholder="from props" />
-            </label>
-            <label>Dex Slip
-              <input type="number" step="0.01" name="propDexSlip" placeholder="from props" />
-            </label>
-            <label>Cex Slip
-              <input type="number" step="0.01" name="propCexSlip" placeholder="from props" />
-            </label>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn-orange">Predict Profitability</button>
-            <button type="button" id="mlResetBtn" class="btn">Clear</button>
-          </div>
-        </form>
-        <div id="mlPredictResult" class="muted"></div>
-        <div id="mlTopFactors" class="muted"></div>
-      </section>
+
       <section class="card">
         <h2>Failed Transactions (last 24h) <button class="info-btn" data-help="contract-failed">i</button></h2>
         <input id="failedSearch" placeholder="Search by hash or reason..." />

@@ -1,5 +1,5 @@
 {
-  "active": "ml-analysis-20251004-185923",
+  "active": "ml-analysis-20251004-193040",
   "models": [
     {
       "id": "ml-analysis-20251004-080911",
@@ -430,6 +430,30 @@
           "precision": 0.9990900818926297,
           "recall": 1.0,
           "f1": 0.9995448338643604
+        }
+      }
+    },
+    {
+      "id": "ml-analysis-20251004-193040",
+      "path": "D:\\Project\\DexArbitrageApp\\models\\ml-analysis-20251004-193040",
+      "model": "D:\\Project\\DexArbitrageApp\\models\\ml-analysis-20251004-193040\\model.joblib",
+      "createdAt": "2025-10-04T19:30:40.598684+00:00",
+      "experiment": "ml-analysis",
+      "metrics": {
+        "cv": {
+          "roc_auc": 1.0,
+          "avg_precision": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "fold": 3.0
+        },
+        "holdout": {
+          "roc_auc": 1.0,
+          "avg_precision": 1.0,
+          "precision": 0.999088630667578,
+          "recall": 1.0,
+          "f1": 0.9995441075906086
         }
       }
     }

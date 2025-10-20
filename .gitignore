@@ -12,3 +12,6 @@ dist/
 tmp/
 users.json
 trade_model.joblib
+models/
+servers.json
+.genkit/

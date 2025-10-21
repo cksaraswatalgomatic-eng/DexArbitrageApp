@@ -16,9 +16,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const renderConsolidatedDailyProfitChart = async () => {
-    const data = await fetchJSON('/consolidated/daily-profit');
-    const labels = data.map(item => item.date);
-    const profitData = data.map(item => item.profit);
+    const dailyProfitData = await fetchJSON('/consolidated/daily-profit');
+    const totalBalanceHistory = await fetchJSON('/consolidated/total-balance-history');
+
+    // Combine all unique dates from both datasets for labels
+    const allDates = new Set([
+      ...dailyProfitData.map(item => item.date),
+      ...totalBalanceHistory.map(item => new Date(item.timestamp).toISOString().split('T')[0])
+    ]);
+    const labels = Array.from(allDates).sort();
+
+    // Map profit data to the combined labels
+    const profitMap = new Map(dailyProfitData.map(item => [item.date, item.profit]));
+    const profitValues = labels.map(date => profitMap.get(date) || 0);
+
+    // Map total balance data to the combined labels, using the latest value for each day
+    const totalBalanceDailyMap = new Map();
+    totalBalanceHistory.forEach(item => {
+      const date = new Date(item.timestamp).toISOString().split('T')[0];
+      if (!totalBalanceDailyMap.has(date) || item.totalUsdt > totalBalanceDailyMap.get(date)) {
+        totalBalanceDailyMap.set(date, item.totalUsdt);
+      }
+    });
+    const totalBalanceValues = labels.map(date => totalBalanceDailyMap.get(date) || 0);
 
     if (consolidatedDailyProfitChart) {
       consolidatedDailyProfitChart.destroy();
@@ -28,11 +48,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       type: 'bar',
       data: {
         labels: labels,
-        datasets: [{
-          label: 'Daily Profit',
-          data: profitData,
-          backgroundColor: profitData.map(profit => profit < 0 ? 'red' : 'green'),
-        }]
+        datasets: [
+          {
+            label: 'Daily Profit',
+            data: profitValues,
+            backgroundColor: profitValues.map(profit => profit < 0 ? '#FF00FF' : '#39FF14'),
+            yAxisID: 'y',
+          },
+          {
+            label: 'Total Balance',
+            data: totalBalanceValues,
+            borderColor: '#00E5FF', // Cyan for total balance line
+            backgroundColor: 'rgba(0, 229, 255, 0.2)',
+            type: 'line',
+            fill: false,
+            tension: 0.3,
+            yAxisID: 'y1',
+            pointRadius: 3,
+            pointBackgroundColor: '#FFFF00', // Bright yellow for data points
+            pointBorderColor: '#00E5FF', // Border color same as line
+            pointHoverRadius: 5,
+            pointHoverBackgroundColor: '#FFFF00',
+            pointHoverBorderColor: '#00E5FF',
+          }
+        ]
       },
       options: {
         responsive: true,
@@ -59,7 +98,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             type: 'category'
           },
           y: {
-            beginAtZero: true
+            beginAtZero: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: 'Daily Profit'
+            }
+          },
+          y1: {
+            beginAtZero: false,
+            position: 'right',
+            grid: {
+              drawOnChartArea: false,
+            },
+            title: {
+              display: true,
+              text: 'Total Balance'
+            }
           }
         }
       }

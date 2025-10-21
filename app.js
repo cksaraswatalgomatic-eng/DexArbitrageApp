@@ -2258,6 +2258,54 @@ app.post('/notifications/delete', (req, res) => {
 });
 
 // Consolidated Tracking Endpoints
+app.get('/consolidated/total-balance-history', async (req, res) => {
+  try {
+    const cfg = loadServers();
+    const allServersBalances = [];
+
+    for (const server of cfg.servers) {
+      try {
+        const db = ensureDb(server.id);
+        const rows = db.prepare(
+          'SELECT timestamp, total_usdt FROM balances_history ORDER BY timestamp ASC'
+        ).all();
+
+        for (const row of rows) {
+          const ts = new Date(row.timestamp);
+          if (isNaN(ts.getTime())) continue; // Skip invalid timestamps
+          allServersBalances.push({
+            timestamp: row.timestamp,
+            totalUsdt: row.total_usdt || 0,
+            serverId: server.id,
+            serverLabel: server.label
+          });
+        }
+      } catch (serverErr) {
+        console.error(`[api:/consolidated/total-balance-history] server:${server.id} ${serverErr.message}`);
+      }
+    }
+
+    // Sort all balances by timestamp
+    const sortedAllBalances = allServersBalances.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    // Aggregate by timestamp, summing totalUsdt for same timestamps (if any)
+    const consolidated = {};
+    for (const item of sortedAllBalances) {
+      if (!consolidated[item.timestamp]) {
+        consolidated[item.timestamp] = { timestamp: item.timestamp, totalUsdt: 0 };
+      }
+      consolidated[item.timestamp].totalUsdt += item.totalUsdt;
+    }
+
+    const result = Object.values(consolidated).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    res.json(result);
+  } catch (err) {
+    console.error('[api:/consolidated/total-balance-history] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/consolidated/balances/history', async (req, res) => {
   try {
     const cfg = loadServers();

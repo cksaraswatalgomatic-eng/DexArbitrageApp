@@ -2264,26 +2264,30 @@ app.get('/consolidated/balances/history', async (req, res) => {
     const allServersBalances = [];
 
     for (const server of cfg.servers) {
-      const db = ensureDb(server.id);
-      const rows = db.prepare(
-        'SELECT timestamp, total_usdt, raw_data FROM balances_history ORDER BY timestamp ASC'
-      ).all();
+      try {
+        const db = ensureDb(server.id);
+        const rows = db.prepare(
+          'SELECT timestamp, total_usdt, raw_data FROM balances_history ORDER BY timestamp ASC'
+        ).all();
 
-      const enriched = rows.map(r => {
-        let snapshot;
-        try { snapshot = JSON.parse(r.raw_data); } catch { snapshot = null; }
-        const parts = computeDexCex(snapshot);
-        const combined = Number.isFinite(parts.combined) && parts.combined !== 0 ? parts.combined : r.total_usdt;
-        return {
-          timestamp: r.timestamp,
-          total_usdt: combined,
-          total_dex_usdt: parts.dexTotal,
-          total_cex_usdt: parts.cexTotal,
-          serverId: server.id,
-          serverLabel: server.label
-        };
-      });
-      allServersBalances.push(...enriched);
+        const enriched = rows.map(r => {
+          let snapshot;
+          try { snapshot = JSON.parse(r.raw_data); } catch { snapshot = null; }
+          const parts = computeDexCex(snapshot);
+          const combined = Number.isFinite(parts.combined) && parts.combined !== 0 ? parts.combined : r.total_usdt;
+          return {
+            timestamp: r.timestamp,
+            total_usdt: combined,
+            total_dex_usdt: parts.dexTotal,
+            total_cex_usdt: parts.cexTotal,
+            serverId: server.id,
+            serverLabel: server.label
+          };
+        });
+        allServersBalances.push(...enriched);
+      } catch (serverErr) {
+        console.error(`[api:/consolidated/balances/history] server:${server.id} ${serverErr.message}`);
+      }
     }
 
     // Aggregate balances by timestamp
@@ -2312,18 +2316,26 @@ app.get('/consolidated/daily-profit', async (req, res) => {
     const allServersDailyProfits = {};
 
     for (const server of cfg.servers) {
-      const db = ensureDb(server.id);
-      const rows = db.prepare(
-        `SELECT lastUpdateTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades`
-      ).all();
+      try {
+        const db = ensureDb(server.id);
+        const rows = db.prepare(
+          `SELECT lastUpdateTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades`
+        ).all();
 
-      for (const row of rows) {
-        const date = new Date(row.lastUpdateTime).toISOString().split('T')[0];
-        const netProfit = (row.executedQtyDst * row.executedDstPrice) - (row.executedSrcPrice * row.executedQtySrc) - (0.0002 * row.executedQtyDst * row.executedDstPrice);
-        if (!allServersDailyProfits[date]) {
-          allServersDailyProfits[date] = 0;
+        for (const row of rows) {
+          const ts = Number(row.lastUpdateTime);
+          if (!Number.isFinite(ts)) continue;
+          const time = new Date(ts);
+          if (Number.isNaN(time.getTime())) continue;
+          const date = time.toISOString().split('T')[0];
+          const netProfit = (row.executedQtyDst * row.executedDstPrice) - (row.executedSrcPrice * row.executedQtySrc) - (0.0002 * row.executedQtyDst * row.executedDstPrice);
+          if (!allServersDailyProfits[date]) {
+            allServersDailyProfits[date] = 0;
+          }
+          allServersDailyProfits[date] += netProfit;
         }
-        allServersDailyProfits[date] += netProfit;
+      } catch (serverErr) {
+        console.error(`[api:/consolidated/daily-profit] server:${server.id} ${serverErr.message}`);
       }
     }
 
@@ -2345,24 +2357,28 @@ app.get('/consolidated/balances/latest', async (req, res) => {
     const latestBalances = [];
 
     for (const server of cfg.servers) {
-      const db = ensureDb(server.id);
-      const row = db.prepare(
-        'SELECT timestamp, total_usdt, raw_data FROM balances_history ORDER BY id DESC LIMIT 1'
-      ).get();
+      try {
+        const db = ensureDb(server.id);
+        const row = db.prepare(
+          'SELECT timestamp, total_usdt, raw_data FROM balances_history ORDER BY id DESC LIMIT 1'
+        ).get();
 
-      if (row) {
-        let snapshot;
-        try { snapshot = JSON.parse(row.raw_data); } catch { snapshot = null; }
-        const parts = computeDexCex(snapshot);
-        const combined = Number.isFinite(parts.combined) && parts.combined !== 0 ? parts.combined : row.total_usdt;
-        latestBalances.push({
-          serverId: server.id,
-          serverLabel: server.label,
-          timestamp: row.timestamp,
-          totalUsdt: combined,
-          dexTotalUsdt: parts.dexTotal,
-          cexTotalUsdt: parts.cexTotal
-        });
+        if (row) {
+          let snapshot;
+          try { snapshot = JSON.parse(row.raw_data); } catch { snapshot = null; }
+          const parts = computeDexCex(snapshot);
+          const combined = Number.isFinite(parts.combined) && parts.combined !== 0 ? parts.combined : row.total_usdt;
+          latestBalances.push({
+            serverId: server.id,
+            serverLabel: server.label,
+            timestamp: row.timestamp,
+            totalUsdt: combined,
+            dexTotalUsdt: parts.dexTotal,
+            cexTotalUsdt: parts.cexTotal
+          });
+        }
+      } catch (serverErr) {
+        console.error(`[api:/consolidated/balances/latest] server:${server.id} ${serverErr.message}`);
       }
     }
     res.json(latestBalances);
@@ -2380,16 +2396,20 @@ app.get('/consolidated/daily-profit/latest', async (req, res) => {
     const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
 
     for (const server of cfg.servers) {
-      const db = ensureDb(server.id);
-      const tradesLast24h = db.prepare('SELECT executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades WHERE lastUpdateTime >= ?').all(twentyFourHoursAgo);
-      const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
-      const profitLast24h = tradesLast24h.reduce((acc, t) => acc + netProfit(t), 0);
+      try {
+        const db = ensureDb(server.id);
+        const tradesLast24h = db.prepare('SELECT executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades WHERE lastUpdateTime >= ?').all(twentyFourHoursAgo);
+        const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
+        const profitLast24h = tradesLast24h.reduce((acc, t) => acc + netProfit(t), 0);
 
-      latestDailyProfits.push({
-        serverId: server.id,
-        serverLabel: server.label,
-        profit: profitLast24h
-      });
+        latestDailyProfits.push({
+          serverId: server.id,
+          serverLabel: server.label,
+          profit: profitLast24h
+        });
+      } catch (serverErr) {
+        console.error(`[api:/consolidated/daily-profit/latest] server:${server.id} ${serverErr.message}`);
+      }
     }
     res.json(latestDailyProfits);
   } catch (err) {
@@ -2404,20 +2424,24 @@ app.get('/consolidated/balances/distribution', async (req, res) => {
     const distribution = {}; // { serverId: totalUsdt }
 
     for (const server of cfg.servers) {
-      const db = ensureDb(server.id);
-      const row = db.prepare(
-        'SELECT total_usdt, raw_data FROM balances_history ORDER BY id DESC LIMIT 1'
-      ).get();
+      try {
+        const db = ensureDb(server.id);
+        const row = db.prepare(
+          'SELECT total_usdt, raw_data FROM balances_history ORDER BY id DESC LIMIT 1'
+        ).get();
 
-      if (row) {
-        let snapshot;
-        try { snapshot = JSON.parse(row.raw_data); } catch { snapshot = null; }
-        const parts = computeDexCex(snapshot);
-        const combined = Number.isFinite(parts.combined) && parts.combined !== 0 ? parts.combined : row.total_usdt;
-        distribution[server.id] = {
-          label: server.label,
-          totalUsdt: combined || 0
-        };
+        if (row) {
+          let snapshot;
+          try { snapshot = JSON.parse(row.raw_data); } catch { snapshot = null; }
+          const parts = computeDexCex(snapshot);
+          const combined = Number.isFinite(parts.combined) && parts.combined !== 0 ? parts.combined : row.total_usdt;
+          distribution[server.id] = {
+            label: server.label,
+            totalUsdt: combined || 0
+          };
+        }
+      } catch (serverErr) {
+        console.error(`[api:/consolidated/balances/distribution] server:${server.id} ${serverErr.message}`);
       }
     }
 
@@ -2436,11 +2460,15 @@ app.get('/consolidated/token-performance', async (req, res) => {
     const allTrades = [];
 
     for (const server of cfg.servers) {
-      const db = ensureDb(server.id);
-      const trades = db.prepare(
-        'SELECT pair, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, props, raw_data FROM completed_trades ORDER BY lastUpdateTime DESC LIMIT ?'
-      ).all(limit);
-      allTrades.push(...trades);
+      try {
+        const db = ensureDb(server.id);
+        const trades = db.prepare(
+          'SELECT pair, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, props, raw_data FROM completed_trades ORDER BY lastUpdateTime DESC LIMIT ?'
+        ).all(limit);
+        allTrades.push(...trades);
+      } catch (serverErr) {
+        console.error(`[api:/consolidated/token-performance] server:${server.id} ${serverErr.message}`);
+      }
     }
 
     const metrics = aggregateTokenMetrics(allTrades);

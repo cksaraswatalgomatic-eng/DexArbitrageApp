@@ -23,7 +23,7 @@
         <h1>DEX Arbitrage</h1>
       </div>
       <div class="controls">
-        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
+        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">&#9790;</button>
         <label>Server:
           <select id="serverSelect"></select>
         </label>
@@ -46,6 +46,24 @@
       </div>
     </header>
     <main>
+      <section class="card full-width" aria-labelledby="balance-history">
+        <div class="card-header chart-header">
+          <div>
+            <h2 id="balance-history">Total USDT Balance Over Time</h2>
+            <p class="card-subtitle">Combined totals across DEX venues and BinanceF. Scroll or pinch to explore history.</p>
+          </div>
+          <div class="chart-nav">
+            <button id="resetZoomBtn" class="btn-orange" type="button">Reset Zoom</button>
+            <button class="info-btn" type="button" data-help="total-chart" aria-label="About total balance chart">i</button>
+          </div>
+        </div>
+        <div class="chart-container" aria-live="polite" style="height: 180px;">
+          <div class="skeleton" aria-hidden="true"></div>
+          <canvas id="balancesChart" aria-label="Total USDT balance chart"></canvas>
+        </div>
+        <div id="totalBalanceSummary" class="muted"></div>
+      </section>
+
       <div class="grid-2">
         <section class="card">
           <h2>Server Status</h2>
@@ -59,27 +77,7 @@
             <div id="tradeStats"></div>
           </div>
         </section>
-        <div class="vertical-stack">
-          <section class="card" aria-labelledby="balance-history">
-          <div class="card-header chart-header">
-            <div>
-              <h2 id="balance-history">Total USDT Balance Over Time</h2>
-              <p class="card-subtitle">Combined totals across DEX venues and BinanceF. Scroll or pinch to explore history.</p>
-            </div>
-            <div class="chart-nav">
-              <button id="resetZoomBtn" class="btn-orange" type="button">Reset Zoom</button>
-              <button class="info-btn" type="button" data-help="total-chart" aria-label="About total balance chart">i</button>
-            </div>
-          </div>
-          <div class="chart-container" aria-live="polite" style="height: 180px;">
-            <div class="skeleton" aria-hidden="true"></div>
-            <canvas id="balancesChart" aria-label="Total USDT balance chart"></canvas>
-          </div>
-          <div id="totalBalanceSummary" class="muted"></div>
 
-
-        </section>
-        
         <!-- Daily Profit Chart Section -->
         <section class="card">
           <div class="card-header chart-header">
@@ -88,8 +86,8 @@
               <p class="card-subtitle">Profit over the last several days. Use the buttons below to navigate weeks.</p>
             </div>
             <div class="chart-nav">
-              <button id="prevWeekBtn" class="btn" type="button">← Prev Week</button>
-              <button id="nextWeekBtn" class="btn" type="button">Next Week →</button>
+              <button id="prevWeekBtn" class="btn" type="button">&larr; Prev Week</button>
+              <button id="nextWeekBtn" class="btn" type="button">Next Week &rarr;</button>
             </div>
           </div>
           <div class="chart-container" style="height: 180px;">
@@ -97,8 +95,7 @@
             <canvas id="dailyProfitChart" aria-label="Daily profit chart"></canvas>
           </div>
         </section>
-      </div>  <!-- End of vertical-stack -->
-      </div> <!-- Close the first grid-2 container -->
+      </div>
 
       <!-- Second Row: DEX, CEX Balances and Comparison -->
       <div class="grid-3">

@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const consolidatedDailyProfitChartCtx = document.getElementById('consolidatedDailyProfitChart').getContext('2d');
+  const consolidatedTotalBalanceChartCtx = document.getElementById('consolidatedTotalBalanceChart').getContext('2d');
   const consolidatedBalancesTableBody = document.querySelector('#consolidatedBalancesTable tbody');
   const consolidatedDailyProfitTableBody = document.querySelector('#consolidatedDailyProfitTable tbody');
   const consolidatedTokenPerformanceChartCtx = document.getElementById('consolidatedTokenPerformanceChart').getContext('2d'); // New chart context
@@ -7,6 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const worstPerformersTableBody = document.querySelector('#worstPerformersTable tbody'); // New table body
 
   let consolidatedDailyProfitChart;
+  let consolidatedTotalBalanceChart;
   let consolidatedTokenPerformanceChart; // New chart instance
 
   const fetchJSON = async (url) => {
@@ -17,20 +19,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const renderConsolidatedDailyProfitChart = async () => {
     const dailyProfitData = await fetchJSON('/consolidated/daily-profit');
-    const totalBalanceHistory = await fetchJSON('/consolidated/total-balance-history');
 
     const labels = dailyProfitData.map(item => item.date);
     const profitValues = dailyProfitData.map(item => item.profit);
-
-    // Map total balance data to the combined labels, using the highest value for each day
-    const totalBalanceDailyMap = new Map();
-    totalBalanceHistory.forEach(item => {
-      const date = new Date(item.timestamp).toISOString().split('T')[0];
-      if (!totalBalanceDailyMap.has(date) || item.totalUsdt > totalBalanceDailyMap.get(date)) {
-        totalBalanceDailyMap.set(date, item.totalUsdt);
-      }
-    });
-    const totalBalanceValues = labels.map(date => totalBalanceDailyMap.get(date) || 0);
 
     if (consolidatedDailyProfitChart) {
       consolidatedDailyProfitChart.destroy();
@@ -46,22 +37,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             data: profitValues,
             backgroundColor: profitValues.map(profit => profit < 0 ? '#FF00FF' : '#39FF14'),
             yAxisID: 'y',
-          },
-          {
-            label: 'Total Balance',
-            data: totalBalanceValues,
-            borderColor: '#00E5FF', // Cyan for total balance line
-            backgroundColor: 'rgba(0, 229, 255, 0.2)',
-            type: 'line',
-            fill: false,
-            tension: 0.3,
-            yAxisID: 'y1',
-            pointRadius: 3,
-            pointBackgroundColor: '#FFFF00', // Bright yellow for data points
-            pointBorderColor: '#00E5FF', // Border color same as line
-            pointHoverRadius: 5,
-            pointHoverBackgroundColor: '#FFFF00',
-            pointHoverBorderColor: '#00E5FF',
           }
         ]
       },
@@ -100,13 +75,85 @@ document.addEventListener('DOMContentLoaded', async () => {
               display: true,
               text: 'Daily Profit'
             }
-          },
-          y1: {
-            beginAtZero: false,
-            position: 'right',
-            grid: {
-              drawOnChartArea: false,
+          }
+        }
+      }
+    });
+  };
+
+  const renderConsolidatedTotalBalanceChart = async () => {
+    const totalBalanceHistory = await fetchJSON('/consolidated/total-balance-history');
+
+    const labels = totalBalanceHistory.map(item => new Date(item.timestamp).toISOString().split('T')[0]);
+
+    // Map total balance data to the combined labels, using the highest value for each day
+    const totalBalanceDailyMap = new Map();
+    totalBalanceHistory.forEach(item => {
+      const date = new Date(item.timestamp).toISOString().split('T')[0];
+      if (!totalBalanceDailyMap.has(date) || item.totalUsdt > totalBalanceDailyMap.get(date)) {
+        totalBalanceDailyMap.set(date, item.totalUsdt);
+      }
+    });
+    const totalBalanceValues = labels.map(date => totalBalanceDailyMap.get(date) || 0);
+
+    if (consolidatedTotalBalanceChart) {
+      consolidatedTotalBalanceChart.destroy();
+    }
+
+    consolidatedTotalBalanceChart = new Chart(consolidatedTotalBalanceChartCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Total Balance',
+            data: totalBalanceValues,
+            borderColor: '#00E5FF', // Cyan for total balance line
+            backgroundColor: 'rgba(0, 229, 255, 0.2)',
+            type: 'line',
+            fill: false,
+            tension: 0.3,
+            yAxisID: 'y',
+            pointRadius: 3,
+            pointBackgroundColor: '#FFFF00', // Bright yellow for data points
+            pointBorderColor: '#00E5FF', // Border color same as line
+            pointHoverRadius: 5,
+            pointHoverBackgroundColor: '#FFFF00',
+            pointHoverBorderColor: '#00E5FF',
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          zoom: {
+            pan: {
+              enabled: true,
+              mode: 'x'
             },
+            zoom: {
+              wheel: {
+                enabled: true,
+              },
+              pinch: {
+                enabled: true
+              },
+              mode: 'x'
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'category',
+            title: {
+              display: true,
+              text: 'Date'
+            }
+          },
+          y: {
+            beginAtZero: false,
+            position: 'left',
             title: {
               display: true,
               text: 'Total Balance'
@@ -224,9 +271,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await Promise.all([
     renderConsolidatedDailyProfitChart(),
+    renderConsolidatedTotalBalanceChart(),
     renderConsolidatedBalancesTable(),
     renderConsolidatedDailyProfitTable(),
     renderConsolidatedTokenPerformanceChart(), // Call the new chart function
-    renderConsolidatedTokenPerformanceTables() // Call the new tables function
+    renderConsolidatedTokenPerformanceTables()
   ]);
 });

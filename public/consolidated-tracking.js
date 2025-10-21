@@ -31,11 +31,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         datasets: [{
           label: 'Daily Profit',
           data: profitData,
-          backgroundColor: profitData.map(profit => profit < 0 ? '#FF00FF' : '#39FF14'),
+          backgroundColor: profitData.map(profit => profit < 0 ? 'red' : 'green'),
         }]
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           zoom: {
             pan: {
@@ -115,6 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           zoom: {
             pan: {

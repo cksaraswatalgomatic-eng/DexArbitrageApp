@@ -15,6 +15,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     const HISTORY_PAGE_SIZE = 500;
     let isLoadingBalanceHistory = false;
     let reachedEndOfHistory = false;
+    const loadMoreHistoryBtn = document.getElementById('loadMoreHistoryBtn');
+
+    function updateLoadMoreButtonState() {
+      if (!loadMoreHistoryBtn) return;
+      if (isLoadingBalanceHistory) {
+        loadMoreHistoryBtn.disabled = true;
+        loadMoreHistoryBtn.textContent = 'Loading...';
+        return;
+      }
+      if (reachedEndOfHistory) {
+        loadMoreHistoryBtn.disabled = true;
+        loadMoreHistoryBtn.textContent = 'No More Data';
+        return;
+      }
+      if (allBalanceData.length === 0) {
+        loadMoreHistoryBtn.disabled = true;
+        loadMoreHistoryBtn.textContent = 'Load More';
+        return;
+      }
+      loadMoreHistoryBtn.disabled = false;
+      loadMoreHistoryBtn.textContent = 'Load More';
+    }
 
     if (typeof window.waitForChart === 'function') {
       try {
@@ -37,6 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.warn('Chart.js zoom plugin not found; zoom interactions disabled.');
       window.__chartZoomWarned = true;
     }
+
+    updateLoadMoreButtonState();
 
     function safeJsonParse(value, fallback = {}) {
       if (value == null) return fallback;
@@ -219,6 +243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     allBalanceData = [];
                     reachedEndOfHistory = false;
                     isLoadingBalanceHistory = false;
+                    updateLoadMoreButtonState();
                     loadBalancesHistory();
                 }
                 if (dailyProfitChart) {
@@ -242,6 +267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
 
           isLoadingBalanceHistory = true;
+          updateLoadMoreButtonState();
           try {
             let url = `/balances/history?limit=${HISTORY_PAGE_SIZE}`;
             if (beforeTimestamp) {
@@ -411,7 +437,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('Error loading balances history', err);
           } finally {
             isLoadingBalanceHistory = false;
+            updateLoadMoreButtonState();
           }
+        }
+
+        if (loadMoreHistoryBtn) {
+          loadMoreHistoryBtn.addEventListener('click', () => {
+            if (isLoadingBalanceHistory || reachedEndOfHistory) return;
+            const oldest = allBalanceData[0]?.timestamp;
+            loadBalancesHistory(oldest ? oldest.toISOString() : null);
+          });
         }
 
         async function fetchDailyProfit(days = 7, endDate = new Date()) {
@@ -508,6 +543,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             reachedEndOfHistory = false;
             isLoadingBalanceHistory = false;
             userZoomed = false;
+            updateLoadMoreButtonState();
             await Promise.all([loadBalancesHistory(), loadTrades(), loadExchangeBalances(), loadServerStatus(), renderDailyProfitChart()]);
             if(lastUpdatedEl) lastUpdatedEl.textContent = `Updated ${fmtTime(Date.now())}`;
             console.log('All data refreshed successfully');
@@ -808,6 +844,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 allBalanceData = [];
                 reachedEndOfHistory = false;
                 isLoadingBalanceHistory = false;
+                updateLoadMoreButtonState();
                 loadBalancesHistory();
               }
             });

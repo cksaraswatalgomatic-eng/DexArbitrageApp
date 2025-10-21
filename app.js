@@ -2320,10 +2320,18 @@ app.get('/consolidated/total-balance-history', async (req, res) => {
       consolidatedBalances[timestamp] = currentConsolidatedTotal;
     }
 
-    const result = Object.keys(consolidatedBalances).map(timestamp => ({
-      timestamp: timestamp,
-      totalUsdt: consolidatedBalances[timestamp]
-    })).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const result = sortedTimestamps.map(timestamp => {
+      const perServer = cfg.servers.map(server => ({
+        serverId: server.id,
+        serverLabel: server.label,
+        totalUsdt: filledServerBalances.get(server.id)?.get(timestamp) || 0,
+      }));
+      return {
+        timestamp,
+        totalUsdt: consolidatedBalances[timestamp] || 0,
+        servers: perServer,
+      };
+    });
 
     res.json(result);
   } catch (err) {

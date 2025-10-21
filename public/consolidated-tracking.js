@@ -123,49 +123,96 @@ document.addEventListener('DOMContentLoaded', async () => {
   const renderConsolidatedTotalBalanceChart = async () => {
     const totalBalanceHistory = await fetchJSON('/consolidated/total-balance-history');
 
-    const labels = totalBalanceHistory.map(item => new Date(item.timestamp).toISOString().split('T')[0]);
-
-    // Map total balance data to the combined labels, using the highest value for each day
-    const totalBalanceDailyMap = new Map();
-    totalBalanceHistory.forEach(item => {
-      const date = new Date(item.timestamp).toISOString().split('T')[0];
-      if (!totalBalanceDailyMap.has(date) || item.totalUsdt > totalBalanceDailyMap.get(date)) {
-        totalBalanceDailyMap.set(date, item.totalUsdt);
+    if (!Array.isArray(totalBalanceHistory) || totalBalanceHistory.length === 0) {
+      if (consolidatedTotalBalanceChart) {
+        consolidatedTotalBalanceChart.destroy();
+        consolidatedTotalBalanceChart = null;
       }
-    });
-    const totalBalanceValues = labels.map(date => totalBalanceDailyMap.get(date) || 0);
+      return;
+    }
+
+    const timeSeries = totalBalanceHistory
+      .map(entry => {
+        const timestamp = new Date(entry.timestamp);
+        if (Number.isNaN(timestamp.getTime())) return null;
+        return {
+          timestamp,
+          total: Number(entry.totalUsdt) || 0,
+          servers: Array.isArray(entry.servers) ? entry.servers : [],
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+    const aggregatedDataset = timeSeries.map(entry => ({ x: entry.timestamp, y: entry.total }));
+
+    const perServerSeries = new Map();
+    for (const entry of timeSeries) {
+      for (const server of entry.servers) {
+        const serverId = server.serverId || server.serverLabel || 'server';
+        if (!perServerSeries.has(serverId)) {
+          perServerSeries.set(serverId, {
+            label: server.serverLabel || server.serverId || 'Server',
+            points: [],
+          });
+        }
+        perServerSeries.get(serverId).points.push({
+          x: entry.timestamp,
+          y: Number(server.totalUsdt) || 0,
+        });
+      }
+    }
 
     if (consolidatedTotalBalanceChart) {
       consolidatedTotalBalanceChart.destroy();
     }
 
+    const palette = ['#39FF14', '#00E5FF', '#FF8C00', '#FF00FF', '#FFE066', '#74C0FC', '#B197FC', '#FF6B6B', '#63E6BE', '#FFD43B'];
+    let colorIndex = 0;
+
+    const datasets = [
+      {
+        label: 'Total Balance (All Servers)',
+        data: aggregatedDataset,
+        borderColor: '#FFFFFF',
+        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        tension: 0.25,
+        borderWidth: 2.5,
+        pointRadius: 0,
+        parsing: false,
+        spanGaps: true,
+      },
+    ];
+
+    perServerSeries.forEach(series => {
+      const color = palette[colorIndex % palette.length];
+      datasets.push({
+        label: series.label,
+        data: series.points,
+        borderColor: color,
+        backgroundColor: 'rgba(0, 0, 0, 0)',
+        tension: 0.25,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        parsing: false,
+        spanGaps: true,
+      });
+      colorIndex += 1;
+    });
+
     consolidatedTotalBalanceChart = new Chart(consolidatedTotalBalanceChartCtx, {
       type: 'line',
       data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Total Balance',
-            data: totalBalanceValues,
-            borderColor: '#00E5FF', // Cyan for total balance line
-            backgroundColor: 'rgba(0, 229, 255, 0.2)',
-            type: 'line',
-            fill: false,
-            tension: 0.3,
-            yAxisID: 'y',
-            pointRadius: 3,
-            pointBackgroundColor: '#FFFF00', // Bright yellow for data points
-            pointBorderColor: '#00E5FF', // Border color same as line
-            pointHoverRadius: 5,
-            pointHoverBackgroundColor: '#FFFF00',
-            pointHoverBorderColor: '#00E5FF',
-          }
-        ]
+        datasets,
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: { mode: 'nearest', intersect: false },
         plugins: {
+          legend: {
+            position: 'top',
+          },
           zoom: {
             pan: {
               enabled: true,
@@ -184,18 +231,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         },
         scales: {
           x: {
-            type: 'category',
-            title: {
-              display: true,
-              text: 'Date'
-            }
+            type: 'time',
+            time: {
+              tooltipFormat: 'PPpp',
+              displayFormats: { minute: 'MMM d HH:mm', hour: 'MMM d HH:mm', day: 'MMM d' }
+            },
+            ticks: { autoSkip: true, maxTicksLimit: 12 }
           },
           y: {
             beginAtZero: false,
             position: 'left',
             title: {
               display: true,
-              text: 'Total Balance'
+              text: 'Total Balance (USDT)'
             }
           }
         }

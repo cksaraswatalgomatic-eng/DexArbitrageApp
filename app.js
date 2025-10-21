@@ -2261,7 +2261,8 @@ app.post('/notifications/delete', (req, res) => {
 app.get('/consolidated/total-balance-history', async (req, res) => {
   try {
     const cfg = loadServers();
-    const allServersBalances = [];
+    const allServersRawBalances = new Map(); // Map<serverId, [{timestamp, total_usdt}]>
+    const allTimestamps = new Set();
 
     for (const server of cfg.servers) {
       try {
@@ -2269,35 +2270,58 @@ app.get('/consolidated/total-balance-history', async (req, res) => {
         const rows = db.prepare(
           'SELECT timestamp, total_usdt FROM balances_history ORDER BY timestamp ASC'
         ).all();
-
-        for (const row of rows) {
-          const ts = new Date(row.timestamp);
-          if (isNaN(ts.getTime())) continue; // Skip invalid timestamps
-          allServersBalances.push({
-            timestamp: row.timestamp,
-            totalUsdt: row.total_usdt || 0,
-            serverId: server.id,
-            serverLabel: server.label
-          });
-        }
+        allServersRawBalances.set(server.id, rows);
+        rows.forEach(row => allTimestamps.add(row.timestamp));
       } catch (serverErr) {
         console.error(`[api:/consolidated/total-balance-history] server:${server.id} ${serverErr.message}`);
       }
     }
 
-    // Sort all balances by timestamp
-    const sortedAllBalances = allServersBalances.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const sortedTimestamps = Array.from(allTimestamps).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-    // Aggregate by timestamp, summing totalUsdt for same timestamps (if any)
-    const consolidated = {};
-    for (const item of sortedAllBalances) {
-      if (!consolidated[item.timestamp]) {
-        consolidated[item.timestamp] = { timestamp: item.timestamp, totalUsdt: 0 };
+    const consolidatedBalances = {};
+
+    // Pre-process each server's balances with LOCF
+    const filledServerBalances = new Map(); // Map<serverId, Map<timestamp, total_usdt>>
+    for (const server of cfg.servers) {
+      const serverId = server.id;
+      const rawBalances = allServersRawBalances.get(serverId) || [];
+      const serverFilledMap = new Map(); // Map<timestamp, total_usdt> for this server
+      let lastKnownBalance = 0; // Default to 0 if no prior balance
+
+      let rawIdx = 0;
+      for (const timestamp of sortedTimestamps) {
+        let currentBalance = null;
+
+        // Find the balance for the current timestamp or the most recent one before it
+        while (rawIdx < rawBalances.length && new Date(rawBalances[rawIdx].timestamp).getTime() <= new Date(timestamp).getTime()) {
+          currentBalance = rawBalances[rawIdx].total_usdt;
+          rawIdx++;
+        }
+
+        if (currentBalance !== null && currentBalance !== 0) {
+          lastKnownBalance = currentBalance;
+        }
+        serverFilledMap.set(timestamp, lastKnownBalance);
       }
-      consolidated[item.timestamp].totalUsdt += item.totalUsdt;
+      filledServerBalances.set(serverId, serverFilledMap);
     }
 
-    const result = Object.values(consolidated).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    // Aggregate across all servers for each timestamp
+    for (const timestamp of sortedTimestamps) {
+      let currentConsolidatedTotal = 0;
+      for (const server of cfg.servers) {
+        const serverId = server.id;
+        const serverBalance = filledServerBalances.get(serverId)?.get(timestamp) || 0;
+        currentConsolidatedTotal += serverBalance;
+      }
+      consolidatedBalances[timestamp] = currentConsolidatedTotal;
+    }
+
+    const result = Object.keys(consolidatedBalances).map(timestamp => ({
+      timestamp: timestamp,
+      totalUsdt: consolidatedBalances[timestamp]
+    })).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
     res.json(result);
   } catch (err) {

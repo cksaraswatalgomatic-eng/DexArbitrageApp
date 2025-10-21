@@ -19,18 +19,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dailyProfitData = await fetchJSON('/consolidated/daily-profit');
     const totalBalanceHistory = await fetchJSON('/consolidated/total-balance-history');
 
-    // Combine all unique dates from both datasets for labels
-    const allDates = new Set([
-      ...dailyProfitData.map(item => item.date),
-      ...totalBalanceHistory.map(item => new Date(item.timestamp).toISOString().split('T')[0])
-    ]);
-    const labels = Array.from(allDates).sort();
+    const labels = dailyProfitData.map(item => item.date);
+    const profitValues = dailyProfitData.map(item => item.profit);
 
-    // Map profit data to the combined labels
-    const profitMap = new Map(dailyProfitData.map(item => [item.date, item.profit]));
-    const profitValues = labels.map(date => profitMap.get(date) || 0);
-
-    // Map total balance data to the combined labels, using the latest value for each day
+    // Map total balance data to the combined labels, using the highest value for each day
     const totalBalanceDailyMap = new Map();
     totalBalanceHistory.forEach(item => {
       const date = new Date(item.timestamp).toISOString().split('T')[0];
@@ -95,7 +87,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         },
         scales: {
           x: {
-            type: 'category'
+            type: 'category',
+            title: {
+              display: true,
+              text: 'Date'
+            }
           },
           y: {
             beginAtZero: true,

@@ -10,11 +10,50 @@ document.addEventListener('DOMContentLoaded', async () => {
   let consolidatedDailyProfitChart;
   let consolidatedTotalBalanceChart;
   let consolidatedTokenPerformanceChart; // New chart instance
+  const TOKEN_PERFORMANCE_LIMIT = 500;
+  let tokenPerformanceCache = null;
+  let tokenPerformancePromise = null;
+
+  if (typeof window.waitForChart === 'function') {
+    try {
+      await window.waitForChart();
+    } catch (err) {
+      console.error('Failed to load chart dependencies for consolidated tracking:', err);
+      return;
+    }
+  }
 
   const fetchJSON = async (url) => {
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return resp.json();
+  };
+
+  const getTokenPerformanceData = async (force = false) => {
+    if (force) {
+      tokenPerformanceCache = null;
+    }
+    if (tokenPerformanceCache && !force) {
+      return tokenPerformanceCache;
+    }
+    if (tokenPerformancePromise && !force) {
+      return tokenPerformancePromise;
+    }
+    tokenPerformancePromise = fetchJSON(`/consolidated/token-performance?limit=${TOKEN_PERFORMANCE_LIMIT}`)
+      .then(data => {
+        tokenPerformanceCache = data;
+        return data;
+      })
+      .catch(err => {
+        if (!force) {
+          tokenPerformanceCache = null;
+        }
+        throw err;
+      })
+      .finally(() => {
+        tokenPerformancePromise = null;
+      });
+    return tokenPerformancePromise;
   };
 
   const renderConsolidatedDailyProfitChart = async () => {
@@ -193,7 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const renderConsolidatedTokenPerformanceChart = async () => {
-    const data = await fetchJSON('/consolidated/token-performance?limit=1000'); // Fetch for last 1000 trades
+    const data = await getTokenPerformanceData();
     const allTokens = [...data.topPerformers, ...data.worstPerformers];
     const labels = allTokens.map(item => item.token);
     const netProfitData = allTokens.map(item => item.totalNetProfit);
@@ -245,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const renderConsolidatedTokenPerformanceTables = async () => {
-    const data = await fetchJSON('/consolidated/token-performance?limit=1000'); // Fetch for last 1000 trades
+    const data = await getTokenPerformanceData();
     topPerformersTableBody.innerHTML = '';
     data.topPerformers.forEach(item => {
       const tr = document.createElement('tr');

@@ -6,8 +6,10 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const cookieParser = require('cookie-parser');
+const expressStaticGzip = require('express-static-gzip');
 const { Notifier } = require('./notifier');
 const bcrypt = require('bcrypt');
+const compression = require('compression'); 
 
 let ethPrice = null;
 async function getEthPrice() {
@@ -67,15 +69,15 @@ const app = express();
 app.use(cors()); // Allow all origins
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(compression());
+app.use(expressStaticGzip(path.join(__dirname, 'public'), {
+  enableBrotli: false, // Only use gzip
+  orderPreference: ['gzip'],
+}));
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-app.get('/notifications.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'notifications.html'));
-});
-
 app.get('/consolidated-tracking.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'consolidated-tracking.html'));
 });
@@ -2391,20 +2393,19 @@ app.get('/consolidated/daily-profit', async (req, res) => {
       try {
         const db = ensureDb(server.id);
         const rows = db.prepare(
-          `SELECT lastUpdateTime, executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades`
+          `SELECT
+            STRFTIME('%Y-%m-%d', DATETIME(lastUpdateTime / 1000, 'unixepoch')) AS trade_date,
+            SUM((executedQtyDst * executedDstPrice) - (executedSrcPrice * executedQtySrc) - (0.0002 * executedQtyDst * executedDstPrice)) AS daily_profit
+          FROM completed_trades
+          GROUP BY trade_date
+          ORDER BY trade_date ASC`
         ).all();
 
         for (const row of rows) {
-          const ts = Number(row.lastUpdateTime);
-          if (!Number.isFinite(ts)) continue;
-          const time = new Date(ts);
-          if (Number.isNaN(time.getTime())) continue;
-          const date = time.toISOString().split('T')[0];
-          const netProfit = (row.executedQtyDst * row.executedDstPrice) - (row.executedSrcPrice * row.executedQtySrc) - (0.0002 * row.executedQtyDst * row.executedDstPrice);
-          if (!allServersDailyProfits[date]) {
-            allServersDailyProfits[date] = 0;
+          if (!allServersDailyProfits[row.trade_date]) {
+            allServersDailyProfits[row.trade_date] = 0;
           }
-          allServersDailyProfits[date] += netProfit;
+          allServersDailyProfits[row.trade_date] += row.daily_profit || 0;
         }
       } catch (serverErr) {
         console.error(`[api:/consolidated/daily-profit] server:${server.id} ${serverErr.message}`);
@@ -2414,7 +2415,7 @@ app.get('/consolidated/daily-profit', async (req, res) => {
     const result = Object.keys(allServersDailyProfits).map(date => ({
       date: date,
       profit: allServersDailyProfits[date]
-    })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    })).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
     res.json(result);
   } catch (err) {

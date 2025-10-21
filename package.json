@@ -16,7 +16,9 @@
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "node-cron": "^3.0.3",
-    "nodemailer": "^6.10.1"
+    "nodemailer": "^6.10.1",
+    "compression": "^1.7.4",
+    "express-static-gzip": "^2.1.1"
   },
   "engines": {
     "node": ">=18"

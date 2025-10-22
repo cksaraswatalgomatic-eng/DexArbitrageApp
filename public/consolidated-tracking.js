@@ -30,6 +30,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Add event listener for the reset zoom button
+  const resetConsolidatedZoomBtn = document.getElementById('resetConsolidatedZoomBtn');
+  if (resetConsolidatedZoomBtn) {
+    resetConsolidatedZoomBtn.addEventListener('click', () => {
+      if (consolidatedTotalBalanceChart) {
+        consolidatedTotalBalanceChart.resetZoom();
+      }
+    });
+  }
+
   const consolidatedThresholds = {};
   let consolidatedSeries = [];
   let consolidatedServerInfos = [];
@@ -340,7 +350,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                   pinch: {
                     enabled: true
                   },
-                  mode: 'x'
+                  mode: 'x',
+                  drag: {
+                    enabled: true
+                  }
                 },
                 limits: {
                   x: {

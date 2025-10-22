@@ -44,13 +44,16 @@
             <h2>Total USDT Balance Over Time (All Servers)</h2>
           </div>
           <div class="chart-nav">
-            <div id="consolidatedMinControls" class="inline-control-group"></div>
-            <div class="inline-control-group">
-              <label class="inline-control">
-                Outlier Filter:
-                <input type="number" id="outlierPercentage" min="0" step="any" value="0" title="Hide points when value falls below (previous displayed value - this threshold value).">
-              </label>
+            <div class="chart-controls">
+              <div id="consolidatedMinControls" class="inline-control-group"></div>
+              <div class="inline-control-group">
+                <label class="inline-control">
+                  Outlier Filter:
+                  <input type="number" id="outlierPercentage" min="0" step="any" value="0" title="Hide points when value falls below (previous displayed value - this threshold value).">
+                </label>
+              </div>
             </div>
+            <button id="resetConsolidatedZoomBtn" class="btn-orange" type="button">Reset Zoom</button>
           </div>
         </div>
         <div class="chart-container" style="height: 500px;">

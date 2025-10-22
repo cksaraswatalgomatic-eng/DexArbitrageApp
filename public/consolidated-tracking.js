@@ -185,26 +185,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       parsing: false,
     });
 
-    const palette = ['#39FF14', '#00E5FF', '#FF8C00', '#FF00FF', '#FFE066', '#74C0FC', '#B197FC', '#FF6B6B', '#63E6BE', '#FFD43B'];
-    let colorIndex = 0;
-    consolidatedServerInfos.forEach(info => {
-      const series = perServerMap.get(info.key);
-      const points = series ? series.points : [];
-      const color = palette[colorIndex % palette.length];
-      datasets.push({
-        datasetKey: info.key,
-        label: info.label,
-        data: points,
-        borderColor: color,
-        backgroundColor: 'rgba(0, 0, 0, 0)',
-        tension: 0.25,
-        borderWidth: 1.5,
-        pointRadius: 0,
-        spanGaps: true,
-        parsing: false,
-      });
-      colorIndex += 1;
-    });
+
 
     const activeTimes = datasets
       .flatMap(ds => ds.data)

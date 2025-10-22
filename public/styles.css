@@ -292,6 +292,14 @@ tbody tr:hover {
   border-radius: 4px;
   background: var(--background-primary);
   color: var(--text-primary);
+  min-width: 80px;
+  flex: 0 0 auto;
+}
+
+#outlierPercentage {
+  display: block;
+  visibility: visible;
+  min-width: 70px;
 }
 
 .btn-small {

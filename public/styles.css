@@ -270,6 +270,30 @@ tbody tr:hover {
   gap: 0.5rem;
 }
 
+.inline-control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.inline-control {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.inline-control input {
+  width: 6rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-primary);
+}
+
 .btn-small {
   padding: 0.25rem 0.75rem;
 }

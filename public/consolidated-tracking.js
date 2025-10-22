@@ -13,6 +13,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   const TOKEN_PERFORMANCE_LIMIT = 500;
   let tokenPerformanceCache = null;
   let tokenPerformancePromise = null;
+  const consolidatedMinControls = document.getElementById('consolidatedMinControls');
+  const consolidatedThresholds = {};
+  let consolidatedSeries = [];
+  let consolidatedServerInfos = [];
+  let totalBalanceHistoryCache = null;
+  let totalBalanceHistoryPromise = null;
+  let isApplyingConsolidatedData = false;
+  let consolidatedApplyScheduled = false;
+
+  const scheduleConsolidatedChartUpdate = () => {
+    if (consolidatedApplyScheduled) return;
+    consolidatedApplyScheduled = true;
+    Promise.resolve().then(() => {
+      consolidatedApplyScheduled = false;
+      applyConsolidatedChartData();
+    });
+  };
 
   if (typeof window.waitForChart === 'function') {
     try {
@@ -55,6 +72,267 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     return tokenPerformancePromise;
   };
+
+  const getTotalBalanceHistory = async (force = false) => {
+    if (force) {
+      totalBalanceHistoryCache = null;
+    }
+    if (totalBalanceHistoryCache && !force) {
+      return totalBalanceHistoryCache;
+    }
+    if (totalBalanceHistoryPromise && !force) {
+      return totalBalanceHistoryPromise;
+    }
+    totalBalanceHistoryPromise = fetchJSON('/consolidated/total-balance-history')
+      .then(data => {
+        totalBalanceHistoryCache = data;
+        return data;
+      })
+      .catch(err => {
+        if (!force) {
+          totalBalanceHistoryCache = null;
+        }
+        throw err;
+      })
+      .finally(() => {
+        totalBalanceHistoryPromise = null;
+      });
+    return totalBalanceHistoryPromise;
+  };
+
+  const AGGREGATE_DATASET_KEY = 'total';
+  const AGGREGATE_LABEL = 'All Servers';
+
+  function ensureConsolidatedControls() {
+    if (!consolidatedMinControls) return;
+    const entries = [{ key: AGGREGATE_DATASET_KEY, label: AGGREGATE_LABEL }, ...consolidatedServerInfos];
+    consolidatedMinControls.innerHTML = '';
+    entries.forEach(({ key, label }) => {
+      if (!(key in consolidatedThresholds)) {
+        consolidatedThresholds[key] = null;
+      }
+      const wrapper = document.createElement('label');
+      wrapper.className = 'inline-control';
+      wrapper.append(document.createTextNode(`${label}: `));
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.step = 'any';
+      input.placeholder = '0';
+      input.dataset.dataset = key;
+      if (consolidatedThresholds[key] != null) {
+        input.value = String(consolidatedThresholds[key]);
+      }
+      input.addEventListener('input', () => {
+        const val = parseFloat(input.value);
+        consolidatedThresholds[key] = Number.isFinite(val) && val >= 0 ? val : null;
+        scheduleConsolidatedChartUpdate();
+      });
+      wrapper.appendChild(input);
+      consolidatedMinControls.appendChild(wrapper);
+    });
+  }
+
+  function applyConsolidatedChartData() {
+    if (isApplyingConsolidatedData) return;
+    isApplyingConsolidatedData = true;
+
+    try {
+    if (!consolidatedTotalBalanceChartCtx) return;
+
+    if (!consolidatedSeries.length) {
+      if (consolidatedTotalBalanceChart) {
+        consolidatedTotalBalanceChart.destroy();
+        consolidatedTotalBalanceChart = null;
+      }
+      return;
+    }
+
+    const aggregateThreshold = consolidatedThresholds[AGGREGATE_DATASET_KEY] ?? null;
+    const aggregatePoints = [];
+    const perServerMap = new Map();
+
+    for (const entry of consolidatedSeries) {
+      const timestamp = entry.timestamp;
+      if (!(timestamp instanceof Date) || Number.isNaN(timestamp.getTime())) continue;
+
+      if (aggregateThreshold == null || entry.total >= aggregateThreshold) {
+        aggregatePoints.push({ x: timestamp, y: entry.total });
+      }
+
+      for (const server of entry.servers) {
+        if (!perServerMap.has(server.key)) {
+          perServerMap.set(server.key, { label: server.label, points: [] });
+        }
+        const threshold = consolidatedThresholds[server.key] ?? null;
+        if (threshold == null || server.value >= threshold) {
+          perServerMap.get(server.key).points.push({ x: timestamp, y: server.value });
+        }
+      }
+    }
+
+    const datasets = [];
+    datasets.push({
+      datasetKey: AGGREGATE_DATASET_KEY,
+      label: AGGREGATE_LABEL,
+      data: aggregatePoints,
+      borderColor: '#FFFFFF',
+      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      tension: 0.25,
+      borderWidth: 2.5,
+      pointRadius: 0,
+      spanGaps: true,
+      parsing: false,
+    });
+
+    const palette = ['#39FF14', '#00E5FF', '#FF8C00', '#FF00FF', '#FFE066', '#74C0FC', '#B197FC', '#FF6B6B', '#63E6BE', '#FFD43B'];
+    let colorIndex = 0;
+    consolidatedServerInfos.forEach(info => {
+      const series = perServerMap.get(info.key);
+      const points = series ? series.points : [];
+      const color = palette[colorIndex % palette.length];
+      datasets.push({
+        datasetKey: info.key,
+        label: info.label,
+        data: points,
+        borderColor: color,
+        backgroundColor: 'rgba(0, 0, 0, 0)',
+        tension: 0.25,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        spanGaps: true,
+        parsing: false,
+      });
+      colorIndex += 1;
+    });
+
+    const activeTimes = datasets
+      .flatMap(ds => ds.data)
+      .map(pt => (pt.x instanceof Date ? pt.x.getTime() : new Date(pt.x).getTime()))
+      .filter(Number.isFinite);
+
+    const allTimes = consolidatedSeries
+      .map(entry => (entry.timestamp instanceof Date ? entry.timestamp.getTime() : new Date(entry.timestamp).getTime()))
+      .filter(Number.isFinite);
+
+    if (!allTimes.length) {
+      if (consolidatedTotalBalanceChart) {
+        consolidatedTotalBalanceChart.destroy();
+        consolidatedTotalBalanceChart = null;
+      }
+      return;
+    }
+
+    let defaultMin = allTimes.length > 0 ? allTimes.reduce((min, t) => Math.min(min, t), Infinity) : Infinity;
+    let defaultMax = allTimes.length > 0 ? allTimes.reduce((max, t) => Math.max(max, t), -Infinity) : -Infinity;
+    if (!Number.isFinite(defaultMin) || !Number.isFinite(defaultMax)) {
+      defaultMin = Date.now() - 60 * 60 * 1000;
+      defaultMax = Date.now();
+    }
+
+    let minTime = activeTimes.length > 0 ? activeTimes.reduce((min, t) => Math.min(min, t), Infinity) : defaultMin;
+    let maxTime = activeTimes.length > 0 ? activeTimes.reduce((max, t) => Math.max(max, t), -Infinity) : defaultMax;
+    if (!Number.isFinite(minTime) || !Number.isFinite(maxTime)) {
+      minTime = defaultMin;
+      maxTime = defaultMax;
+    }
+
+    if (minTime === maxTime) {
+      const pad = 10 * 60 * 1000;
+      minTime -= pad;
+      maxTime += pad;
+    }
+
+    if (defaultMin === defaultMax) {
+      const pad = 10 * 60 * 1000;
+      defaultMin -= pad;
+      defaultMax += pad;
+    }
+
+    const xBounds = { min: new Date(minTime), max: new Date(maxTime) };
+    const zoomLimits = { min: new Date(defaultMin), max: new Date(defaultMax) };
+
+    if (!consolidatedTotalBalanceChart) {
+      consolidatedTotalBalanceChart = new Chart(consolidatedTotalBalanceChartCtx, {
+        type: 'line',
+        data: {
+          datasets,
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'nearest', intersect: false },
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            zoom: {
+              pan: {
+                enabled: true,
+                mode: 'x'
+              },
+              zoom: {
+                wheel: {
+                  enabled: true,
+                },
+                pinch: {
+                  enabled: true
+                },
+                mode: 'x'
+              },
+              limits: {
+                x: {
+                  min: zoomLimits.min,
+                  max: zoomLimits.max,
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                tooltipFormat: 'PPpp',
+                displayFormats: { minute: 'MMM d HH:mm', hour: 'MMM d HH:mm', day: 'MMM d' }
+              },
+              min: xBounds.min,
+              max: xBounds.max,
+              ticks: { autoSkip: true, maxTicksLimit: 12 }
+            },
+            y: {
+              beginAtZero: false,
+              position: 'left',
+              title: {
+                display: true,
+                text: 'Total Balance (USDT)'
+              }
+            }
+          }
+        }
+      });
+    } else {
+      consolidatedTotalBalanceChart.data.datasets = datasets;
+      const opts = consolidatedTotalBalanceChart.options;
+      if (opts?.scales?.x) {
+        opts.scales.x.min = xBounds.min;
+        opts.scales.x.max = xBounds.max;
+      }
+      if (opts?.plugins?.zoom) {
+        if (!opts.plugins.zoom.limits) {
+          opts.plugins.zoom.limits = {};
+        }
+        if (!opts.plugins.zoom.limits.x) {
+          opts.plugins.zoom.limits.x = {};
+        }
+        opts.plugins.zoom.limits.x.min = zoomLimits.min;
+        opts.plugins.zoom.limits.x.max = zoomLimits.max;
+      }
+      consolidatedTotalBalanceChart.update();
+    }
+    } finally {
+      isApplyingConsolidatedData = false;
+    }
+  }
 
   const renderConsolidatedDailyProfitChart = async () => {
     const dailyProfitData = await fetchJSON('/consolidated/daily-profit');
@@ -120,135 +398,55 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   };
 
-  const renderConsolidatedTotalBalanceChart = async () => {
-    const totalBalanceHistory = await fetchJSON('/consolidated/total-balance-history');
+  const renderConsolidatedTotalBalanceChart = async (force = false) => {
+    const totalBalanceHistory = await getTotalBalanceHistory(force);
 
-    if (!Array.isArray(totalBalanceHistory) || totalBalanceHistory.length === 0) {
-      if (consolidatedTotalBalanceChart) {
-        consolidatedTotalBalanceChart.destroy();
-        consolidatedTotalBalanceChart = null;
-      }
+    if (!Array.isArray(totalBalanceHistory) || !totalBalanceHistory.length) {
+      consolidatedSeries = [];
+      consolidatedServerInfos = [];
+      ensureConsolidatedControls();
+      scheduleConsolidatedChartUpdate();
       return;
     }
 
-    const timeSeries = totalBalanceHistory
+    const serverInfoMap = new Map();
+    let unnamedIndex = 0;
+
+    consolidatedSeries = totalBalanceHistory
       .map(entry => {
         const timestamp = new Date(entry.timestamp);
         if (Number.isNaN(timestamp.getTime())) return null;
+        const servers = Array.isArray(entry.servers)
+          ? entry.servers.map(server => {
+              let id = server.serverId || server.serverLabel || '';
+              if (!id) {
+                id = `server-${unnamedIndex}`;
+                unnamedIndex += 1;
+              }
+              const key = `server:${id}`;
+              const label = server.serverLabel || server.serverId || id;
+              if (!serverInfoMap.has(key)) {
+                serverInfoMap.set(key, { key, label });
+              }
+              return {
+                key,
+                label,
+                value: Number(server.totalUsdt) || 0,
+              };
+            })
+          : [];
         return {
           timestamp,
           total: Number(entry.totalUsdt) || 0,
-          servers: Array.isArray(entry.servers) ? entry.servers : [],
+          servers,
         };
       })
       .filter(Boolean)
       .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-    const aggregatedDataset = timeSeries.map(entry => ({ x: entry.timestamp, y: entry.total }));
-
-    const perServerSeries = new Map();
-    for (const entry of timeSeries) {
-      for (const server of entry.servers) {
-        const serverId = server.serverId || server.serverLabel || 'server';
-        if (!perServerSeries.has(serverId)) {
-          perServerSeries.set(serverId, {
-            label: server.serverLabel || server.serverId || 'Server',
-            points: [],
-          });
-        }
-        perServerSeries.get(serverId).points.push({
-          x: entry.timestamp,
-          y: Number(server.totalUsdt) || 0,
-        });
-      }
-    }
-
-    if (consolidatedTotalBalanceChart) {
-      consolidatedTotalBalanceChart.destroy();
-    }
-
-    const palette = ['#39FF14', '#00E5FF', '#FF8C00', '#FF00FF', '#FFE066', '#74C0FC', '#B197FC', '#FF6B6B', '#63E6BE', '#FFD43B'];
-    let colorIndex = 0;
-
-    const datasets = [
-      {
-        label: 'Total Balance (All Servers)',
-        data: aggregatedDataset,
-        borderColor: '#FFFFFF',
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        tension: 0.25,
-        borderWidth: 2.5,
-        pointRadius: 0,
-        parsing: false,
-        spanGaps: true,
-      },
-    ];
-
-    perServerSeries.forEach(series => {
-      const color = palette[colorIndex % palette.length];
-      datasets.push({
-        label: series.label,
-        data: series.points,
-        borderColor: color,
-        backgroundColor: 'rgba(0, 0, 0, 0)',
-        tension: 0.25,
-        borderWidth: 1.5,
-        pointRadius: 0,
-        parsing: false,
-        spanGaps: true,
-      });
-      colorIndex += 1;
-    });
-
-    consolidatedTotalBalanceChart = new Chart(consolidatedTotalBalanceChartCtx, {
-      type: 'line',
-      data: {
-        datasets,
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'nearest', intersect: false },
-        plugins: {
-          legend: {
-            position: 'top',
-          },
-          zoom: {
-            pan: {
-              enabled: true,
-              mode: 'x'
-            },
-            zoom: {
-              wheel: {
-                enabled: true,
-              },
-              pinch: {
-                enabled: true
-              },
-              mode: 'x'
-            }
-          }
-        },
-        scales: {
-          x: {
-            type: 'time',
-            time: {
-              tooltipFormat: 'PPpp',
-              displayFormats: { minute: 'MMM d HH:mm', hour: 'MMM d HH:mm', day: 'MMM d' }
-            },
-            ticks: { autoSkip: true, maxTicksLimit: 12 }
-          },
-          y: {
-            beginAtZero: false,
-            position: 'left',
-            title: {
-              display: true,
-              text: 'Total Balance (USDT)'
-            }
-          }
-        }
-      }
-    });
+    consolidatedServerInfos = Array.from(serverInfoMap.values());
+    ensureConsolidatedControls();
+    scheduleConsolidatedChartUpdate();
   };
 
   const renderConsolidatedBalancesTable = async () => {

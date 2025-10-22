@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isLoadingBalanceHistory = false;
     let reachedEndOfHistory = false;
     const loadMoreHistoryBtn = document.getElementById('loadMoreHistoryBtn');
+    const balanceMinControls = document.getElementById('balanceMinControls');
+    const balanceThresholds = { combined: null, dex: null, cex: null };
 
     function updateLoadMoreButtonState() {
       if (!loadMoreHistoryBtn) return;
@@ -61,6 +63,190 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     updateLoadMoreButtonState();
+
+    const parseThresholdValue = (value) => {
+      const num = parseFloat(value);
+      return Number.isFinite(num) && num >= 0 ? num : null;
+    };
+
+    if (balanceMinControls) {
+      const thresholdInputs = Array.from(balanceMinControls.querySelectorAll('input[data-dataset]'));
+      thresholdInputs.forEach(input => {
+        const key = input.dataset.dataset;
+        if (!key) return;
+        balanceThresholds[key] = parseThresholdValue(input.value);
+        input.addEventListener('input', () => {
+          balanceThresholds[key] = parseThresholdValue(input.value);
+          updateBalanceChart();
+        });
+      });
+    }
+
+    function updateBalanceChart() {
+      const canvas = document.getElementById('balancesChart');
+      if (!canvas) return;
+
+      const basePoints = allBalanceData
+        .filter(d => d.total_usdt !== 0)
+        .map(d => ({
+          timestamp: d.timestamp instanceof Date ? d.timestamp : new Date(d.timestamp),
+          combined: Number(d.total_usdt) || 0,
+          dex: Number(d.total_dex_usdt) || 0,
+          cex: Number(d.total_cex_usdt) || 0,
+        }));
+
+      const combinedPoints = basePoints.map(d => ({ x: d.timestamp, y: d.combined }));
+      const dexPoints = basePoints.map(d => ({ x: d.timestamp, y: d.dex }));
+      const cexPoints = basePoints.map(d => ({ x: d.timestamp, y: d.cex }));
+
+      const combinedFiltered = combinedPoints.filter(p => {
+        const threshold = balanceThresholds.combined;
+        return Number.isFinite(p.y) && (threshold == null || p.y >= threshold);
+      });
+      const dexFiltered = dexPoints.filter(p => {
+        const threshold = balanceThresholds.dex;
+        return Number.isFinite(p.y) && (threshold == null || p.y >= threshold);
+      });
+      const cexFiltered = cexPoints.filter(p => {
+        const threshold = balanceThresholds.cex;
+        return Number.isFinite(p.y) && (threshold == null || p.y >= threshold);
+      });
+
+      const filteredTimes = [...combinedFiltered, ...dexFiltered, ...cexFiltered]
+        .map(p => (p.x instanceof Date ? p.x.getTime() : new Date(p.x).getTime()))
+        .filter(Number.isFinite);
+
+      if (filteredTimes.length === 0) {
+        if (chart) {
+          chart.data.datasets.forEach(ds => { ds.data = []; });
+          chart.update();
+        }
+        return;
+      }
+
+      let minTime = Math.min(...filteredTimes);
+      let maxTime = Math.max(...filteredTimes);
+      if (!Number.isFinite(minTime) || !Number.isFinite(maxTime)) {
+        minTime = Date.now() - 60 * 60 * 1000;
+        maxTime = Date.now();
+      }
+      if (minTime === maxTime) {
+        const pad = 10 * 60 * 1000;
+        minTime -= pad;
+        maxTime += pad;
+      }
+      const xBounds = { min: new Date(minTime), max: new Date(maxTime) };
+
+      const allTimes = allBalanceData
+        .map(p => (p.timestamp instanceof Date ? p.timestamp.getTime() : new Date(p.timestamp).getTime()))
+        .filter(Number.isFinite);
+      const limitMin = allTimes.length ? Math.min(...allTimes) : minTime;
+      const limitMax = allTimes.length ? Math.max(...allTimes) : maxTime;
+      const zoomLimits = { min: new Date(limitMin), max: new Date(limitMax) };
+
+      if (!chart) {
+        const ctx = canvas.getContext('2d');
+        const baseOptions = getChartBaseOptions();
+
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            datasets: [
+              {
+                datasetKey: 'combined',
+                label: 'Total USDT (DEX + BinanceF)',
+                data: combinedFiltered,
+                borderColor: '#39FF14',
+                backgroundColor: 'rgba(57, 255, 20, 0.1)',
+                tension: 0.25,
+                borderWidth: 2,
+                pointRadius: 0,
+                parsing: false
+              },
+              {
+                datasetKey: 'dex',
+                label: 'Total DEX',
+                data: dexFiltered,
+                borderColor: '#00E5FF',
+                backgroundColor: 'rgba(0, 229, 255, 0.1)',
+                borderWidth: 1.5,
+                pointRadius: 0,
+                parsing: false
+              },
+              {
+                datasetKey: 'cex',
+                label: 'BinanceF total',
+                data: cexFiltered,
+                borderColor: '#FF8C00',
+                backgroundColor: 'rgba(255, 140, 0, 0.1)',
+                borderWidth: 1.5,
+                pointRadius: 0,
+                parsing: false
+              }
+            ]
+          },
+          options: {
+            ...baseOptions,
+            scales: {
+              ...baseOptions.scales,
+              x: {
+                ...baseOptions.scales.x,
+                type: 'time',
+                time: {
+                  tooltipFormat: 'PPpp',
+                  displayFormats: { minute: 'HH:mm', hour: 'HH:mm' }
+                },
+                min: xBounds.min,
+                max: xBounds.max,
+              },
+            },
+            plugins: {
+              ...baseOptions.plugins,
+              zoom: {
+                ...baseOptions.plugins.zoom,
+                limits: { x: { min: zoomLimits.min, max: zoomLimits.max } },
+                onZoomComplete: ({ chart: zoomChart }) => {
+                  userZoomed = true;
+                  const historyOldest = allBalanceData[0];
+                  if (!reachedEndOfHistory && historyOldest) {
+                    const { min } = zoomChart.scales.x;
+                    if (min < historyOldest.timestamp.getTime()) {
+                      loadBalancesHistory(historyOldest.timestamp.toISOString());
+                    }
+                  }
+                },
+                onPanComplete: ({ chart: panChart }) => {
+                  userZoomed = true;
+                  const historyOldest = allBalanceData[0];
+                  if (!reachedEndOfHistory && historyOldest) {
+                    const { min } = panChart.scales.x;
+                    if (min < historyOldest.timestamp.getTime()) {
+                      loadBalancesHistory(historyOldest.timestamp.toISOString());
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+      } else {
+        const combinedDataset = chart.data.datasets.find(ds => ds.datasetKey === 'combined');
+        const dexDataset = chart.data.datasets.find(ds => ds.datasetKey === 'dex');
+        const cexDataset = chart.data.datasets.find(ds => ds.datasetKey === 'cex');
+        if (combinedDataset) combinedDataset.data = combinedFiltered;
+        if (dexDataset) dexDataset.data = dexFiltered;
+        if (cexDataset) cexDataset.data = cexFiltered;
+        if (!userZoomed) {
+          chart.options.scales.x.min = xBounds.min;
+          chart.options.scales.x.max = xBounds.max;
+        }
+        if (chart.options?.plugins?.zoom?.limits?.x) {
+          chart.options.plugins.zoom.limits.x.min = zoomLimits.min;
+          chart.options.plugins.zoom.limits.x.max = zoomLimits.max;
+        }
+        chart.update();
+      }
+    }
 
     function safeJsonParse(value, fallback = {}) {
       if (value == null) return fallback;
@@ -311,128 +497,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               .filter(entry => entry.timestamp instanceof Date && Number.isFinite(entry.timestamp.getTime()))
               .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-            if (allBalanceData.length === 0) {
-              return;
-            }
-
-            const filteredBalanceData = allBalanceData.filter(d => d.total_usdt !== 0);
-
-            const combinedPoints = filteredBalanceData.map(d => ({ x: d.timestamp, y: d.total_usdt }));
-            const dexPoints = filteredBalanceData.map(d => ({ x: d.timestamp, y: d.total_dex_usdt }));
-            const cexPoints = filteredBalanceData.map(d => ({ x: d.timestamp, y: d.total_cex_usdt }));
-
-            const validTimes = allBalanceData.map(p => p.timestamp.getTime()).filter(Number.isFinite);
-            if (validTimes.length === 0) {
-              console.warn('No valid timestamps found in balance data');
-              return;
-            }
-
-            let minTime = Math.min(...validTimes);
-            let maxTime = Math.max(...validTimes);
-            if (!Number.isFinite(minTime) || !Number.isFinite(maxTime)) {
-              minTime = Date.now() - 60 * 60 * 1000; // fallback: last hour
-              maxTime = Date.now();
-            }
-            if (minTime === maxTime) {
-              const pad = 10 * 60 * 1000; // 10 minutes padding if only one point
-              minTime -= pad;
-              maxTime += pad;
-            }
-            const xBounds = { min: new Date(minTime), max: new Date(maxTime) };
-
-            if (!chart) {
-              const ctx = document.getElementById('balancesChart').getContext('2d');
-              const baseOptions = getChartBaseOptions();
-
-              chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                  datasets: [
-                    {
-                      label: 'Total USDT (DEX + BinanceF)',
-                      data: combinedPoints,
-                      borderColor: '#39FF14', // Neon Green
-                      backgroundColor: 'rgba(57, 255, 20, 0.1)',
-                      tension: 0.25,
-                      borderWidth: 2,
-                      pointRadius: 0,
-                      parsing: false
-                    },
-                    {
-                      label: 'Total DEX',
-                      data: dexPoints,
-                      borderColor: '#00E5FF', // Cyan
-                      backgroundColor: 'rgba(0, 229, 255, 0.1)',
-                      borderWidth: 1.5,
-                      pointRadius: 0,
-                      parsing: false
-                    },
-                    {
-                      label: 'BinanceF total',
-                      data: cexPoints,
-                      borderColor: '#FF8C00', // Orange
-                      backgroundColor: 'rgba(255, 140, 0, 0.1)',
-                      borderWidth: 1.5,
-                      pointRadius: 0,
-                      parsing: false
-                    }
-                  ]
-                },
-                options: {
-                  ...baseOptions,
-                  scales: {
-                    ...baseOptions.scales,
-                    x: {
-                      ...baseOptions.scales.x,
-                      type: 'time',
-                      time: {
-                        tooltipFormat: 'PPpp',
-                        displayFormats: { minute: 'HH:mm', hour: 'HH:mm' }
-                      },
-                      min: xBounds.min,
-                      max: xBounds.max,
-                    },
-                  },
-                  plugins: {
-                    ...baseOptions.plugins,
-                    zoom: {
-                      ...baseOptions.plugins.zoom,
-                      limits: { x: { min: xBounds.min, max: xBounds.max } },
-                      onZoomComplete: ({ chart }) => {
-                        userZoomed = true;
-                        const historyOldest = allBalanceData[0];
-                        if (!reachedEndOfHistory && historyOldest) {
-                          const { min } = chart.scales.x;
-                          if (min < historyOldest.timestamp.getTime()) {
-                            loadBalancesHistory(historyOldest.timestamp.toISOString());
-                          }
-                        }
-                      },
-                      onPanComplete: ({ chart }) => {
-                        userZoomed = true;
-                        const historyOldest = allBalanceData[0];
-                        if (!reachedEndOfHistory && historyOldest) {
-                          const { min } = chart.scales.x;
-                          if (min < historyOldest.timestamp.getTime()) {
-                            loadBalancesHistory(historyOldest.timestamp.toISOString());
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              });
-            } else {
-              chart.data.datasets[0].data = combinedPoints;
-              if (chart.data.datasets[1]) chart.data.datasets[1].data = dexPoints;
-              if (chart.data.datasets[2]) chart.data.datasets[2].data = cexPoints;
-              // Update time window only when not zoomed by user
-              if (!userZoomed) {
-                chart.options.scales.x.min = xBounds.min;
-                chart.options.scales.x.max = xBounds.max;
-              }
-              chart.update();
-            }
+            updateBalanceChart();
           } catch (err) {
             console.error('Error loading balances history', err);
           } finally {
@@ -544,6 +609,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             isLoadingBalanceHistory = false;
             userZoomed = false;
             updateLoadMoreButtonState();
+            updateBalanceChart();
             await Promise.all([loadBalancesHistory(), loadTrades(), loadExchangeBalances(), loadServerStatus(), renderDailyProfitChart()]);
             if(lastUpdatedEl) lastUpdatedEl.textContent = `Updated ${fmtTime(Date.now())}`;
             console.log('All data refreshed successfully');
@@ -845,6 +911,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 reachedEndOfHistory = false;
                 isLoadingBalanceHistory = false;
                 updateLoadMoreButtonState();
+                updateBalanceChart();
                 loadBalancesHistory();
               }
             });

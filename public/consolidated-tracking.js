@@ -527,7 +527,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   const renderConsolidatedBalancesTable = async () => {
     const data = await fetchJSON('/consolidated/balances/latest');
     consolidatedBalancesTableBody.innerHTML = '';
+    
+    // Calculate totals
+    let totalUsdtSum = 0;
+    let cexTotalUsdtSum = 0;
+    let dexTotalUsdtSum = 0;
+    
     data.forEach(item => {
+      totalUsdtSum += item.totalUsdt;
+      cexTotalUsdtSum += item.cexTotalUsdt;
+      dexTotalUsdtSum += item.dexTotalUsdt;
+      
+      // Calculate CEX to DEX ratio
+      let ratio = 0;
+      if (item.dexTotalUsdt !== 0) {
+        ratio = (item.cexTotalUsdt * 100) / item.dexTotalUsdt;
+      }
+      
+      const ratioCell = document.createElement('td');
+      ratioCell.textContent = ratio.toFixed(2) + '%';
+      // Apply styling based on ratio value
+      if (ratio >= 20) {
+        ratioCell.classList.add('text-pos'); // Green color (from existing CSS)
+      } else {
+        ratioCell.classList.add('text-neg'); // Red color (from existing CSS)
+      }
+      
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${item.serverLabel}</td>
@@ -535,8 +560,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${item.cexTotalUsdt.toFixed(2)}</td>
         <td>${item.dexTotalUsdt.toFixed(2)}</td>
       `;
+      tr.appendChild(ratioCell);
       consolidatedBalancesTableBody.appendChild(tr);
     });
+    
+    // Calculate total ratio
+    let totalRatio = 0;
+    if (dexTotalUsdtSum !== 0) {
+      totalRatio = (cexTotalUsdtSum * 100) / dexTotalUsdtSum;
+    }
+    
+    const ratioTotalCell = document.createElement('td');
+    ratioTotalCell.textContent = totalRatio.toFixed(2) + '%';
+    // Apply styling based on total ratio value
+    if (totalRatio >= 20) {
+      ratioTotalCell.classList.add('text-pos'); // Green color (from existing CSS)
+    } else {
+      ratioTotalCell.classList.add('text-neg'); // Red color (from existing CSS)
+    }
+    
+    // Add total row
+    const totalRow = document.createElement('tr');
+    totalRow.classList.add('total-row'); // Add a class for potential styling
+    totalRow.innerHTML = `
+      <td><strong>Total</strong></td>
+      <td><strong>${totalUsdtSum.toFixed(2)}</strong></td>
+      <td><strong>${cexTotalUsdtSum.toFixed(2)}</strong></td>
+      <td><strong>${dexTotalUsdtSum.toFixed(2)}</strong></td>
+    `;
+    totalRow.appendChild(ratioTotalCell);
+    consolidatedBalancesTableBody.appendChild(totalRow);
   };
 
   const renderConsolidatedDailyProfitTable = async () => {

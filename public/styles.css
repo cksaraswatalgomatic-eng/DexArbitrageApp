@@ -423,6 +423,13 @@ tbody tr:hover {
 
 /* NEW RESPONSIVE STYLES */
 
+/* Style for total row in tables */
+.total-row {
+  background-color: rgba(31, 111, 235, 0.2) !important; /* Slightly highlighted background */
+  font-weight: bold;
+  border-top: 2px solid var(--accent-blue);
+}
+
 /* For tablets and smaller desktops */
 @media (max-width: 1024px) {
   main {

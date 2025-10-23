@@ -595,7 +595,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const renderConsolidatedDailyProfitTable = async () => {
     const data = await fetchJSON('/consolidated/daily-profit/latest');
     consolidatedDailyProfitTableBody.innerHTML = '';
-    data.forEach(item => {
+    
+    // Separate regular servers from the total row
+    const totalEntry = data.find(item => item.serverLabel === 'Total');
+    const serverEntries = data.filter(item => item.serverLabel !== 'Total');
+    
+    // Add server entries to the table
+    serverEntries.forEach(item => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${item.serverLabel}</td>
@@ -603,6 +609,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
       consolidatedDailyProfitTableBody.appendChild(tr);
     });
+    
+    // Add total row if it exists
+    if (totalEntry) {
+      const totalRow = document.createElement('tr');
+      totalRow.classList.add('total-row');
+      totalRow.innerHTML = `
+        <td><strong>${totalEntry.serverLabel}</strong></td>
+        <td><strong>${totalEntry.profit.toFixed(2)}</strong></td>
+      `;
+      consolidatedDailyProfitTableBody.appendChild(totalRow);
+    }
   };
 
   const renderConsolidatedTokenPerformanceChart = async () => {

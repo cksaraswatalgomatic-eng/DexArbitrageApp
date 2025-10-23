@@ -2638,25 +2638,41 @@ app.get('/consolidated/daily-profit/latest', async (req, res) => {
   try {
     const cfg = loadServers();
     const latestDailyProfits = [];
-    const now = Date.now();
-    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+    const today = new Date();
+    // Set to start of current day in UTC (00:00:00 UTC)
+    const startOfDay = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const startOfDayTimestamp = startOfDay.getTime();
 
     for (const server of cfg.servers) {
       try {
         const db = ensureDb(server.id);
-        const tradesLast24h = db.prepare('SELECT executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc FROM completed_trades WHERE lastUpdateTime >= ?').all(twentyFourHoursAgo);
+        // Query trades from start of UTC day to current time
+        const tradesToday = db.prepare(`
+          SELECT executedQtyDst, executedDstPrice, executedSrcPrice, executedQtySrc, lastUpdateTime 
+          FROM completed_trades 
+          WHERE lastUpdateTime >= ?
+        `).all(startOfDayTimestamp);
+        
         const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
-        const profitLast24h = tradesLast24h.reduce((acc, t) => acc + netProfit(t), 0);
+        const profitToday = tradesToday.reduce((acc, t) => acc + netProfit(t), 0);
 
         latestDailyProfits.push({
           serverId: server.id,
           serverLabel: server.label,
-          profit: profitLast24h
+          profit: profitToday
         });
       } catch (serverErr) {
         console.error(`[api:/consolidated/daily-profit/latest] server:${server.id} ${serverErr.message}`);
       }
     }
+    
+    // Add total row
+    const totalProfit = latestDailyProfits.reduce((total, item) => total + item.profit, 0);
+    latestDailyProfits.push({
+      serverLabel: 'Total',
+      profit: totalProfit
+    });
+    
     res.json(latestDailyProfits);
   } catch (err) {
     console.error('[api:/consolidated/daily-profit/latest] error:', err.message);

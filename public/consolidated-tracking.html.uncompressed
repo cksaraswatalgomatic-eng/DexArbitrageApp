@@ -20,7 +20,7 @@
         <h1>Consolidated Tracking</h1>
       </div>
       <div class="controls">
-        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">&#9790;</button>
+        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
         <div class="nav-links-container" id="nav-links-container">
         <a class="nav-link" href="/">Dashboard</a>
         </div>
@@ -44,13 +44,16 @@
             <h2>Total USDT Balance Over Time (All Servers)</h2>
           </div>
           <div class="chart-nav">
-            <div id="consolidatedMinControls" class="inline-control-group"></div>
-            <div class="inline-control-group">
-              <label class="inline-control">
-                Outlier %:
-                <input type="number" id="outlierPercentage" min="0" max="100" step="0.1" value="0" title="Hide All Servers points when the change from the previous entry exceeds this percent.">
-              </label>
+            <div class="chart-controls">
+              <div id="consolidatedMinControls" class="inline-control-group"></div>
+              <div class="inline-control-group">
+                <label class="inline-control">
+                  Outlier Filter:
+                  <input type="number" id="outlierPercentage" min="0" step="any" value="0" title="Hide points when value falls below (previous displayed value - this threshold value).">
+                </label>
+              </div>
             </div>
+            <button id="resetConsolidatedZoomBtn" class="btn-orange" type="button">Reset Zoom</button>
           </div>
         </div>
         <div class="chart-container" style="height: 500px;">
@@ -68,6 +71,7 @@
                 <th>Total USDT (DEX + BinanceF)</th>
                 <th>BinanceF Total USDT</th>
                 <th>Total DEX USDT</th>
+                <th>CEX to DEX Ratio</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -140,4 +144,3 @@
     <script src="/mobile-menu.js"></script>
   </body>
 </html>
-

@@ -15,3 +15,8 @@ trade_model.joblib
 models/
 servers.json
 .genkit/
+
+# SQLite artifacts
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

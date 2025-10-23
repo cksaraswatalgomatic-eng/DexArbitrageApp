@@ -82,6 +82,10 @@ app.get('/consolidated-tracking.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'consolidated-tracking.html'));
 });
 
+app.get('/liquidity-monitoring.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'liquidity-monitoring.html'));
+});
+
 // Multi-server config
 function loadServers() {
   if (!fs.existsSync(SERVERS_FILE)) {
@@ -240,6 +244,15 @@ function ensureDb(serverId) {
       bnbPrice REAL,
       raw_data TEXT,
       PRIMARY KEY (serverId, hash)
+    );
+  `);
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS liquidity_data (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL,
+      symbol TEXT NOT NULL,
+      price REAL NOT NULL,
+      liquidity REAL NOT NULL
     );
   `);
   ensureDiffHistoryColumns(_db);
@@ -1292,6 +1305,146 @@ async function sendDailyDigest() {
   }
 }
 
+// Function to fetch liquidity data from Binance Spot
+// Gets actual traded volume for the last 2 minutes by combining two 1-minute candles
+async function fetchLiquidityData() {
+  const db = ensureDb('default');
+  
+  // List of cryptocurrencies to monitor - based on the requested tokens
+  // Only include tokens that have USDT pairs on Binance
+  const validTokens = [
+    "LINK", "SOL", "BNB", "BTC", "AAVE", "CAKE", "UNI", "XRP", 
+    "ETH", "LDO", "CRV", "POL", "PENDLE", "ARB", "GMX", "ZRO",
+    "ZEN", "AVAX", "ADA", "DOT", "MATIC", "SAND", "DOGE", "SHIB",
+    "APT", "ATOM", "BCH", "ETC", "FIL", "HBAR", "XTZ", "EOS"
+  ];
+  
+  const symbols = validTokens.map(s => s + 'USDT');
+  
+  try {
+    console.log(`[fetchLiquidityData] Fetching 2-minute volume data by combining last 2 1-minute candles for ${symbols.length} symbols`);
+    
+    const timestamp = new Date().toISOString();
+    let insertedCount = 0;
+    
+    // Process symbols in batches to avoid overwhelming the API
+    const batchSize = 5; // Reduce batch size to avoid rate limiting
+    for (let i = 0; i < symbols.length; i += batchSize) {
+      const batch = symbols.slice(i, i + batchSize);
+      
+      // Fetch 1-minute candle data for each symbol in the batch
+      const promises = batch.map(async (symbol) => {
+        try {
+          // Get the most recent 1-minute candles (interval=1m)
+          // We request 2 candles to get the volume for the last 2 minutes
+          const apiUrl = 'https://api.binance.com/api/v3/klines';
+          const params = {
+            symbol: symbol,
+            interval: '1m',  // Use 1-minute interval since 2-minute is not supported
+            limit: 2 // Get the last 2 completed 1-minute candles
+          };
+          
+          const response = await axios.get(apiUrl, {
+            params: params,
+            timeout: 15000 // Increase timeout
+          });
+          
+          if (!response.data || !Array.isArray(response.data) || response.data.length === 0) {
+            console.warn(`[fetchLiquidityData] No candle data for ${symbol}`);
+            return null;
+          }
+          
+          // Calculate the total volume for the last 2 minutes by summing 2 consecutive 1-minute candles
+          let totalVolume = 0;
+          let avgPrice = 0;
+          let closeTime = null;
+          
+          // Process up to 2 candles (for last 2 minutes)
+          for (let j = 0; j < Math.min(response.data.length, 2); j++) {
+            const candle = response.data[j];
+            const openTime = candle[0];
+            closeTime = candle[6];
+            const volume = parseFloat(candle[7]); // quoteAssetVolume (USDT volume)
+            const price = parseFloat(candle[4]); // close price
+            
+            if (isNaN(volume) || isNaN(price) || volume <= 0) {
+              console.warn(`[fetchLiquidityData] Invalid data for ${symbol} candle ${j}: volume=${volume}, price=${price}`);
+              continue; // Skip this candle but process others
+            }
+            
+            totalVolume += volume;
+            avgPrice = price; // Use the price of the most recent candle
+          }
+          
+          if (totalVolume <= 0) {
+            console.warn(`[fetchLiquidityData] Combined volume for ${symbol} is zero or invalid: ${totalVolume}`);
+            return null;
+          }
+          
+          console.log(`[fetchLiquidityData] ${symbol}: 2-min volume=${totalVolume}, price=${avgPrice}, period end=${new Date(closeTime).toISOString()}`);
+          
+          return {
+            symbol: symbol.replace('USDT', '').toLowerCase(),
+            price: avgPrice,
+            liquidity: totalVolume, // Combined volume for the last 2 minutes from two 1-minute candles
+            timestamp: new Date(closeTime).toISOString() // Use close time of the latest candle
+          };
+        } catch (error) {
+          // Only log errors that are not related to invalid symbols
+          if (error.response?.status !== 400) {
+            console.error(`[fetchLiquidityData] Error fetching candle data for ${symbol}:`, error.message);
+          } else {
+            // Check if it's the "Invalid symbol" error
+            if (error.response?.data?.msg && 
+                (error.response.data.msg.includes('symbol') || error.response.data.msg.includes('Symbol'))) {
+              // This is expected for symbols that don't exist
+            } else {
+              console.error(`[fetchLiquidityData] Error fetching candle data for ${symbol}:`, error.message);
+            }
+          }
+          
+          return null;
+        }
+      });
+      
+      // Wait for all promises in the batch to complete
+      const results = await Promise.all(promises);
+      
+      // Insert valid results into the database
+      for (const result of results) {
+        if (result) {
+          try {
+            db.prepare(`
+              INSERT INTO liquidity_data (timestamp, symbol, price, liquidity)
+              VALUES (?, ?, ?, ?)
+              ON CONFLICT DO UPDATE SET
+                timestamp = excluded.timestamp,
+                price = excluded.price,
+                liquidity = excluded.liquidity
+            `).run(result.timestamp, result.symbol, result.price, result.liquidity);
+            
+            insertedCount++;
+          } catch (dbError) {
+            console.error(`[fetchLiquidityData] Error inserting data for ${result.symbol}:`, dbError.message);
+          }
+        }
+      }
+      
+      // Add a delay between batches to avoid rate limiting
+      if (i + batchSize < symbols.length) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // 0.5 second delay between batches
+      }
+    }
+    
+    console.log(`[fetchLiquidityData] Successfully inserted ${insertedCount} records into database`);
+  } catch (error) {
+    console.error('[fetchLiquidityData] Error fetching liquidity data from Binance:', error.message);
+    if (error.response) {
+      console.error('[fetchLiquidityData] Binance API response:', error.response.status, error.response.data);
+    }
+  }
+}
+
 // Schedule: every 2 minutes
 cron.schedule('*/2 * * * *', () => {
   console.log('[cron] Running scheduled fetch...');
@@ -1299,6 +1452,18 @@ cron.schedule('*/2 * * * *', () => {
   // Also check notification conditions for all servers
   checkAllNotifications().catch(err => console.error('[cron] Error checking notifications:', err));
 });
+
+// Schedule: every 2 minutes for liquidity data
+cron.schedule('*/2 * * * *', async () => {
+  console.log('[cron] Running liquidity data fetch...');
+  await fetchLiquidityData();
+});
+
+// Initial data fetch on startup to populate data faster
+setTimeout(async () => {
+  console.log('[startup] Running initial liquidity data fetch...');
+  await fetchLiquidityData();
+}, 5000); // Run 5 seconds after startup
 
 cron.schedule('0 * * * *', () => {
   console.log('[cron] Running hourly digest...');
@@ -3660,6 +3825,64 @@ app.get('/ml/metadata', async (req, res) => {
     const detail = err.response?.data || err.message || 'Metadata request failed';
     console.error('[api:/ml/metadata] error:', detail);
     res.status(status).json({ error: 'Failed to fetch metadata', details: detail });
+  }
+});
+
+app.get('/liquidity-data', async (req, res) => {
+  try {
+    const db = ensureDb('default');
+    const { limit = 100, symbol, startTime, endTime } = req.query;
+    
+    let query = `SELECT * FROM liquidity_data WHERE liquidity > 0`;
+    const params = [];
+    
+    const conditions = [`liquidity > 0`];
+    if (symbol) {
+      conditions.push(`symbol = ?`);
+      params.push(symbol);
+    }
+    if (startTime) {
+      conditions.push(`timestamp >= ?`);
+      params.push(startTime);
+    }
+    if (endTime) {
+      conditions.push(`timestamp <= ?`);
+      params.push(endTime);
+    }
+    
+    query += ` AND ${conditions.join(' AND ')}`;
+    
+    query += ` ORDER BY timestamp DESC LIMIT ?`;
+    params.push(parseInt(limit));
+    
+    const rows = db.prepare(query).all(...params);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching liquidity data:', error);
+    res.status(500).json({ error: 'Failed to fetch liquidity data' });
+  }
+});
+
+app.get('/liquidity-data/symbols', async (req, res) => {
+  try {
+    const db = ensureDb('default');
+    const rows = db.prepare(`SELECT DISTINCT symbol FROM liquidity_data ORDER BY symbol`).all();
+    res.json(rows.map(row => row.symbol));
+  } catch (error) {
+    console.error('Error fetching liquidity symbols:', error);
+    res.status(500).json({ error: 'Failed to fetch liquidity symbols' });
+  }
+});
+
+// Manual endpoint to trigger liquidity data fetch for testing
+app.get('/liquidity-data/fetch-now', async (req, res) => {
+  try {
+    console.log('[manual] Triggering liquidity data fetch...');
+    await fetchLiquidityData();
+    res.json({ success: true, message: 'Liquidity data fetch triggered' });
+  } catch (error) {
+    console.error('[manual] Error triggering liquidity data fetch:', error);
+    res.status(500).json({ error: 'Failed to trigger liquidity data fetch', details: error.message });
   }
 });
 

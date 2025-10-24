@@ -9,9 +9,59 @@ document.addEventListener('DOMContentLoaded', async () => {
   const liquidityTableBody = document.querySelector('#liquidityTable tbody');
   const refreshBtn = document.getElementById('refreshBtn');
   
+  // Add Load More button to the DOM
+  const chartHeader = document.querySelector('.chart-header');
+  const chartNav = document.querySelector('.chart-nav');
+  const loadMoreBtn = document.createElement('button');
+  loadMoreBtn.id = 'loadMoreBtn';
+  loadMoreBtn.className = 'btn';
+  loadMoreBtn.textContent = 'Load More';
+  loadMoreBtn.title = 'Load previous day data';
+  chartNav.appendChild(loadMoreBtn);
+  
+  // Initialize pagination controls in the table section
+  const tableSection = document.querySelector('section.card:last-of-type');
+  const tableControlsDiv = document.createElement('div');
+  tableControlsDiv.className = 'table-controls';
+  tableControlsDiv.innerHTML = `
+    <div class="pagination-controls">
+      <span>Show:</span>
+      <select id="paginationLimit">
+        <option value="50">50</option>
+        <option value="100" selected>100</option>
+        <option value="500">500</option>
+        <option value="1000">1000</option>
+      </select>
+      <span>entries per page</span>
+    </div>
+    <div id="paginationInfo"></div>
+    <div class="pagination-nav">
+      <button id="prevPageBtn" class="btn" disabled>Previous</button>
+      <span id="currentPageInfo">Page 1</span>
+      <button id="nextPageBtn" class="btn">Next</button>
+    </div>
+  `;
+  tableSection.insertBefore(tableControlsDiv, tableSection.firstChild);
+  
+  // Pagination state variables
+  const paginationLimitSelect = document.getElementById('paginationLimit');
+  const paginationInfo = document.getElementById('paginationInfo');
+  const prevPageBtn = document.getElementById('prevPageBtn');
+  const nextPageBtn = document.getElementById('nextPageBtn');
+  const currentPageInfo = document.getElementById('currentPageInfo');
+  
+  let currentPage = 1;
+  let currentDisplayData = [];
+  let totalDisplayData = 0;
+  
   // Initialize chart variable
   let liquidityChart = null;
   let rawData = null; // Store original data for threshold filtering
+  let timeWindowStart = new Date(); // Start with current time
+  timeWindowStart.setDate(timeWindowStart.getDate() - 1); // Go back 1 day by default
+  let timeWindowEnd = new Date(); // End at current time
+  let previousTimeWindows = []; // Track loaded time windows to avoid duplicates
+  let isLoadingMore = false; // Prevent multiple simultaneous requests
   
   // Fetch available symbols
   const loadSymbols = async () => {
@@ -32,10 +82,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
   
-  // Fetch liquidity data based on selected symbol
-  const fetchData = async (symbol = null) => {
+  // Fetch liquidity data based on selected symbol and time window
+  const fetchData = async (symbol = null, startTime = null, endTime = null) => {
     try {
-      const params = new URLSearchParams({ limit: 100 });
+      const params = new URLSearchParams();
+      
+      // Set default parameters if not provided
+      if (!startTime && !endTime) {
+        // Default: last 1 day
+        const now = new Date();
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(now.getDate() - 1);
+        
+        params.append('startTime', oneDayAgo.toISOString());
+        params.append('endTime', now.toISOString());
+      } else {
+        if (startTime) params.append('startTime', startTime.toISOString());
+        if (endTime) params.append('endTime', endTime.toISOString());
+      }
+      
+      // Add limit and symbol parameters
+      params.append('limit', 1000); // Increased limit for better time-series view
       if (symbol) params.append('symbol', symbol);
       
       const response = await fetch(`/liquidity-data?${params}`);
@@ -63,14 +130,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     return new Date(timestamp).toLocaleString();
   };
   
-  // Render liquidity table
+  // Calculate pagination data based on current page and limit
+  const calculatePaginationData = () => {
+    const limit = parseInt(paginationLimitSelect.value);
+    const startIndex = (currentPage - 1) * limit;
+    const endIndex = startIndex + limit;
+    
+    return {
+      pageData: currentDisplayData.slice(startIndex, endIndex),
+      startIndex: startIndex,
+      endIndex: endIndex,
+      totalPages: Math.ceil(currentDisplayData.length / limit)
+    };
+  };
+  
+  // Render pagination controls
+  const renderPaginationControls = () => {
+    const totalPages = Math.ceil(currentDisplayData.length / parseInt(paginationLimitSelect.value));
+    
+    // Update current page information
+    currentPageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+    
+    // Update pagination info
+    const currentStart = (currentPage - 1) * parseInt(paginationLimitSelect.value) + 1;
+    const currentEnd = Math.min(currentPage * parseInt(paginationLimitSelect.value), currentDisplayData.length);
+    paginationInfo.textContent = `Showing ${currentStart} to ${currentEnd} of ${currentDisplayData.length} entries`;
+    
+    // Enable/disable navigation buttons
+    prevPageBtn.disabled = currentPage <= 1;
+    nextPageBtn.disabled = currentPage >= totalPages || totalPages === 0;
+  };
+  
+  // Render liquidity table with pagination
   const renderTable = (data) => {
+    // Update the current display data
+    currentDisplayData = data;
+    totalDisplayData = data.length;
+    
+    // Reset to first page when data changes
+    currentPage = 1;
+    
+    // Calculate the data to show based on current page and limit
+    const { pageData } = calculatePaginationData();
+    
+    // Clear the table body
     liquidityTableBody.innerHTML = '';
     
-    // Show the most recent 50 records in the table
-    const displayData = data.slice(-50);
-    
-    displayData.forEach(item => {
+    // Add data to the table
+    pageData.forEach(item => {
       const row = document.createElement('tr');
       row.innerHTML = `
         <td>${item.symbol.toUpperCase()}</td>
@@ -85,6 +192,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
       liquidityTableBody.appendChild(row);
     });
+    
+    // Render pagination controls
+    renderPaginationControls();
   };
   
   // Render liquidity chart
@@ -289,20 +399,70 @@ document.addEventListener('DOMContentLoaded', async () => {
     return color;
   };
   
-  // Load initial data
+  // Load initial data with default 1-day window
   const loadData = async (symbol = null) => {
     console.log('[frontend] Loading data for symbol:', symbol);
-    const data = await fetchData(symbol);
+    
+    // Default: last 1 day for initial load
+    const now = new Date();
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(now.getDate() - 1);
+    
+    const data = await fetchData(symbol, oneDayAgo, now);
     console.log('[frontend] Rendering chart with data length:', data.length);
     
     // Store raw data for later filtering
     rawData = data;
     
-    // Limit to last 20 data points for better visualization
-    const limitedData = data.slice(-20);
-    renderChart(limitedData);
+    renderChart(data);
     console.log('[frontend] Rendering table with data length:', data.length);
     renderTable(data);
+  };
+  
+  // Load more data for previous day
+  const loadMoreData = async () => {
+    if (isLoadingMore) return; // Prevent multiple requests
+    
+    isLoadingMore = true;
+    loadMoreBtn.disabled = true;
+    loadMoreBtn.textContent = 'Loading...';
+    
+    try {
+      // Calculate the time window for the previous day based on the earliest timestamp in current data
+      let previousEndTime;
+      if (rawData && rawData.length > 0) {
+        // Use the earliest timestamp in current data as the end time for the previous period
+        const sortedData = [...rawData].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        previousEndTime = new Date(sortedData[0].timestamp);
+      } else {
+        // Fallback: use current time if no data is loaded yet
+        previousEndTime = new Date();
+      }
+      
+      // Calculate start time as 1 day before the end time
+      const previousStartTime = new Date(previousEndTime);
+      previousStartTime.setDate(previousStartTime.getDate() - 1);
+      
+      console.log('[frontend] Loading more data from:', previousStartTime.toISOString(), 'to:', previousEndTime.toISOString());
+      
+      const additionalData = await fetchData(symbolSelect.value, previousStartTime, previousEndTime);
+      console.log('[frontend] Loaded additional data points:', additionalData.length);
+      
+      if (additionalData.length > 0) {
+        // Combine with existing data
+        rawData = [...additionalData, ...rawData];
+        
+        // Re-render the chart with all data
+        renderChart(rawData);
+        renderTable(rawData); // This will also update the table with new data
+      }
+    } catch (error) {
+      console.error('Error loading more data:', error);
+    } finally {
+      isLoadingMore = false;
+      loadMoreBtn.disabled = false;
+      loadMoreBtn.textContent = 'Load More';
+    }
   };
   
   // Event listeners
@@ -315,13 +475,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     // After loading new data, keep the current threshold in the input if it was manually set
   });
   
+  loadMoreBtn.addEventListener('click', async () => {
+    await loadMoreData();
+  });
+  
+  // Add pagination event listeners
+  paginationLimitSelect.addEventListener('change', () => {
+    currentPage = 1; // Reset to first page when limit changes
+    renderTable(currentDisplayData);
+  });
+  
+  prevPageBtn.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderTable(currentDisplayData);
+    }
+  });
+  
+  nextPageBtn.addEventListener('click', () => {
+    const totalPages = Math.ceil(currentDisplayData.length / parseInt(paginationLimitSelect.value));
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderTable(currentDisplayData);
+    }
+  });
+  
   // Add event listener for outlier threshold input
   outlierThreshold.addEventListener('input', () => {
     if (rawData) {
       // Re-render the chart with the new threshold without fetching new data
-      // Limit to last 20 data points for better visualization
-      const limitedData = rawData.slice(-20);
-      renderChart(limitedData);
+      renderChart(rawData);
     } else {
       // If no raw data available, fetch it again
       loadData(symbolSelect.value);

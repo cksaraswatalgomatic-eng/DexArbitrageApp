@@ -1313,10 +1313,11 @@ async function fetchLiquidityData() {
   // List of cryptocurrencies to monitor - based on the requested tokens
   // Only include tokens that have USDT pairs on Binance
   const validTokens = [
-    "LINK", "SOL", "BNB", "BTC", "AAVE", "CAKE", "UNI", "XRP", 
-    "ETH", "LDO", "CRV", "POL", "PENDLE", "ARB", "GMX", "ZRO",
-    "ZEN", "AVAX", "ADA", "DOT", "MATIC", "SAND", "DOGE", "SHIB",
-    "APT", "ATOM", "BCH", "ETC", "FIL", "HBAR", "XTZ", "EOS"
+  "LINK", "SOL", "BIO", "MIRA", "BNB", "BTC", "AAVE", "CAKE", "UNI", "XRP",
+  "ETH", "LDO", "CRV", "POL", "PENDLE", "ARB", "GMX", "ZRO",
+  "ZEN", "AVAX", "ADA", "DOT", "MATIC", "SAND", "DOGE", "SHIB",
+  "APT", "ATOM", "BCH", "ETC", "FIL", "HBAR", "XTZ", "EOS",
+  "KAITO", "VIRTUAL", "MORPHO", "TOWNS", "AVNT"
   ];
   
   const symbols = validTokens.map(s => s + 'USDT');

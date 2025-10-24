@@ -20,3 +20,10 @@ servers.json
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+data.sqlite
+data.sqlite-shm
+data.sqlite-wal
+
+# SQLite artifacts
+*.sqlite-wal
+*.sqlite-shm

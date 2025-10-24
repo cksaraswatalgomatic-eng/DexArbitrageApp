@@ -1,36 +1,38 @@
 # Project Summary
 
 ## Overall Goal
-Fix the visibility issue of the "Outlier %" input box on the "Total USDT Balance Over Time (All Servers)" chart on the consolidated-tracking.html page in the Dex Arbitrage application.
+To enhance a Node.js-based DEX arbitrage monitoring application by implementing liquidity monitoring with real-time 2-minute trading volume data from Binance, adding consolidated tracking features, and improving the UI/UX with pagination and additional analytical features.
 
 ## Key Knowledge
-- **Project**: Dex Arbitrage App - A Node.js application that monitors decentralized exchange (DEX) arbitrage opportunities
-- **Technology Stack**: Node.js with Express.js, SQLite (better-sqlite3), Chart.js for data visualization
-- **Frontend Architecture**: Uses HTML/CSS/JavaScript with responsive design and dark theme
-- **CSS Framework**: Custom styling with flexbox layouts and responsive design
-- **File Structure**: 
-  - HTML: `public/consolidated-tracking.html`
-  - JS: `public/consolidated-tracking.js`
-  - CSS: `public/styles.css`
-- **Authentication**: Username=admin, password=adminpass
-- **Server**: Running on port 3000 (already operational)
+- **Technology Stack**: Node.js, Express.js, SQLite (better-sqlite3), Chart.js, Binance API, HTML/CSS/JavaScript frontend
+- **Database Structure**: Uses `liquidity_data` table with columns (timestamp, symbol, price, liquidity) storing actual 2-minute volumes from Binance klines API
+- **Time Window Defaults**: Liquidity charts default to showing 1 day of data with "Load More" button to load previous days incrementally
+- **Liquidity Calculation**: Uses Binance klines API with 1-minute intervals, combining 2 consecutive candles to calculate actual 2-minute trading volumes
+- **Token List**: Supports 32+ major cryptocurrencies with USDT trading pairs on Binance
+- **Frontend Features**: Includes pagination for tables (50, 100, 500, 1000 entries), dual-axis charts with price and liquidity, outlier filtering
+- **Database Files**: SQLite files should be ignored in Git (data.sqlite, data.sqlite-wal, data.sqlite-shm) as they're runtime state files
+- **Multi-Server**: Supports BNB, Arbitrum, Base, Polygon servers with configuration via servers.json
 
 ## Recent Actions
-- Analyzed the consolidated-tracking.html file and discovered the "Outlier %" input box was already implemented in the HTML structure
-- Verified the consolidated-tracking.js file had the proper JavaScript functionality for outlier filtering
-- Identified that the issue was likely CSS-related rather than HTML/JS missing functionality
-- Modified the CSS to fix display issues by enhancing styles for `.inline-control input` with `min-width: 80px` and `flex: 0 0 auto`
-- Added specific styling for `#outlierPercentage` element with explicit visibility properties
-- Updated the CSS to ensure the input box doesn't collapse in flex containers
+- [DONE] Fixed Binance API interval issue by switching from unsupported 2m interval to 1m interval with volume aggregation
+- [DONE] Implemented liquidity data fetching using Binance klines API, correctly calculating 2-minute volumes
+- [DONE] Added "Latest Consolidated USDT Balances" table with Total row and "CEX to DEX Ratio" column (colored based on threshold)
+- [DONE] Updated "Latest Consolidated Daily Profit" table to show current UTC day's profit with Total row
+- [DONE] Added time-based data controls with default 1-day window and "Load More" functionality for liquidity monitoring
+- [DONE] Implemented pagination for liquidity data table with 50/100/500/1000 entries options
+- [DONE] Fixed database corruption issues by properly handling SQLite WAL files and ignoring them in Git
+- [DONE] Added proper CSS styling for new UI elements like total rows and pagination controls
 
 ## Current Plan
-- [DONE] Analyze the HTML structure to confirm the "Outlier %" input box implementation
-- [DONE] Check the JavaScript functionality for outlier filtering
-- [DONE] Identify CSS issues that might hide the input box
-- [DONE] Apply CSS fixes to ensure visibility of the input box
-- [DONE] Verify the solution works properly
+- [DONE] Implement liquidity monitoring with actual 2-minute intervals from Binance
+- [DONE] Add consolidated tracking features with totals and ratio calculations
+- [DONE] Implement pagination for large data tables
+- [DONE] Add time window controls and "Load More" functionality
+- [TODO] Monitor application stability and performance in production
+- [TODO] Consider adding additional token pairs to the liquidity monitoring
+- [TODO] Address the notifications_log migration error if necessary for core functionality
 
 ---
 
 ## Summary Metadata
-**Update time**: 2025-10-22T10:36:55.046Z 
+**Update time**: 2025-10-24T06:40:49.125Z 

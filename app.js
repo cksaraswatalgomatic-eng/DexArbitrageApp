@@ -218,6 +218,17 @@ function ensureDb(serverId) {
     );
   `);
   _db.exec(`
+    CREATE TABLE IF NOT EXISTS gas_balance_tracking (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL,
+      contract TEXT NOT NULL,
+      gas_balance REAL,
+      gas_deposit REAL DEFAULT 0,
+      source TEXT NOT NULL DEFAULT 'auto',
+      note TEXT
+    );
+  `);
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS diff_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       curId TEXT NOT NULL,
@@ -1008,11 +1019,41 @@ async function fetchStatusAndStoreFor(server) {
       }).filter(Boolean);
 
       if (gasBalances && gasBalances.length) {
-        const stmt = db.prepare('INSERT INTO gas_balances (timestamp, contract, gas, is_low) VALUES (@timestamp, @contract, @gas, @is_low)');
-        db.transaction((items) => {
-          for (const item of items) stmt.run({ timestamp, ...item });
-        })(gasBalances);
-        console.log(`[status:${server.label}] Stored ${gasBalances.length} gas balances.`);
+        const insertGasStmt = db.prepare('INSERT INTO gas_balances (timestamp, contract, gas, is_low) VALUES (@timestamp, @contract, @gas, @is_low)');
+        const insertTrackingStmt = db.prepare('INSERT INTO gas_balance_tracking (timestamp, contract, gas_balance, gas_deposit, source) VALUES (@timestamp, @contract, @gas_balance, @gas_deposit, @source)');
+        
+        const uniqueGasBalances = new Map();
+        for (const item of gasBalances) {
+          if (item.contract.toLowerCase() !== 'total') {
+            uniqueGasBalances.set(item.contract, item);
+          }
+        }
+        const processedBalances = Array.from(uniqueGasBalances.values());
+
+        if (processedBalances.length > 0) {
+            db.transaction((items) => {
+              let totalGas = 0;
+              let hasFiniteGas = false;
+              for (const item of items) {
+                insertGasStmt.run({ timestamp, ...item });
+                const numericGas = Number(item.gas);
+                if (Number.isFinite(numericGas)) {
+                  totalGas += numericGas;
+                  hasFiniteGas = true;
+                }
+              }
+              if (hasFiniteGas) {
+                insertTrackingStmt.run({
+                  timestamp,
+                  contract: '__total__',
+                  gas_balance: totalGas,
+                  gas_deposit: 0,
+                  source: 'auto-total'
+                });
+              }
+            })(processedBalances);
+            console.log(`[status:${server.label}] Stored ${processedBalances.length} gas balances.`);
+        }
 
         const notifier = ensureNotifier(server.id);
         if (notifier) {
@@ -2117,6 +2158,185 @@ app.get('/balances/exchanges', (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[api:/balances/exchanges] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/gas-balance/tracking', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const contract = req.query.contract ? String(req.query.contract).trim() : '';
+    const limit = Math.max(1, Math.min(parseInt(req.query.limit, 10) || 100, 1000));
+    let sql = 'SELECT id, timestamp, contract, gas_balance, gas_deposit, source, note FROM gas_balance_tracking';
+    const params = [];
+    if (contract) {
+      sql += ' WHERE contract = ?';
+      params.push(contract);
+    }
+    sql += ' ORDER BY datetime(timestamp) DESC, id DESC LIMIT ?';
+    params.push(limit);
+    const rows = db.prepare(sql).all(...params);
+    res.json(rows);
+  } catch (err) {
+    console.error('[api:/gas-balance/tracking] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/gas-balance/deposit', (req, res) => {
+  try {
+    const body = req.body || {};
+    let contract = typeof body.contract === 'string' ? body.contract.trim() : '';
+    const deposit = Number(body.amount);
+    let gasBalance = body.gasBalance;
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+
+    if (!contract) {
+      contract = '__total__';
+    }
+    if (!Number.isFinite(deposit) || deposit <= 0) {
+      return res.status(400).json({ error: 'Deposit amount must be a positive number' });
+    }
+
+    if (gasBalance !== undefined && gasBalance !== null && gasBalance !== '') {
+      gasBalance = Number(gasBalance);
+      if (!Number.isFinite(gasBalance)) {
+        return res.status(400).json({ error: 'Gas balance must be a valid number' });
+      }
+    } else {
+      gasBalance = null;
+    }
+
+    const db = getDbFromReq(req);
+    let previousBalance = null;
+    if (gasBalance == null) {
+      if (contract === '__total__') {
+        const latestTracking = db.prepare('SELECT gas_balance FROM gas_balance_tracking WHERE contract = ? ORDER BY datetime(timestamp) DESC LIMIT 1').get(contract);
+        if (latestTracking && latestTracking.gas_balance != null && Number.isFinite(Number(latestTracking.gas_balance))) {
+          previousBalance = Number(latestTracking.gas_balance);
+        } else {
+          const latestTimestampRow = db.prepare('SELECT timestamp FROM gas_balances ORDER BY datetime(timestamp) DESC LIMIT 1').get();
+          if (latestTimestampRow?.timestamp) {
+            const totalRow = db.prepare('SELECT SUM(gas) AS total FROM gas_balances WHERE timestamp = ?').get(latestTimestampRow.timestamp);
+            const totalVal = Number(totalRow?.total);
+            if (Number.isFinite(totalVal)) previousBalance = totalVal;
+          }
+        }
+      } else {
+        const latest = db.prepare('SELECT gas FROM gas_balances WHERE contract = ? ORDER BY datetime(timestamp) DESC LIMIT 1').get(contract);
+        if (latest && latest.gas != null && Number.isFinite(Number(latest.gas))) {
+          previousBalance = Number(latest.gas);
+        }
+      }
+      if (Number.isFinite(previousBalance)) {
+        gasBalance = previousBalance + deposit;
+      }
+    }
+
+    const timestamp = new Date().toISOString();
+    const insert = db.prepare('INSERT INTO gas_balance_tracking (timestamp, contract, gas_balance, gas_deposit, source, note) VALUES (?, ?, ?, ?, ?, ?)');
+    const info = insert.run(timestamp, contract, gasBalance, deposit, 'manual', note || null);
+
+    res.json({
+      id: info.lastInsertRowid,
+      timestamp,
+      contract,
+      gas_balance: gasBalance,
+      gas_deposit: deposit,
+      source: 'manual',
+      note: note || null
+    });
+  } catch (err) {
+    console.error('[api:/gas-balance/deposit] error:', err.message);
+    res.status(500).json({ error: 'Failed to record gas deposit' });
+  }
+});
+
+app.get('/gas-balance/consumption', (req, res) => {
+  try {
+    const hoursParam = parseInt(req.query.hours, 10);
+    const hours = Math.max(1, Math.min(Number.isFinite(hoursParam) ? hoursParam : 48, 168));
+    const db = getDbFromReq(req);
+
+    const now = Date.now();
+    const windowStart = new Date(now - hours * 60 * 60 * 1000).toISOString();
+
+    const totals = db.prepare(
+      `SELECT timestamp, gas_balance
+       FROM gas_balance_tracking
+       WHERE contract = '__total__' AND source = 'auto-total' AND datetime(timestamp) >= datetime(?)
+       ORDER BY datetime(timestamp)`
+    ).all(windowStart);
+
+    const prev = db.prepare(
+      `SELECT timestamp, gas_balance
+       FROM gas_balance_tracking
+       WHERE contract = '__total__' AND source = 'auto-total' AND datetime(timestamp) < datetime(?)
+       ORDER BY datetime(timestamp) DESC
+       LIMIT 1`
+    ).get(windowStart);
+
+    const series = [];
+    if (prev) series.push(prev);
+    series.push(...totals);
+    if (series.length <= 1) {
+      return res.json([]);
+    }
+
+    const depositStmt = db.prepare(
+      `SELECT COALESCE(SUM(gas_deposit), 0) AS total
+       FROM gas_balance_tracking
+       WHERE contract = '__total__'
+         AND source = 'manual'
+         AND datetime(timestamp) > datetime(?)
+         AND datetime(timestamp) <= datetime(?)`
+    );
+
+    const buckets = new Map();
+
+    for (let i = 1; i < series.length; i += 1) {
+      const prevEntry = series[i - 1];
+      const currEntry = series[i];
+      const prevBalance = Number(prevEntry.gas_balance);
+      const currBalance = Number(currEntry.gas_balance);
+      if (!Number.isFinite(prevBalance) || !Number.isFinite(currBalance)) continue;
+
+      const depositTotal = Number(depositStmt.get(prevEntry.timestamp, currEntry.timestamp)?.total) || 0;
+      let consumption = prevBalance - currBalance;
+      if (!Number.isFinite(consumption) || consumption < 0) consumption = 0;
+
+      const endTime = new Date(currEntry.timestamp);
+      if (Number.isNaN(endTime.getTime())) continue;
+      const hourStart = new Date(endTime);
+      hourStart.setMinutes(0, 0, 0);
+      const bucketKey = hourStart.toISOString();
+      const bucket = buckets.get(bucketKey) || {
+        timestamp: bucketKey,
+        consumption: 0,
+        deposit: 0,
+        latestTotal: currBalance,
+        sampleTime: currEntry.timestamp
+      };
+      if (!Number.isFinite(bucket.deposit)) bucket.deposit = 0;
+      bucket.consumption += consumption;
+      bucket.deposit += depositTotal;
+      bucket.latestTotal = currBalance;
+      bucket.sampleTime = currEntry.timestamp;
+      buckets.set(bucketKey, bucket);
+    }
+
+    const result = Array.from(buckets.values())
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+      .map((entry) => ({
+        timestamp: entry.timestamp,
+        consumption: entry.consumption,
+        deposit: entry.deposit,
+        latestTotal: entry.latestTotal
+      }));
+
+    res.json(result);
+  } catch (err) {
+    console.error('[api:/gas-balance/consumption] error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

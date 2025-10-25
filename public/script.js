@@ -7,6 +7,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dexSummary = document.getElementById('dexSummary');
     const cexSummary = document.getElementById('cexSummary');
     const tradesLimitEl = document.getElementById('tradesLimit');
+    let gasConsumptionChart = null;
+    let gasConsumptionHours = 4;
+
 
     let chart;
     let dailyProfitChart;
@@ -357,7 +360,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function fmtNum(n, precision = 6) {
-      if (n == null || !isFinite(n)) return '—';
+      if (n == null || !isFinite(n)) return 'N/A';
       if (Math.abs(n) >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
       return n.toLocaleString(undefined, { maximumFractionDigits: precision });
     }
@@ -648,21 +651,308 @@ document.addEventListener('DOMContentLoaded', async () => {
           return `color: rgb(${red}, ${green}, 0)`;
         }
 
+        function getActiveServerLabel() {
+          const select = document.getElementById('serverSelect');
+          if (!select) return '';
+          const option = select.options[select.selectedIndex];
+          return option ? option.textContent : (select.value || '');
+        }
+
+        function escapeHtml(value) {
+          const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+          return String(value ?? '').replace(/[&<>"']/g, (ch) => map[ch] || ch);
+        }
+
+        async function refreshGasTracking(latestTotalHint, feedback) {
+          const formContainer = document.getElementById('gasTrackingFormContainer');
+          if (!formContainer) return;
+
+          let consumption = [];
+          try {
+            consumption = await fetchJSON(`/gas-balance/consumption?hours=${gasConsumptionHours}`);
+          } catch (err) {
+            console.warn('Failed to load gas consumption series:', err);
+            consumption = [];
+          }
+
+          const activeServerLabel = escapeHtml(getActiveServerLabel() || 'current server');
+          const latestKnownTotal = null;
+          const latestTotalText = 'N/A';
+
+          formContainer.innerHTML = `
+            <h4 style="margin-bottom:0.25rem;">Gas Tracking</h4>
+            <div class="muted" style="margin-bottom: 0.5rem;">Logging deposits for <strong>${activeServerLabel}</strong>.</div>
+            <form id="gasDepositForm" class="gas-deposit-form">
+              <div style="display:grid; gap:0.5rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.9rem;">
+                  <span>Current Gas Balance</span>
+                  <input id="gasDepositBalance" type="number" step="any" placeholder="Leave blank to auto-fill" />
+                </label>
+                <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.9rem;">
+                  <span>Deposit Amount</span>
+                  <input id="gasDepositAmount" type="number" step="any" min="0" required />
+                </label>
+                <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.9rem;">
+                  <span>Note</span>
+                  <input id="gasDepositNote" type="text" placeholder="Optional note" />
+                </label>
+              </div>
+              <div class="muted" style="margin-top:0.5rem;">Leave balance empty to use the latest tracked total.</div>
+              <button type="submit" class="btn btn-orange" style="margin-top:0.5rem;">Log Deposit</button>
+            </form>
+            <div id="gasDepositFormMessage" class="muted" style="margin-top:0.5rem;" aria-live="polite"></div>
+            <div class="muted" style="margin-top:0.5rem;">Latest tracked total: ${latestTotalText}</div>
+          `;
+
+          const form = formContainer.querySelector('#gasDepositForm');
+          const balanceInput = formContainer.querySelector('#gasDepositBalance');
+          const amountInput = formContainer.querySelector('#gasDepositAmount');
+          const noteInput = formContainer.querySelector('#gasDepositNote');
+          const messageEl = formContainer.querySelector('#gasDepositFormMessage');
+          const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+
+          const setMessage = (text, state) => {
+            if (!messageEl) return;
+            messageEl.textContent = text;
+            messageEl.classList.remove('text-pos', 'text-neg', 'muted');
+            if (state === 'success') {
+              messageEl.classList.add('text-pos');
+            } else if (state === 'error') {
+              messageEl.classList.add('text-neg');
+            } else {
+              messageEl.classList.add('muted');
+            }
+          };
+
+          if (feedback && feedback.text) {
+            setMessage(feedback.text, feedback.type);
+          } else {
+            setMessage('', 'info');
+          }
+
+          renderGasConsumptionChart(consumption);
+
+          let consumptionForStats = [];
+          try {
+            consumptionForStats = await fetchJSON(`/gas-balance/consumption?hours=168`);
+          } catch (err) {
+            console.warn('Failed to load gas consumption series for stats:', err);
+            consumptionForStats = [];
+          }
+          const stats = calculateGasConsumptionStats(consumptionForStats);
+          renderGasConsumptionStats(stats);
+
+          if (form) {
+            let submitting = false;
+            form.addEventListener('submit', async (ev) => {
+              ev.preventDefault();
+              if (submitting) return;
+              if (!amountInput) return;
+              const depositValue = Number(amountInput.value);
+              if (!Number.isFinite(depositValue) || depositValue <= 0) {
+                setMessage('Deposit amount must be greater than zero.', 'error');
+                return;
+              }
+              submitting = true;
+              if (submitBtn) submitBtn.disabled = true;
+              setMessage('Saving deposit entry…', 'info');
+              try {
+                const payload = { contract: '__total__', amount: depositValue };
+                if (balanceInput && balanceInput.value !== '') {
+                  payload.gasBalance = Number(balanceInput.value);
+                  if (!Number.isFinite(payload.gasBalance)) {
+                    setMessage('Gas balance must be a valid number.', 'error');
+                    submitting = false;
+                    if (submitBtn) submitBtn.disabled = false;
+                    return;
+                  }
+                }
+                if (noteInput && noteInput.value.trim()) {
+                  payload.note = noteInput.value.trim();
+                }
+                const created = await fetch('/gas-balance/deposit', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+                }).then((resp) => {
+                  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                  return resp.json();
+                });
+                await refreshGasTracking(created?.gas_balance ?? latestKnownTotal, { type: 'success', text: 'Deposit recorded.' });
+                return;
+              } catch (submitErr) {
+                console.error('Failed to record gas deposit:', submitErr);
+                setMessage('Failed to record deposit. Please try again.', 'error');
+              } finally {
+                if (submitBtn) submitBtn.disabled = false;
+                submitting = false;
+              }
+            });
+          }
+        }
+
+
+
+        function calculateGasConsumptionStats(consumptionData) {
+            const now = Date.now();
+            const periodConfigs = [
+                { label: 'Last 1h', cutoff: now - (1 * 60 * 60 * 1000) },
+                { label: 'Last 4h', cutoff: now - (4 * 60 * 60 * 1000) },
+                { label: 'Last 8h', cutoff: now - (8 * 60 * 60 * 1000) },
+                { label: 'Last 12h', cutoff: now - (12 * 60 * 60 * 1000) },
+                { label: 'Last 24h', cutoff: now - (24 * 60 * 60 * 1000) },
+                { label: 'Last 2 Days', cutoff: now - (2 * 24 * 60 * 60 * 1000) },
+                { label: 'Last 7 Days', cutoff: now - (7 * 24 * 60 * 60 * 1000) },
+            ];
+
+            const stats = periodConfigs.map((cfg) => ({
+                label: cfg.label,
+                consumption: 0,
+                deposit: 0
+            }));
+
+            for (const item of consumptionData) {
+                const itemTimestamp = new Date(item.timestamp).getTime();
+                for (let i = 0; i < periodConfigs.length; i += 1) {
+                    if (itemTimestamp >= periodConfigs[i].cutoff) {
+                        const stat = stats[i];
+                        const consumptionVal = Number(item.consumption);
+                        if (Number.isFinite(consumptionVal) && consumptionVal !== 0) {
+                            stat.consumption += consumptionVal;
+                        }
+                        const depositVal = Number(item.deposit);
+                        if (Number.isFinite(depositVal) && depositVal !== 0) {
+                            stat.deposit += depositVal;
+                        }
+                    }
+                }
+            }
+            return stats;
+        }
+
+        function renderGasConsumptionStats(stats) {
+            const container = document.getElementById('gasConsumptionStatsContainer');
+            if (!container) return;
+
+            let html = '<h4>Gas Consumption</h4>';
+            html += '<div class="table-wrap"><table><thead><tr>' +
+                    '<th>Period</th><th>Consumption</th><th>Deposit</th>' +
+                    '</tr></thead><tbody>';
+            const rows = Array.isArray(stats) ? stats : [];
+            for (const entry of rows) {
+              const consumption = entry.consumption;
+              const deposit = entry.deposit;
+                html += `<tr>` +
+                        `<td>${entry.label}</td>` +
+                        `<td>${fmtNum(consumption, 4)}</td>` +
+                        `<td>${fmtNum(deposit, 4)}</td>` +
+                        `</tr>`;
+            }
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        function renderGasConsumptionChart(rows) {
+          const canvas = document.getElementById('gasConsumptionChart');
+          if (!canvas) return;
+          const container = canvas.closest('.chart-container');
+          if (container) {
+            const skeleton = container.querySelector('.skeleton');
+            if (skeleton) skeleton.remove();
+          }
+
+          const points = Array.isArray(rows) ? rows.map((row) => {
+            const ts = new Date(row.timestamp);
+            if (Number.isNaN(ts.getTime())) return null;
+            return {
+              x: ts,
+              y: Number(row.consumption) || 0,
+              latestTotal: Number(row.latestTotal)
+            };
+          }).filter(Boolean) : [];
+
+          const baseOptions = getChartBaseOptions();
+          const tooltipBase = baseOptions.plugins?.tooltip || {};
+          const tooltipCallbacks = tooltipBase.callbacks || {};
+
+          const options = {
+            ...baseOptions,
+            plugins: {
+              ...baseOptions.plugins,
+              legend: { display: false },
+              tooltip: {
+                ...tooltipBase,
+                callbacks: {
+                  ...tooltipCallbacks,
+                  label(context) {
+                    const consumptionVal = fmtNum(context.parsed.y, 4);
+                    const totalVal = context.raw && Number.isFinite(Number(context.raw.latestTotal))
+                      ? fmtNum(Number(context.raw.latestTotal), 4)
+                      : null;
+                    let label = `Consumption: ${consumptionVal}`;
+                    if (totalVal) label += ` | Total: ${totalVal}`;
+                    return label;
+                  }
+                }
+              }
+            },
+            scales: {
+              ...baseOptions.scales,
+              x: {
+                ...baseOptions.scales.x,
+                type: 'time',
+                time: { unit: 'hour', tooltipFormat: 'PPpp', displayFormats: { hour: 'MM-dd HH:mm' } },
+                min: new Date(Date.now() - gasConsumptionHours * 60 * 60 * 1000),
+                max: new Date()
+              },
+              y: {
+                ...baseOptions.scales.y,
+                title: { display: true, text: 'Gas consumed' },
+                ticks: {
+                  ...(baseOptions.scales.y?.ticks || {}),
+                  callback: (value) => fmtNum(value, 2)
+                }
+              }
+            }
+          };
+
+          const dataset = {
+            label: 'Hourly Gas Consumption',
+            data: points,
+            parsing: false,
+            backgroundColor: (ctx) => (ctx.parsed && ctx.parsed.y >= 0 ? 'rgba(255, 99, 71, 0.6)' : 'rgba(76, 175, 80, 0.6)'),
+            borderColor: (ctx) => (ctx.parsed && ctx.parsed.y >= 0 ? 'rgba(255, 99, 71, 0.9)' : 'rgba(76, 175, 80, 0.9)'),
+            borderWidth: 1,
+            borderRadius: 4
+          };
+
+          if (!gasConsumptionChart) {
+            const ctx = canvas.getContext('2d');
+            gasConsumptionChart = new Chart(ctx, {
+              type: 'line',
+              data: { datasets: [dataset] },
+              options
+            });
+          } else {
+            gasConsumptionChart.data.datasets[0].data = points;
+            gasConsumptionChart.options = options;
+            gasConsumptionChart.update();
+          }
+        }
+
         async function loadServerStatus() {
           const sdiffStatusEl = document.getElementById('sdiffStatus');
           const tokensContainerEl = document.getElementById('tokensContainer');
           const gasBalanceContainerEl = document.getElementById('gasBalanceContainer');
           const profitStatsEl = document.getElementById('profitStats');
           const tradeStatsEl = document.getElementById('tradeStats');
+          let latestTotalHint = null;
           try {
             const data = await fetchJSON('/status/server');
             let sdiffHtml = '';
-            let tokensHtml = '';
-            let gasHtml = '';
-            let combinedHtml = '';
             const tokenRows = [];
             const gasRows = [];
-            let gasTotal = 0;
+            let totalGasFromStatus = null;
 
             if (data.sdiff) {
               sdiffHtml = `
@@ -682,42 +972,65 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             if (data.blacklist) {
+              let computedTotal = 0;
+              let hasComputed = false;
               for (const item of data.blacklist) {
+                const key = String(item.contract || '').trim();
                 const g = Number(item.gas);
                 let cls = '';
                 if (Number.isFinite(g)) {
                   if (g < 1) cls = 'text-neg';
                   else if (g < 2) cls = 'text-warn';
-                  gasTotal += g;
                 }
-                const short = String(item.contract || '').slice(-8);
+                if (key.toLowerCase() === 'total') {
+                  if (Number.isFinite(g)) totalGasFromStatus = g;
+                  gasRows.push(`<span class="${cls}"><strong>Total:</strong> ${item.gas}</span>`);
+                  continue;
+                }
+                if (Number.isFinite(g)) {
+                  computedTotal += g;
+                  hasComputed = true;
+                }
+                const short = key ? key.slice(-8) : '';
                 gasRows.push(`<span class="${cls}"><strong>${short}:</strong> ${item.gas}</span>`);
+              }
+              if (!Number.isFinite(totalGasFromStatus) && hasComputed) {
+                totalGasFromStatus = computedTotal;
               }
             }
 
-            // Build combined two-column table: Tokens | Gas Balance
+            let combinedHtml = '';
             const maxRows = Math.max(tokenRows.length, gasRows.length);
             if (maxRows > 0) {
               combinedHtml += '<div class="table-wrap"><table><thead><tr><th>Tokens</th><th>Gas Balance</th></tr></thead><tbody>';
-              for (let i = 0; i < maxRows; i++) {
+              for (let i = 0; i < maxRows; i += 1) {
                 const left = tokenRows[i] || '';
                 const right = gasRows[i] || '';
                 combinedHtml += `<tr><td>${left}</td><td>${right}</td></tr>`;
               }
-              // Intentionally omit our own total row to avoid duplicate totals
               combinedHtml += '</tbody></table></div>';
             }
+            if (Number.isFinite(totalGasFromStatus)) {
+              combinedHtml += `<div class="muted" style="margin-top:0.5rem;">Total gas balance: ${fmtNum(totalGasFromStatus, 4)}</div>`;
+            }
 
-            if(sdiffStatusEl) sdiffStatusEl.innerHTML = sdiffHtml;
-            if(tokensContainerEl) tokensContainerEl.innerHTML = combinedHtml || '<div class="muted">No token/gas data</div>';
-            if(gasBalanceContainerEl) gasBalanceContainerEl.innerHTML = '';
+            if (sdiffStatusEl) sdiffStatusEl.innerHTML = sdiffHtml;
+            if (tokensContainerEl) tokensContainerEl.innerHTML = combinedHtml || '<div class="muted">No token/gas data</div>';
+            if (gasBalanceContainerEl) {
+              if (Number.isFinite(totalGasFromStatus)) {
+                gasBalanceContainerEl.innerHTML = `<div class="muted">Latest total gas balance: ${fmtNum(totalGasFromStatus, 4)}</div>`;
+              } else {
+                gasBalanceContainerEl.innerHTML = '<div class="muted">No gas data from server.</div>';
+              }
+            }
+
+            latestTotalHint = Number.isFinite(totalGasFromStatus) ? totalGasFromStatus : null;
 
             const formatProfit = (value) => {
-                const className = value > 0 ? 'text-pos' : value < 0 ? 'text-neg' : '';
-                return `<span class="${className}">${fmtNum(value, 2)}</span>`;
+              const className = value > 0 ? 'text-pos' : value < 0 ? 'text-neg' : '';
+              return `<span class="${className}">${fmtNum(value, 2)}</span>`;
             };
 
-            // Render Profit and Trades side-by-side in a single table for parallel comparison
             if (data.profit && data.trades) {
               const periods = [
                 { label: 'Last 1h', p: data.profit.last1h, t: data.trades.last1h },
@@ -727,17 +1040,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 { label: 'Last 24h', p: data.profit.last24h, t: data.trades.last24h },
               ];
               let html = '<h4>Profit (USD) and Number of Trades</h4>';
-              html += '<div class="table-wrap"><table><thead><tr>'+ 
-                      '<th>Period</th><th>Profit (USD)</th><th>Number of Trades</th>'+ 
+              html += '<div class="table-wrap"><table><thead><tr>' +
+                      '<th>Period</th><th>Profit (USD)</th><th>Number of Trades</th>' +
                       '</tr></thead><tbody>';
               for (const row of periods) {
                 html += `<tr><td>${row.label}</td><td>${formatProfit(row.p)}</td><td>${row.t}</td></tr>`;
               }
               html += '</tbody></table></div>';
-              if(profitStatsEl) profitStatsEl.innerHTML = html;
-              if(tradeStatsEl) tradeStatsEl.innerHTML = '';
+              if (profitStatsEl) profitStatsEl.innerHTML = html;
+              if (tradeStatsEl) tradeStatsEl.innerHTML = '';
             } else {
-              // Fallback to previous separate blocks if only one is available
               if (data.profit) {
                 let profitHtml = '<h4>Profit (USD)</h4>';
                 profitHtml += '<div class="profit-grid">';
@@ -747,7 +1059,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 profitHtml += `<div><strong>Last 12h:</strong> ${formatProfit(data.profit.last12h)}</div>`;
                 profitHtml += `<div><strong>Last 24h:</strong> ${formatProfit(data.profit.last24h)}</div>`;
                 profitHtml += '</div>';
-                if(profitStatsEl) profitStatsEl.innerHTML = profitHtml;
+                if (profitStatsEl) profitStatsEl.innerHTML = profitHtml;
+              } else if (profitStatsEl) {
+                profitStatsEl.innerHTML = '';
               }
               if (data.trades) {
                 let tradesHtml = '<h4>Number of Trades</h4>';
@@ -758,13 +1072,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tradesHtml += `<div><strong>Last 12h:</strong> ${data.trades.last12h}</div>`;
                 tradesHtml += `<div><strong>Last 24h:</strong> ${data.trades.last24h}</div>`;
                 tradesHtml += '</div>';
-                if(tradeStatsEl) tradeStatsEl.innerHTML = tradesHtml;
+                if (tradeStatsEl) tradeStatsEl.innerHTML = tradesHtml;
+              } else if (tradeStatsEl) {
+                tradeStatsEl.innerHTML = '';
               }
             }
-
           } catch (err) {
-            // ...
+            console.error('Failed to load server status:', err);
+            if (sdiffStatusEl) sdiffStatusEl.innerHTML = '<div class="muted">Failed to load server status.</div>';
+            if (tokensContainerEl) tokensContainerEl.innerHTML = '<div class="muted">No token/gas data</div>';
+            if (gasBalanceContainerEl) gasBalanceContainerEl.innerHTML = '<div class="muted">No gas data available.</div>';
+            if (profitStatsEl) profitStatsEl.innerHTML = '';
+            if (tradeStatsEl) tradeStatsEl.innerHTML = '';
           }
+          await refreshGasTracking(latestTotalHint);
         }
 
         if(refreshBtn){
@@ -916,6 +1237,15 @@ document.addEventListener('DOMContentLoaded', async () => {
               }
             });
         }
+
+        if(document.getElementById('loadMoreGasBtn')) {
+            document.getElementById('loadMoreGasBtn').addEventListener('click', () => {
+                gasConsumptionHours += 1;
+                refreshGasTracking();
+            });
+        }
+
+
 
         async function loadTrades() {
           try {

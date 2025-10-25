@@ -107,6 +107,28 @@
             <div class="skeleton" aria-hidden="true"></div>
             <canvas id="dailyProfitChart" aria-label="Daily profit chart"></canvas>
           </div>
+
+          <hr class="card-divider">
+
+          <div class="card-header chart-header">
+            <div>
+              <h2>Gas Consumption</h2>
+              <p class="card-subtitle">Hourly gas usage adjusted for manual deposits.</p>
+            </div>
+            <div class="chart-nav">
+              <button id="loadMoreGasBtn" class="btn" type="button">Load More</button>
+            </div>
+          </div>
+          <div id="gasTrackingFormContainer"></div>
+          <div class="grid-2">
+            <div class="chart-container" style="height: 220px;">
+              <div class="skeleton" aria-hidden="true"></div>
+              <canvas id="gasConsumptionChart" aria-label="Hourly gas consumption chart"></canvas>
+            </div>
+            <div id="gasConsumptionStatsContainer"></div>
+          </div>
+
+
         </section>
       </div>
 

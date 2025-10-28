@@ -38,18 +38,52 @@
       await loadScript(CHART_SRC);
     }
 
-    await loadScript(ZOOM_SRC);
+    await loadScript(ADAPTER_SRC); // Load adapter first
+
+    // Explicitly register the date-fns adapter
+    // The adapter should expose itself as 'ChartjsAdapterDateFns' or similar.
+    // If it's not available, this block will be skipped.
+    if (window.Chart && window.ChartjsAdapterDateFns && !window.__dateFnsAdapterRegistered) {
+      window.Chart.register(window.ChartjsAdapterDateFns);
+      window.__dateFnsAdapterRegistered = true;
+    }
+
+    await loadScript(ZOOM_SRC); // Load zoom plugin after adapter
     const zoomGlobal = window.ChartZoom ||
       (window['chartjs-plugin-zoom'] && (window['chartjs-plugin-zoom'].default || window['chartjs-plugin-zoom']));
     if (zoomGlobal && !window.ChartZoom) {
       window.ChartZoom = zoomGlobal;
     }
 
-    await loadScript(ADAPTER_SRC);
-
     if (window.Chart && window.ChartZoom && !window.__chartZoomRegistered) {
       window.Chart.register(window.ChartZoom);
       window.__chartZoomRegistered = true;
+    }
+
+    // Now configure the date adapter for UTC
+    // Ensure Chart.defaults.adapters.date exists before trying to set properties on it.
+    if (window.Chart && window.Chart.defaults.adapters && window.Chart.defaults.adapters.date) {
+      window.Chart.defaults.adapters.date.utc = true;
+
+      // Set default time scale options to display in UTC
+      // These can be overridden by individual chart configurations if needed
+      window.Chart.defaults.scales.time = {
+        ...window.Chart.defaults.scales.time,
+        time: {
+          unit: 'hour', // Default unit
+          displayFormats: {
+            millisecond: 'HH:mm:ss.SSS UTC',
+            second: 'HH:mm:ss UTC',
+            minute: 'HH:mm UTC',
+            hour: 'MMM d, HH:mm UTC',
+            day: 'MMM d, yyyy UTC',
+            week: 'MMM d, yyyy UTC',
+            month: 'MMM yyyy UTC',
+            quarter: 'qq yyyy UTC',
+            year: 'yyyy UTC',
+          },
+        },
+      };
     }
 
     return window.Chart;

@@ -1,373 +1,126 @@
-/* --- UPDATED FUTURISTIC DARK THEME --- */
+/* Gemini Improvements - 2024-10-28 */
 
-/* 1. Root Variables */
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
+/* 1. Root Variables - Refined Palette */
 :root {
   --background-primary: #0D1117;
-  --background-panel: rgba(22, 27, 34, 0.8);
+  --background-panel: #161B22;
   --border-color: #30363D;
   --text-primary: #C9D1D9;
   --text-muted: #8B949E;
-  --accent-cyan: #00E5FF;
-  --accent-green: #39FF14;
-  --accent-red: #FF4444; /* A less intense red */
-  --accent-orange: #FF8C00;
-  --accent-blue: #1F6FEB;
-  --accent-blue-darker: #0d47a1;
 
-  --font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  /* Softer accent colors for dark theme */
+  --accent-green: #28a745; /* Softer Green */
+  --accent-blue: #1F6FEB; /* Standard Blue */
+  --accent-red: #dc3545;   /* Softer Red */
+  --accent-orange: #fd7e14; /* Softer Orange */
+
+  --font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* 2. Base & Body Styles */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+body.light-theme {
+  --background-primary: #F6F8FA;
+  --background-panel: #FFFFFF;
+  --border-color: #D0D7DE;
+  --text-primary: #1F2328;
+  --text-muted: #57606A;
+
+  /* Adjusted (darker) accents for light theme */
+  --accent-green: #218838;
+  --accent-blue: #0056b3;
+  --accent-red: #c82333;
+  --accent-orange: #e65100;
 }
 
-body {
-  font-family: var(--font-family);
-  background-color: var(--background-primary);
-  color: var(--text-primary);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-/* 3. Layout & Card Styling */
-main {
-  padding: 1.5rem;
-  display: grid;
-  gap: 1.5rem;
-}
-
-.card {
-  background-color: var(--background-panel);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
-}
-
-.card:hover {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 15px rgba(0, 229, 255, 0.2), 0 0 30px rgba(0, 229, 255, 0.1);
-}
-
-.grid-2 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 1.5rem;
-  align-items: start;
-}
-
-.gas-consumption-section {
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.grid-3 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
-
-.vertical-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  width: 100%;
-}
-
-.full-width {
-  width: 100%;
-  grid-column: 1 / -1; /* Span across all columns in a grid */
-}
-
-/* 4. Header & Navigation */
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  background-color: var(--background-panel);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border-color);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-#brand {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.brand-img {
-  height: 32px;
-  width: auto;
-}
-
-h1, h2, h3, h4 {
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.75rem;
-}
-
-h1 { font-size: 1.5rem; margin-bottom: 0; }
-
-.controls {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.controls .logout-btn {
-  margin-left: auto;
-}
-
-.controls .requires-admin {
-  margin-left: 0.5rem;
-}
-
-.nav-links-container {
-  display: contents;
-}
-
-.nav-link {
-  color: var(--text-muted);
-  text-decoration: none;
-  font-weight: 500;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-}
-
-.nav-link:hover, .nav-link.active {
-  color: var(--accent-cyan);
-  background-color: rgba(0, 229, 255, 0.1);
-}
-
-.icon-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 1.5rem;
-  padding: 0.5rem;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-}
-
-.icon-btn:hover {
-  color: var(--accent-cyan);
-  background-color: rgba(0, 229, 255, 0.1);
-}
-
-/* 5. Forms & Buttons */
-.btn, button, select, input {
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background-color: var(--background-panel);
-  color: var(--text-primary);
-  padding: 0.5rem 1rem;
-  font-family: var(--font-family);
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.btn:hover, button:hover {
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
-  cursor: pointer;
-}
-
-.btn-primary {
-  background: linear-gradient(45deg, var(--accent-blue), var(--accent-blue-darker));
-  color: white;
-  border: none;
-  font-weight: 600;
-  box-shadow: 0 4px 15px 0 rgba(31, 111, 235, 0.5);
-}
-
-.btn-primary:hover {
-  color: white;
-  box-shadow: 0 6px 20px 0 rgba(31, 111, 235, 0.6);
-  transform: translateY(-2px);
-}
-
-.btn-orange {
-  background: linear-gradient(45deg, var(--accent-orange), #FF4500);
-  color: white;
-  border: none;
-  font-weight: 700;
-}
-
-.btn-orange:hover {
-  color: white;
-  box-shadow: 0 0 15px rgba(255, 140, 0, 0.5);
-  transform: translateY(-1px);
-}
-
-select, input {
-  padding: 0.6rem;
-}
-
-select:focus, input:focus {
-  outline: none;
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 10px rgba(31, 111, 235, 0.5);
-}
-
-/* 6. Tables */
-.table-wrap {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-thead th {
-  background-color: rgba(31, 111, 235, 0.1);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-th, td {
-  padding: 0.75rem 1rem;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-}
-
-th {
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  font-size: 0.75rem;
-}
-
-tbody tr {
-  transition: background-color 0.2s ease;
-}
-
-tbody tr:hover {
-  background-color: rgba(31, 111, 235, 0.05);
-}
-
-tbody tr:nth-child(even) {
-    background-color: rgba(255, 255, 255, 0.02);
-}
-
-
-/* 7. Utilities & Text Classes */
-.muted {
-  color: var(--text-muted);
-}
-
-.text-pos {
-  color: var(--accent-green) !important;
-  font-weight: 500;
-}
-
-.text-neg {
-  color: var(--accent-red) !important;
-  font-weight: 500;
-}
-
-.text-warn {
-  color: var(--accent-orange) !important;
-  font-weight: 500;
-}
-
-/* 8. Charts & Specific Components */
-.chart-container {
-  position: relative;
-  width: 100%;
-  overflow-y: hidden;
-}
-
-#lastUpdated {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* 2. Typographic Hierarchy */
+h1, .h1 {
+  font-size: 2rem; /* Increased size */
+  font-weight: 600; /* Increased weight */
   margin-bottom: 1rem;
 }
 
-.chart-nav {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+h2, .h2 {
+  font-size: 1.75rem; /* Increased size */
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.25rem;
 }
 
-.inline-control-group {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.inline-control {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.85rem;
-  color: var(--text-primary);
-}
-
-.inline-control input {
-  width: 6rem;
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--background-primary);
-  color: var(--text-primary);
-  min-width: 80px;
-  flex: 0 0 auto;
-}
-
-#outlierPercentage {
-  display: block;
-  visibility: visible;
-  min-width: 70px;
-}
-
-.btn-small {
-  padding: 0.25rem 0.75rem;
-}
-
-/* 9. Responsive Design */
-.mobile-menu-button {
-  display: none; /* Hidden by default */
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  font-size: 1.5rem;
+/* 3. Standardized Buttons & Spacing */
+.btn {
+  display: inline-block;
+  font-weight: 500;
+  text-align: center;
+  vertical-align: middle;
   cursor: pointer;
+  user-select: none;
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  border-radius: 6px;
+  transition: all 0.2s ease-in-out;
+  margin: 0.25rem;
 }
 
-@media (max-width: 1024px) {
-  .nav-link {
-    display: none;
-  }
-  .mobile-menu-button {
-    display: block;
-  }
+.btn:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.btn-primary {
+  background-color: var(--accent-blue);
+  color: #fff;
+  border-color: var(--accent-blue);
+}
+
+.btn-primary:hover {
+  background-color: #1c5db9; /* Darken primary on hover */
+  border-color: #1c5db9;
+  color: #fff;
+}
+
+.btn-secondary {
+    background-color: var(--background-panel);
+    color: var(--text-primary);
+}
+
+.btn-danger {
+    background-color: var(--accent-red);
+    color: #fff;
+    border-color: var(--accent-red);
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #c82333;
+    color: #fff;
+}
+
+/* Standardize spacing for controls */
+.controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+header .controls .btn {
+    margin: 0;
+}
+
+/* 4. Responsive Navigation */
+.nav-links-container {
+  display: flex; /* Changed from contents */
+  gap: 0.5rem;
+  align-items: center;
+}
+
+@media (max-width: 1200px) { /* Breakpoint for hiding nav links */
   .nav-links-container {
-    display: none;
+    display: none; /* Hide on smaller screens */
     position: absolute;
-    top: 60px;
+    top: 65px;
     right: 1rem;
     background: var(--background-panel);
     border: 1px solid var(--border-color);
@@ -375,207 +128,39 @@ tbody tr:nth-child(even) {
     padding: 0.5rem;
     flex-direction: column;
     gap: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
     z-index: 200;
   }
+
   .nav-links-container.open {
     display: flex;
   }
-  .nav-links-container .nav-link {
-    display: block;
-    width: 100%;
-    padding: 0.5rem 1rem;
+
+  .mobile-menu-button {
+    display: block; /* Show hamburger menu */
   }
 }
 
-@media (max-width: 860px) {
-  .controls {
-    gap: 0.5rem;
+/* 5. General Responsiveness */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
   }
-}
 
-@media (max-width: 640px) {
   main {
     padding: 1rem;
     gap: 1rem;
   }
 
-  h1 {
-    font-size: 1.25rem;
-  }
+  h1, .h1 { font-size: 1.5rem; }
+  h2, .h2 { font-size: 1.25rem; }
 
   header {
-    padding: 0.75rem 1rem;
-    flex-wrap: wrap;
-  }
-
-  .controls {
-    flex-basis: 100%;
-    justify-content: flex-end;
-  }
-}
-
-/* 10. Info Button & Popover */
-.info-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-left: 6px;
-  border-radius: 50%;
-  border: 1px solid var(--border-color);
-  background: var(--background-panel);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-}
-.info-btn:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
-
-.popover {
-  position: absolute;
-  z-index: 1000;
-  max-width: 360px;
-  background: var(--background-panel);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px 14px 12px 14px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-}
-.popover .close {
-  position: absolute;
-  top: 6px;
-  right: 8px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 16px;
-}
-.popover .close:hover { color: var(--accent-cyan); }
-
-/* Notification specific styles */
-.notification-unread {
-  font-weight: bold;
-  background-color: rgba(0, 229, 255, 0.05);
-}
-
-/* NEW RESPONSIVE STYLES */
-
-/* Style for total row in tables */
-.total-row {
-  background-color: rgba(31, 111, 235, 0.2) !important; /* Slightly highlighted background */
-  font-weight: bold;
-  border-top: 2px solid var(--accent-blue);
-}
-
-/* Pagination styles for tables */
-.table-controls {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 0;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.pagination-controls select {
-  width: auto;
-  min-width: 70px;
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--background-primary);
-  color: var(--text-primary);
-}
-
-.pagination-nav {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.pagination-nav button {
-  padding: 0.25rem 0.75rem;
-}
-
-#currentPageInfo {
-  min-width: 100px;
-  text-align: center;
-}
-
-/* For tablets and smaller desktops */
-@media (max-width: 1024px) {
-  .table-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .pagination-nav {
-    justify-content: center;
-  }
-}
-
-/* For mobile devices */
-@media (max-width: 768px) {
-  body {
-    font-size: 13px;
-  }
-
-  header {
-    flex-direction: column;
-    align-items: flex-start;
     padding: 1rem;
-  }
-
-  #brand {
-    margin-bottom: 1rem;
-  }
-
-  h1 {
-    font-size: 1.2rem;
-  }
-
-  .controls {
     flex-wrap: wrap;
-    width: 100%;
-    gap: 0.5rem;
   }
 
   .grid-2, .grid-3 {
-    grid-template-columns: 1fr; /* Stack grid items */
-  }
-
-  .chart-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .chart-nav {
-    margin-top: 0.5rem;
-  }
-}
-
-@media (max-width: 480px) {
-  body {
-    font-size: 12px;
-  }
-  
-  .controls {
-    font-size: 11px;
-  }
-
-  .btn, button, select, input {
-    padding: 0.4rem 0.8rem;
-    font-size: 12px;
+    grid-template-columns: 1fr; /* Stack grids on mobile */
   }
 }

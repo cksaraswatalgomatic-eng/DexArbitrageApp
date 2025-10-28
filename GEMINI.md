@@ -1,181 +1,92 @@
-# GEMINI.md
+# Gemini Project Context: DexArbitrageApp
+
+This document provides a comprehensive overview of the DexArbitrageApp project, its architecture, and instructions for development and operation.
 
 ## Project Overview
 
-This is a Node.js application designed for cryptocurrency arbitrage analysis. It periodically fetches balance, trade, and status data from remote DEX/CEX endpoints, stores the information in a local SQLite database, and serves a web-based user interface for data visualization and analysis.
+The DexArbitrageApp is a full-stack application designed for analyzing and visualizing cryptocurrency arbitrage opportunities between Decentralized Exchanges (DEXs) and Centralized Exchanges (CEXs).
 
-The application is built with:
--   **Backend:** Node.js and Express.js for the web server and API endpoints.
--   **Database:** `better-sqlite3` for storing time-series data of balances, trades, and other metrics.
--   **Task Scheduling:** `node-cron` is used to fetch data from the remote services every two minutes.
--   **HTTP Client:** `axios` is used to perform HTTP requests to the remote data sources.
--   **Frontend:** The UI is composed of static HTML, JavaScript, and CSS files located in the `public` directory. It includes several pages for different types of analysis.
--   **Machine Learning:** Python scripts (`train.py`, `predict.py`) are integrated for predictive analysis.
+The application consists of three main components:
 
-The application supports multiple server configurations, which are managed through the `servers.json` file, allowing it to connect to different data sources for BNB, Arbitrum, and Base networks.
+1.  **Node.js Backend:** A core service built with Express.js that periodically fetches trade and balance data from external APIs, stores it in a local SQLite database, and serves a web frontend and a REST API.
+2.  **Web Frontend:** A vanilla JavaScript single-page application that provides a rich user interface with interactive charts and tables for data visualization and analysis.
+3.  **Python ML Service:** A machine learning component that includes a training pipeline to build predictive models and a FastAPI service to serve those models for real-time predictions.
 
-## Key Components
-1. **Data Fetching**: Periodic fetching of balances and trades from remote endpoints
-2. **Data Storage**: SQLite databases with separate files per server
-3. **Data Processing**: Calculation of totals and normalization of trade properties
-4. **API Layer**: RESTful endpoints for data access
-5. **Frontend**: Interactive dashboard with charts and tables
+## Architecture
 
-## Features
+### Backend (Node.js)
 
-### Main Dashboard (`index.html`)
+-   **Framework:** Express.js
+-   **Database:** `better-sqlite3` for local SQLite storage.
+-   **Scheduling:** `node-cron` for periodic data fetching.
+-   **Key Files:**
+    -   `app.js`: Main application file containing the Express server, API endpoints, cron jobs, and database logic.
+    -   `package.json`: Defines Node.js dependencies and scripts.
+    -   `servers.json`: Configuration for different servers/environments.
 
--   **Server Status:** Displays real-time information about the connected server, including uptime, `Mindiff`, `MaxOrderSize`, and token-specific parameters. It also shows profit and trade statistics for various time windows (1h, 4h, 8h, 12h, 24h).
--   **DEX vs CEX Comparison:** A table that compares the "Total USDT" values of matching tokens between DEX and CEX exchanges.
--   **Completed Trades:** A table of recent completed trades with details like "% Profit", "Net Profit", and other relevant information.
--   **DEX and CEX Balances:** Tables showing the token balances on DEX and CEX exchanges.
+### Frontend (Vanilla JS)
 
-### Diff Analysis Page (`diff-analysis.html`)
+-   **Libraries:** Chart.js for charting.
+-   **Key Files:**
+    -   `public/index.html`: The main HTML file for the dashboard.
+    -   `public/script.js`: The main JavaScript file for frontend logic, data fetching, and chart rendering.
+    -   `public/styles.css`: CSS for styling the application.
 
--   **Time Series Charts:** Visualizes the history of "Total USDT Balance" and "Trading Volume".
--   **Profitability Analysis:** Provides insights into the profitability of trades.
--   **Pagination:** Implemented pagination for the "Diff Analysis" chart and table, allowing data to be loaded in chunks of 5000 entries. A "Load More" button was added to fetch additional data.
--   **Trade Data Integration:** Integrated trade data from the "Completed Trades" table into the "Diff Analysis" chart. Trades are displayed as scatter points, with their time and net profit.
--   **Dynamic Trade Filtering:** Trade data is now dynamically loaded based on the visible time range of the diff data, ensuring that only relevant trades are displayed.
--   **Trade Data Accuracy:** Corrected the timestamp used for trade data (`lastUpdateTime` instead of `executedTime`) and ensured that "Net Profit" values are accurately calculated and displayed.
--   **Visual Enhancements:**
-    *   "Trades (Net Profit)" are now colored neon green for positive profits and neon red for negative profits.
-    *   "Buy Diff" line color changed to blue.
--   **Button Styling:** "Reset Zoom" and "Load More" buttons now share the same style as the "Refresh" button on the main dashboard (dark orange with neon effect).
+### Machine Learning (Python)
 
-### Pair Analysis Page (`pair-analysis.html`)
-
--   **Individual Pair Profitability Analysis:** Provides a detailed breakdown of profitability for a selected pair based on its attributes, including `Diff`, `DexSlip`, `CexSlip`, and execution type.
--   **Top Winners and Losers:** Lists the most and least profitable pairs.
-
-### Token Analysis Page (`token-analysis.html`)
-
--   **Token-level Analytics:** Aggregates and displays trade statistics (wins, losses, net profit) for each token.
--   **Time-based Patterns:** Shows profitability patterns for a selected token by hour of the day and day of the week.
--   **Time Series Data:** Displays a time series of net profit, average buy price, and average sell price for a selected token.
-
-### Contract Analysis Page (`contract-analysis.html`)
-
--   **Transaction Monitoring:** Fetches and displays recent transactions for a configured smart contract.
--   **Failure Analysis:** Identifies failed transactions and attempts to determine the reason for failure by scraping the block explorer.
--   **Success/Failure Rates:** Shows transaction success and failure rates over various time periods.
-
-### ML Analysis Page (`ml-analysis.html`)
-
--   **Trade Prediction:** Uses a trained machine learning model to predict the outcome of trades based on various features.
--   **Model Training:** Provides an interface to trigger the training of the machine learning model.
-
-### Other Pages
-
--   **Login (`login.html`):** A simple login page for authentication.
--   **Servers (`servers.html`):** A page for managing server configurations (adding, editing, deleting servers).
--   **Docs (`docs.html`):** Documentation page.
--   **Pair Deep Dive (`pair-deep.html`):** A more detailed analysis page for individual pairs.
-
-## Authentication
-
-The application includes a basic authentication mechanism with a login page. User credentials are stored in `users.json`. **This implementation is insecure (stores passwords in plain text) and should not be used in a production environment.**
+-   **Frameworks:** `scikit-learn`, `pandas`, `numpy`.
+-   **API:** `fastapi` and `uvicorn`.
+-   **Key Files:**
+    -   `train.py`: Script for training the machine learning models.
+    -   `ml_service/main.py`: FastAPI application for serving the trained models.
+    -   `ml_pipeline/`: Directory containing Python modules for the ML pipeline (data loading, feature engineering, modeling).
+    -   `models/`: Directory where trained models are stored.
 
 ## Building and Running
 
-To get the application running, follow these steps:
+### Prerequisites
 
-1.  **Install Dependencies:**
+-   Node.js (>=18)
+-   npm
+-   Python 3
+
+### Installation
+
+1.  **Install Node.js dependencies:**
     ```bash
     npm install
     ```
-2.  **Run the Application:**
+
+2.  **Install Python dependencies:**
+    ```bash
+    pip install numpy pandas scikit-learn joblib fastapi uvicorn pydantic
+    ```
+
+### Running the Application
+
+1.  **Start the main application (backend and frontend):**
     ```bash
     npm start
     ```
-The server will start on `http://localhost:3000` by default.
+    The application will be available at `http://localhost:3000`.
 
-## Configuration
+2.  **Start the ML service:**
+    ```bash
+    npm run ml:service
+    ```
+    The ML service will be available at `http://localhost:8100`.
 
-- `PORT` (optional): HTTP port (default `3000`).
-- `DB_PATH` (optional): path to the SQLite file (default `./data.sqlite`).
-- `BALANCES_URL` (optional): remote balances endpoint. If empty, the balances fetcher is disabled.
-- `TRADES_URL` (optional): remote completed trades endpoint. If empty, the trades fetcher is disabled.
-- `ETHERSCAN_API_KEY` (optional but recommended): unified Etherscan V2 API key used by the contract analysis view when a server is configured with a `chainId`.
-- `ETHERSCAN_API_URL` (optional): override for the unified API base (default `https://api.etherscan.io/v2`).
+### Training a New Model
 
-To point the app at different sources, set environment variables before starting the app.
+To train a new machine learning model, run the `train.py` script with the desired arguments. For example:
 
-### Contract Analysis Setup
+```bash
+python train.py --task classification --model-type random_forest --refresh-data
+```
 
-- Add a `chainId` property to any entry in `servers.json` (or through the Servers admin page) to identify the target EVM chain.
-- When a `chainId` is present and an API key is available (`explorerApiKey` on the server or the global `ETHERSCAN_API_KEY`), the app calls the unified Etherscan V2 endpoint.
-- If no `chainId` is provided, the server will continue using the legacy per-chain explorer base URL (`explorerApiBase`).
+## Development Conventions
 
-## Multi-Server Support
-
-The application supports multiple servers through `servers.json`:
-- Each server has its own database file (`data-{serverId}.sqlite`)
-- Active server can be switched via API or UI
-- Default servers: BNB, Arbitrum, Base
-
-## API Endpoints
-
-### Health and Status
-- `GET /health`: Basic liveness check
-- `GET /status/summary`: Server status summary
-- `GET /status/server`: Detailed server status with profit/trade stats
-
-### Data Endpoints
-- `GET /balances`: Latest balance snapshot
-- `GET /balances/history`: Historical balance data (supports limit and before_timestamp)
-- `GET /balances/exchanges`: Detailed per-exchange balances
-- `GET /trades`: Completed trades list
-- `GET /trades/pairs`: Distinct trade pairs
-- `GET /trades/analytics/pairs`: Aggregated analytics per pair
-
-### Server Configuration
-- `GET /servers`: List all servers
-- `GET /servers/active`: Get active server
-- `POST /servers`: Add new server
-- `PUT /servers/:id`: Update server
-- `DELETE /servers/:id`: Delete server
-- `POST /servers/:id/select`: Set active server
-
-## Data Model (SQLite)
-
-The database is created automatically on first run. Two tables are used:
-
-1) `balances_history`
-- `id` INTEGER PRIMARY KEY AUTOINCREMENT
-- `timestamp` TEXT ISO-8601
-- `total_usdt` REAL (nullable)
-- `total_coin` REAL (nullable)
-- `raw_data` TEXT (JSON of the fetched payload)
-
-2) `completed_trades`
-- `id` INTEGER PRIMARY KEY
-- `fsmType`, `pair`, `srcExchange`, `dstExchange`, `status`, `user`, `eta`, `props`, `nwId` TEXT (nullable)
-- `estimatedProfitNormalized`, `estimatedProfit`, `estimatedGrossProfit`, `estimatedSrcPrice`, `estimatedDstPrice`, `estimatedQty` REAL (nullable)
-- `executedProfitNormalized`, `executedProfit`, `executedGrossProfit`, `executedSrcPrice`, `executedDstPrice`, `executedQtySrc`, `executedQtyDst`, `executedFeeTotal`, `executedFeePercent` REAL (nullable)
-- `executedTime`, `creationTime`, `openTime`, `lastUpdateTime` INTEGER (nullable)
-- `txFee`, `calculatedVolume`, `conveyedVolume`, `commissionPercent` REAL (nullable)
-- `hedge` INTEGER (nullable; 1/0)
-- `raw_data` TEXT (JSON of the fetched trade object)
-
-## Feature Guide (Quick Reference)
-
-This is a condensed guide to the in‑app documentation available at `/docs.html`.
-
-- Total USDT Balance Over Time: Combined DEX (usdtVal + coinVal) + BinanceF (USDT + sum of unrealized PnL). Zoom with wheel/drag, pan with Ctrl + drag. Reset using the header button.
-- DEX Exchange Balances: Per‑exchange totals and token rows (filtered to `totalUsdt > 0.1`). Use search and column sorting.
-- BinanceF Balances: Token USDT value = `(entryPrice × total)/leverage + unrealizedProfit`. USDT total = wallet USDT + sum of unrealized PnL.
-- Completed Trades: Shows `executedGrossProfit` (green/red), `Quantity = executedSrcPrice × executedQtySrc`, timestamps, parsed `props` (`Dex`, `Diff`, `DexSlip`, `CexSlip`). Sort/search supported.
-- Pair Analysis:
-  - Bar Chart: Total Gross Profit by Pair (top 20).
-  - Win Rate (Top Winners) and Total Loss (Top Losers): Charts to spot consistent winners and risky pairs.
-  - Pair Feature Differences (Wins vs Losses): All pairs with trades count, total profit (colored), and averages of `Diff`, `DexSlip`, `CexSlip` for wins and losses, plus overall CexSlip average. Sort/search.
-- Pair Deep Dive:
-  - Cumulative Gross Profit over time (loads fully zoomed out).
-  - Gross Profit Distribution histogram.
-  - Scatter: chosen X vs gross profit.
-- ML Analysis:
-  - Scatter + Linear Regression, with correlation and R². Points colored by sign of Y. Zoom/pan.
-  - Outlier clipping and histogram bin control.
-  - Histograms for X and Y and Residuals (Y − Ŷ) scatter.
-  - Correlation Matrix: Select variables, compute Pearson correlations; green positive, red negative.
+-   **Configuration:** The application is configured through environment variables (e.g., `PORT`, `DB_PATH`) and the `servers.json` file.
+-   **Database Schema:** The database schema is defined in `app.js` within the `ensureDb` function. It includes tables for `balances_history`, `completed_trades`, `server_tokens`, `gas_balances`, and more.
+-   **API Endpoints:** The main API endpoints are defined in `app.js`. See the `README.md` for a detailed list.
+-   **Modularity:** The project is divided into a Node.js backend, a frontend, and a Python ML service, each with its own set of responsibilities.

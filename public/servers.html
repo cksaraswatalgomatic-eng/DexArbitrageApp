@@ -152,6 +152,19 @@
                 </div>
               </div>
             </div>
+            <div style="border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; grid-column: 1 / -1;">
+              <h3 style="margin: 0 0 8px 0; font-size: 1.2em; color: var(--text);">Low CEX Volume</h3>
+              <label style="display: block; margin-bottom: 6px;">Volume Threshold <input id="lowCexVolumeThreshold" type="number" step="0.01" value="10" style="width: 100px; margin-left: 8px;" /></label>
+              <label style="display: block; margin-bottom: 12px;">Cooldown (minutes) <input id="lowCexVolumeCooldown" type="number" min="1" value="5" style="width: 100px; margin-left: 8px;" /></label>
+              <div style="margin-top:8px">
+                <h4 style="margin: 0 0 6px 0; font-size: 0.95em;">Channels:</h4>
+                <div style="display: flex; gap: 12px;">
+                  <label><input type="checkbox" id="lowCexVolumeSlack" /> Slack</label>
+                  <label><input type="checkbox" id="lowCexVolumeTelegram" /> Telegram</label>
+                  <label><input type="checkbox" id="lowCexVolumeEmail" /> Email</label>
+                </div>
+              </div>
+            </div>
           </div>
           
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
@@ -372,6 +385,17 @@
           setChannelCheckboxes('gas', gasChannels);
         }
         
+        // Low CEX volume settings
+        const lowCexRule = rules.lowCexVolume || {};
+        document.getElementById('lowCexVolumeThreshold').value =
+          lowCexRule.threshold != null ? lowCexRule.threshold : 10;
+        document.getElementById('lowCexVolumeCooldown').value =
+          lowCexRule.cooldownMinutes != null ? lowCexRule.cooldownMinutes : 5;
+        const lowCexChannels = Array.isArray(lowCexRule.channels) && lowCexRule.channels.length
+          ? lowCexRule.channels
+          : ['slack'];
+        setChannelCheckboxes('lowCexVolume', lowCexChannels);
+        
         // Poll failed settings
         if (rules.pollFailed) {
           document.getElementById('pollFailedCooldown').value = rules.pollFailed.cooldownMinutes || 30;
@@ -413,6 +437,11 @@
               threshold: parseFloat(document.getElementById('gasThreshold').value) || 2,
               cooldownMinutes: parseInt(document.getElementById('gasCooldown').value) || 60,
               channels: getChannelsFromCheckboxes('gas')
+            },
+            lowCexVolume: {
+              threshold: parseFloat(document.getElementById('lowCexVolumeThreshold').value) || 10,
+              cooldownMinutes: parseInt(document.getElementById('lowCexVolumeCooldown').value) || 5,
+              channels: getChannelsFromCheckboxes('lowCexVolume')
             },
             pollFailed: {
               cooldownMinutes: parseInt(document.getElementById('pollFailedCooldown').value) || 30,

@@ -1017,11 +1017,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (sdiffStatusEl) sdiffStatusEl.innerHTML = sdiffHtml;
             if (tokensContainerEl) tokensContainerEl.innerHTML = combinedHtml || '<div class="muted">No token/gas data</div>';
             if (gasBalanceContainerEl) {
-              if (Number.isFinite(totalGasFromStatus)) {
-                gasBalanceContainerEl.innerHTML = `<div class="muted">Latest total gas balance: ${fmtNum(totalGasFromStatus, 4)}</div>`;
-              } else {
-                gasBalanceContainerEl.innerHTML = '<div class="muted">No gas data from server.</div>';
-              }
+              gasBalanceContainerEl.innerHTML = '';
             }
 
             latestTotalHint = Number.isFinite(totalGasFromStatus) ? totalGasFromStatus : null;

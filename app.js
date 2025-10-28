@@ -100,6 +100,7 @@ function loadServers() {
         "profit-trade": { "cooldownMinutes": 60 },
         "lowGas": { "cooldownMinutes": 60 },
         "pollFailed": { "cooldownMinutes": 60 },
+        "lowCexVolume": { "threshold": 10, "cooldownMinutes": 5 },
         "hourlyDigest": { "cooldownMinutes": 60 },
         "dailyDigest": { "cooldownMinutes": 1440 }
       },
@@ -123,6 +124,10 @@ function getActiveServer() { const cfg = loadServers(); return cfg.servers.find(
 
 const dbCache = new Map();
 const notifierCache = new Map();
+const diffHistoryPruneTracker = new Map();
+
+const DIFF_HISTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const DIFF_HISTORY_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 function ensureNotifier(serverId) {
   if (notifierCache.has(serverId)) return notifierCache.get(serverId);
@@ -301,6 +306,22 @@ function ensureNotificationsLogColumns(db) {
     }
   }
 }
+function maybePruneDiffHistory(serverId, db) {
+  if (!db) return;
+  const now = Date.now();
+  const last = diffHistoryPruneTracker.get(serverId) || 0;
+  if (now - last < DIFF_HISTORY_PRUNE_INTERVAL_MS) return;
+  const cutoff = now - DIFF_HISTORY_RETENTION_MS;
+  try {
+    const info = db.prepare('DELETE FROM diff_history WHERE ts < ?').run(cutoff);
+    diffHistoryPruneTracker.set(serverId, now);
+    if (info.changes > 0) {
+      console.log(`[diffdata:${serverId}] Pruned ${info.changes} rows older than ${new Date(cutoff).toISOString()}`);
+    }
+  } catch (err) {
+    console.error(`[diffdata:${serverId}] Failed to prune history:`, err?.message || err);
+  }
+}
 
 async function fetchDiffDataAndStoreFor(server) {
   if (!server) return;
@@ -369,6 +390,7 @@ async function fetchDiffDataAndStoreFor(server) {
       for (const item of items) stmt.run(item);
     })(rows);
     console.log('[diffdata:' + server.label + '] Stored ' + rows.length + ' diff data points.');
+    maybePruneDiffHistory(server.id, db);
   } catch (err) {
     const status = err?.response?.status;
     const notifier = ensureNotifier(server.id);
@@ -730,6 +752,99 @@ function tokenNameFromCurId(curId) {
   const parts = curId.split('_').filter(Boolean);
   if (parts.length >= 2) return parts[1];
   return parts[0] || curId || null;
+}
+
+function resolveLowCexVolumeRule(notifier) {
+  const fallback = {
+    threshold: 10,
+    cooldownMinutes: 5,
+    channels: [],
+  };
+  if (!notifier || typeof notifier.getRuleConfig !== 'function') return fallback;
+  const cfg = notifier.getRuleConfig('lowCexVolume') || {};
+  const thresholdNum = Number(cfg.threshold);
+  const cooldownRaw = cfg.cooldownMinutes != null ? cfg.cooldownMinutes : cfg.cooldown;
+  const cooldownNum = Number(cooldownRaw);
+  const channels = Array.isArray(cfg.channels)
+    ? cfg.channels.filter((ch) => typeof ch === 'string' && ch.trim())
+    : [];
+  return {
+    threshold: Number.isFinite(thresholdNum) ? thresholdNum : fallback.threshold,
+    cooldownMinutes: Number.isFinite(cooldownNum) && cooldownNum > 0 ? cooldownNum : fallback.cooldownMinutes,
+    channels,
+  };
+}
+
+async function maybeNotifyLowCexVolume({ server, notifier, curId, volume, timestamp, origin = 'api', ruleOverride }) {
+  if (!notifier) {
+    return { triggered: false, reason: 'no_notifier' };
+  }
+  const serverId = server?.id || 'unknown';
+  const serverLabel = server?.label || serverId;
+  const rule = ruleOverride || resolveLowCexVolumeRule(notifier);
+  const numericVolume = Number(volume);
+  const hasVolume = Number.isFinite(numericVolume);
+  console.log(
+    `[notify:lowCexVolume:${origin}] evaluate server=${serverId} curId=${curId} volume=${hasVolume ? numericVolume : 'null'} threshold=${rule.threshold}`
+  );
+  if (!hasVolume || !Number.isFinite(rule.threshold) || numericVolume >= rule.threshold) {
+    return { triggered: false, reason: hasVolume ? 'above_threshold' : 'invalid_volume' };
+  }
+
+  const tokenLabel = tokenNameFromCurId(curId) || curId;
+  const delta = numericVolume - rule.threshold;
+  const messageLines = [
+    `Server: ${serverLabel}`,
+    `Token: ${tokenLabel}`,
+    `CEX Volume: ${numericVolume.toFixed(2)}`,
+    `Threshold: ${rule.threshold.toFixed(2)}`,
+    `Delta: ${delta.toFixed(2)}`,
+  ];
+
+  console.log(
+    `[notify:lowCexVolume:${origin}] triggering server=${serverLabel} token=${tokenLabel} volume=${numericVolume} threshold=${rule.threshold} delta=${delta}`
+  );
+
+  const payload = {
+    title: `Low CEX Volume - ${tokenLabel}`,
+    message: messageLines.join('\n'),
+    cooldownMinutes: rule.cooldownMinutes,
+    uniqueKey: curId,
+    details: {
+      serverId,
+      server: serverLabel,
+      token: tokenLabel,
+      curId,
+      timestamp,
+      volume: numericVolume,
+      threshold: rule.threshold,
+      delta,
+      origin,
+    },
+  };
+  if (rule.channels.length) {
+    payload.channels = rule.channels;
+  }
+
+  try {
+    const result = await notifier.notify('lowCexVolume', payload);
+    if (result?.skipped === 'cooldown') {
+      console.log(
+        `[notify:lowCexVolume:${origin}] skipped by cooldown server=${serverLabel} token=${tokenLabel} volume=${numericVolume}`
+      );
+      return { triggered: false, reason: 'cooldown', result };
+    }
+    console.log(
+      `[notify:lowCexVolume:${origin}] dispatched server=${serverLabel} token=${tokenLabel} volume=${numericVolume}`
+    );
+    return { triggered: true, result };
+  } catch (err) {
+    console.error(
+      `[notify:lowCexVolume:${origin}] notify error server=${serverLabel} token=${tokenLabel}:`,
+      err?.message || err
+    );
+    return { triggered: false, error: err };
+  }
 }
 
 function calculateTotals(snapshot) {
@@ -1488,11 +1603,23 @@ async function fetchLiquidityData() {
 }
 
 // Schedule: every 2 minutes
-cron.schedule('*/2 * * * *', () => {
+cron.schedule('*/2 * * * *', async () => {
   console.log('[cron] Running scheduled fetch...');
-  fetchAllAndStore();
-  // Also check notification conditions for all servers
-  checkAllNotifications().catch(err => console.error('[cron] Error checking notifications:', err));
+  try {
+    await fetchAllAndStore();
+  } catch (err) {
+    console.error('[cron] fetchAllAndStore error:', err?.message || err);
+  }
+  try {
+    await checkAllNotifications();
+  } catch (err) {
+    console.error('[cron] Error checking notifications:', err?.message || err);
+  }
+  try {
+    await checkAllLowCexVolumes();
+  } catch (err) {
+    console.error('[cron] Error checking low CEX volumes:', err?.message || err);
+  }
 });
 
 // Schedule: every 2 minutes for liquidity data
@@ -1560,6 +1687,48 @@ async function checkAllNotifications() {
   const cfg = loadServers();
   for (const server of cfg.servers) {
     await checkNotificationConditions(server);
+  }
+}
+
+async function checkLowCexVolumeFor(server) {
+  if (!server) return;
+  const notifier = ensureNotifier(server.id);
+  if (!notifier) return;
+  try {
+    const db = ensureDb(server.id);
+    const latestRows = db.prepare(`
+      SELECT dh.curId, dh.cexVol, dh.ts
+      FROM diff_history dh
+      INNER JOIN (
+        SELECT curId, MAX(ts) AS maxTs
+        FROM diff_history
+        GROUP BY curId
+      ) latest ON latest.curId = dh.curId AND latest.maxTs = dh.ts
+    `).all();
+    const rule = resolveLowCexVolumeRule(notifier);
+    console.log(
+      `[notify:lowCexVolume:cron] server=${server.id} tokens=${latestRows.length} threshold=${rule.threshold}`
+    );
+    for (const row of latestRows) {
+      await maybeNotifyLowCexVolume({
+        server,
+        notifier,
+        curId: row.curId,
+        volume: row.cexVol,
+        timestamp: row.ts,
+        origin: 'cron',
+        ruleOverride: rule,
+      });
+    }
+  } catch (err) {
+    console.error(`[notify:lowCexVolume:${server.label || server.id}] evaluation error:`, err?.message || err);
+  }
+}
+
+async function checkAllLowCexVolumes() {
+  const cfg = loadServers();
+  for (const server of cfg.servers) {
+    await checkLowCexVolumeFor(server);
   }
 }
 
@@ -1676,7 +1845,14 @@ app.get('/diffdata/tokens', (req, res) => {
 
 app.get('/diffdata/history', (req, res) => {
   try {
-    const db = getDbFromReq(req);
+    const cfg = loadServers();
+    let serverId = req.query.serverId || cfg.activeId;
+    let server = cfg.servers?.find((s) => s.id === serverId);
+    if (!server && Array.isArray(cfg.servers) && cfg.servers.length) {
+      server = cfg.servers[0];
+      serverId = server.id;
+    }
+    const db = ensureDb(serverId);
     const curId = req.query.curId;
     const limit = Math.max(1, Math.min(parseInt(req.query.limit) || 5000, 5000));
     const offset = Math.max(0, parseInt(req.query.offset) || 0);
@@ -1812,6 +1988,26 @@ app.get('/diffdata/history', (req, res) => {
       latestDexVolume,
       medianDexVolume: median(dexVolumeValues),
     };
+
+    if (offset === 0 && normalizedRows.length) {
+      const notifier = ensureNotifier(serverId);
+      const latestNormalizedRow = normalizedRows[normalizedRows.length - 1];
+      if (notifier && latestNormalizedRow) {
+        const notifyArgs = {
+          server,
+          notifier,
+          curId,
+          volume: latestNormalizedRow.cexVol,
+          timestamp: latestNormalizedRow.ts,
+          origin: 'api',
+        };
+        setImmediate(() => {
+          maybeNotifyLowCexVolume(notifyArgs).catch((err) =>
+            console.error('[notify:lowCexVolume:api] unhandled error:', err?.message || err)
+          );
+        });
+      }
+    }
 
     let featureInsights = null;
     if (normalizedRows.length) {

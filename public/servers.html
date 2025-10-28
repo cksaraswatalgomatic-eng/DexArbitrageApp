@@ -128,7 +128,7 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
             <div style="border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
               <h3 style="margin: 0 0 8px 0; font-size: 1.2em; color: var(--text);">Profit Thresholds</h3>
-              <label style="display: block; margin-bottom: 6px;">Low Profit Threshold (%) <input id="profitThreshold" type="number" step="0.01" value="-5" style="width: 100px; margin-left: 8px;" /></label>
+              <label style="display: block; margin-bottom: 6px;">Low Profit Threshold <input id="profitThreshold" type="number" step="0.01" value="-5" style="width: 100px; margin-left: 8px;" /></label>
               <label style="display: block; margin-bottom: 12px;">Cooldown (minutes) <input id="profitCooldown" type="number" min="1" value="30" style="width: 100px; margin-left: 8px;" /></label>
               <div style="margin-top:8px">
                 <h4 style="margin: 0 0 6px 0; font-size: 0.95em;">Channels:</h4>
@@ -371,7 +371,8 @@
         
         // Profit settings
         if (rules.profit) {
-          document.getElementById('profitThreshold').value = rules.profit.thresholdPercent || -5;
+          const profitThresholdValue = (rules.profit.thresholdAbsolute != null ? rules.profit.thresholdAbsolute : rules.profit.thresholdPercent);
+          document.getElementById('profitThreshold').value = profitThresholdValue != null ? profitThresholdValue : -5;
           document.getElementById('profitCooldown').value = rules.profit.cooldownMinutes || 30;
           const profitChannels = rules.profit.channels || ['slack'];
           setChannelCheckboxes('profit', profitChannels);
@@ -426,10 +427,13 @@
           return channels.length > 0 ? channels : ['slack'];
         }
         
+        const profitThresholdValue = parseFloat(document.getElementById('profitThreshold').value);
+        const normalizedProfitThreshold = Number.isFinite(profitThresholdValue) ? profitThresholdValue : -5;
         const payload = {
           notificationRules: {
 
             'profit-trade': {
+              thresholdAbsolute: normalizedProfitThreshold,
               cooldownMinutes: parseInt(document.getElementById('profitCooldown').value) || 60,
               channels: getChannelsFromCheckboxes('profit')
             },
@@ -448,7 +452,8 @@
               channels: getChannelsFromCheckboxes('pollFailed')
             },
             profit: {
-              thresholdPercent: parseFloat(document.getElementById('profitThreshold').value) || -5,
+              thresholdAbsolute: normalizedProfitThreshold,
+              thresholdPercent: normalizedProfitThreshold,
               cooldownMinutes: parseInt(document.getElementById('profitCooldown').value) || 30,
               channels: getChannelsFromCheckboxes('profit')
             },

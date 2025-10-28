@@ -680,6 +680,88 @@ function tokenNameFromCurId(curId) {
   return parts[0] || curId || null;
 }
 
+function resolveProfitRule(notifier) {
+  const fallback = {
+    threshold: -5,
+    cooldownMinutes: 30,
+    channels: [],
+  };
+  if (!notifier || typeof notifier.getRuleConfig !== 'function') return fallback;
+  const thresholdCfg = notifier.getRuleConfig('profit') || {};
+  const dispatchCfg = notifier.getRuleConfig('profit-trade') || {};
+  const thresholdRaw = dispatchCfg.thresholdAbsolute != null
+    ? dispatchCfg.thresholdAbsolute
+    : (thresholdCfg.thresholdAbsolute != null
+      ? thresholdCfg.thresholdAbsolute
+      : (thresholdCfg.thresholdPercent != null ? thresholdCfg.thresholdPercent : thresholdCfg.threshold));
+  const thresholdNum = Number(thresholdRaw);
+  const cooldownRaw = dispatchCfg.cooldownMinutes != null
+    ? dispatchCfg.cooldownMinutes
+    : (thresholdCfg.cooldownMinutes != null ? thresholdCfg.cooldownMinutes : thresholdCfg.cooldown);
+  const cooldownNum = Number(cooldownRaw);
+  const channelSource = Array.isArray(dispatchCfg.channels) && dispatchCfg.channels.length
+    ? dispatchCfg.channels
+    : (Array.isArray(thresholdCfg.channels) ? thresholdCfg.channels : []);
+  const channels = channelSource.filter((ch) => typeof ch === 'string' && ch.trim());
+  return {
+    threshold: Number.isFinite(thresholdNum) ? thresholdNum : fallback.threshold,
+    cooldownMinutes: Number.isFinite(cooldownNum) && cooldownNum > 0 ? cooldownNum : fallback.cooldownMinutes,
+    channels,
+  };
+}
+
+async function maybeNotifyLowProfitTrade({ server, notifier, trade, origin = 'store', ruleOverride }) {
+  if (!notifier || !trade) {
+    return { triggered: false, reason: 'missing_context' };
+  }
+  const serverId = server?.id || 'unknown';
+  const serverLabel = server?.label || serverId;
+  const rule = ruleOverride || resolveProfitRule(notifier);
+  const executedProfit = safeNumber(trade.executedProfit);
+  const profitValue = Number.isFinite(executedProfit) ? executedProfit : safeNumber(trade.estimatedProfit);
+  console.log(`[notify:profit:${origin}] evaluate trade=${trade.id ?? 'unknown'} server=${serverId} profit=${Number.isFinite(profitValue) ? profitValue : 'null'} threshold=${rule.threshold}`);
+  if (!Number.isFinite(profitValue)) {
+    return { triggered: false, reason: 'no_profit_value' };
+  }
+  if (profitValue >= rule.threshold) {
+    return { triggered: false, reason: 'above_threshold' };
+  }
+
+  const pair = trade.pair || trade.token || 'unknown';
+  const delta = profitValue - rule.threshold;
+  const payload = {
+    title: `Low profit trade: ${pair}`,
+    message: `Profit: ${profitValue.toFixed(2)}`,
+    cooldownMinutes: rule.cooldownMinutes,
+    uniqueKey: trade.id != null ? `low-profit-${trade.id}` : undefined,
+    details: {
+      tradeId: trade.id ?? null,
+      pair,
+      profit: profitValue,
+      server: serverLabel,
+      origin,
+      threshold: rule.threshold,
+      delta,
+    },
+  };
+  if (rule.channels.length) {
+    payload.channels = rule.channels;
+  }
+
+  try {
+    const result = await notifier.notify('profit-trade', payload);
+    if (result?.skipped === 'cooldown') {
+      console.log(`[notify:profit:${origin}] skipped by cooldown trade=${trade.id ?? 'unknown'} server=${serverLabel}`);
+      return { triggered: false, reason: 'cooldown', result };
+    }
+    console.log(`[notify:profit:${origin}] dispatched trade=${trade.id ?? 'unknown'} server=${serverLabel} profit=${profitValue}`);
+    return { triggered: true, result };
+  } catch (err) {
+    console.error(`[notify:profit:${origin}] notify error trade=${trade.id ?? 'unknown'} server=${serverLabel}:`, err?.message || err);
+    return { triggered: false, error: err };
+  }
+}
+
 function calculateTotals(snapshot) {
   let totalUsdt = 0;
 
@@ -869,15 +951,12 @@ function storeCompletedTrades(server, trades, sourceLabel = 'recent') {
         inserted += 1;
         const notifier = ensureNotifier(server.id);
         if (notifier) {
-          const profitThreshold = notifier.getRuleConfig('profit')?.thresholdPercent ?? -5;
-          if (t.executedProfitNormalized != null && t.executedProfitNormalized < profitThreshold) {
-            notifier.notify('profit-trade', {
-              title: `Low profit trade: ${t.pair}`,
-              message: `Profit: ${(t.executedProfitNormalized || 0).toFixed(2)}%`,
-              details: { tradeId: t.id, pair: t.pair, profit: t.executedProfitNormalized },
-              uniqueKey: `low-profit-${t.id}`  // Unique key to prevent duplicate notifications for same trade
-            });
-          }
+          maybeNotifyLowProfitTrade({
+            server,
+            notifier,
+            trade: t,
+            origin: 'store',
+          }).catch(err => console.error('[notify:profit:store] unhandled error:', err?.message || err));
         }
       }
     }
@@ -1280,21 +1359,15 @@ async function checkNotificationConditions(server) {
       'SELECT * FROM completed_trades WHERE lastUpdateTime >= ? ORDER BY lastUpdateTime DESC'
     ).all(Date.now() - (2 * 60 * 1000)); // Last 2 minutes worth of trades
 
-    const profitThreshold = notifier.getRuleConfig('profit-trade')?.thresholdPercent ?? -5;
+    const profitRule = resolveProfitRule(notifier);
     for (const trade of recentTrades) {
-      if (trade.executedProfitNormalized != null && trade.executedProfitNormalized < profitThreshold) {
-        await notifier.notify('profit-trade', {
-          title: `Low profit trade: ${trade.pair}`,
-          message: `Profit: ${(trade.executedProfitNormalized || 0).toFixed(2)}%`,
-          details: { 
-            tradeId: trade.id, 
-            pair: trade.pair, 
-            profit: trade.executedProfitNormalized,
-            server: server.label
-          },
-          uniqueKey: `low-profit-${trade.id}`  // Unique key to prevent duplicate notifications for same trade
-        });
-      }
+      await maybeNotifyLowProfitTrade({
+        server,
+        notifier,
+        trade,
+        origin: 'cron',
+        ruleOverride: profitRule,
+      });
     }
 
     // Check for low gas conditions (gas balance checks are already handled in fetchStatusAndStoreFor)

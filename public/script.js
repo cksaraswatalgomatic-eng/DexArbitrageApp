@@ -694,13 +694,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <span>Deposit Amount</span>
                   <input id="gasDepositAmount" type="number" step="any" min="0" required />
                 </label>
-                <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.9rem;">
-                  <span>Note</span>
-                  <input id="gasDepositNote" type="text" placeholder="Optional note" />
-                </label>
+                <div style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                  <label style="display:flex; flex-direction:column; gap:0.25rem; font-size:0.9rem; flex-grow: 1;">
+                    <span>Note</span>
+                    <input id="gasDepositNote" type="text" placeholder="Optional note" />
+                  </label>
+                  <button type="submit" class="btn btn-orange" style="white-space: nowrap;">Log Deposit</button>
+                </div>
               </div>
               <div class="muted" style="margin-top:0.5rem;">Leave balance empty to use the latest tracked total.</div>
-              <button type="submit" class="btn btn-orange" style="margin-top:0.5rem;">Log Deposit</button>
             </form>
             <div id="gasDepositFormMessage" class="muted" style="margin-top:0.5rem;" aria-live="polite"></div>
             <div class="muted" style="margin-top:0.5rem;">Latest tracked total: ${latestTotalText}</div>
@@ -924,7 +926,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               x: {
                 ...baseOptions.scales.x,
                 type: 'time',
-                time: { unit: 'hour', tooltipFormat: 'PPpp' },
+                time: { unit: 'day', tooltipFormat: 'PPpp', displayFormats: { hour: 'HH:mm', day: 'MMM d' } },
                 min: new Date(Date.now() - gasConsumptionHours * 60 * 60 * 1000),
                 max: new Date()
               },

@@ -186,6 +186,19 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
   transform: translateY(-1px);
 }
 
+.btn-green {
+  background: var(--accent-green);
+  color: white;
+  border: none;
+  font-weight: 700;
+}
+
+.btn-green:hover {
+  color: var(--background-primary);
+  box-shadow: 0 0 15px rgba(57, 255, 20, 0.5);
+  transform: translateY(-1px);
+}
+
 select, input {
   padding: 0.5rem;
 }

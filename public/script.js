@@ -197,7 +197,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 type: 'time',
                 time: {
                   tooltipFormat: 'PPpp',
-                  displayFormats: { minute: 'HH:mm', hour: 'HH:mm' }
+                  displayFormats: {
+                    minute: 'HH:mm',
+                    hour: 'HH:mm',
+                    day: 'MMM d, yyyy',
+                  }
                 },
                 min: xBounds.min,
                 max: xBounds.max,
@@ -411,8 +415,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         scales: {
           x: {
             ticks: { color: textColor },
-            grid: { color: gridColor },
-            adapters: { date: { zone: 'utc' } }
+            grid: { color: gridColor }
           },
           y: {
             ticks: { color: textColor },
@@ -571,8 +574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 type: 'time',
                                 time: {
                                     unit: 'day',
-                                    tooltipFormat: 'PP',
-                                    displayFormats: { day: 'MMM d' }
+                                    tooltipFormat: 'PP'
                                 }
                             }
                         }
@@ -894,6 +896,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return label;
                   }
                 }
+              },
+              zoom: {
+                ...baseOptions.plugins.zoom,
+                onZoomComplete: ({ chart: zoomChart }) => {
+                  userZoomedGas = true;
+                  const { min, max } = zoomChart.scales.x;
+                  const visibleHours = (max - min) / (1000 * 60 * 60);
+                  if (visibleHours > gasConsumptionHours) {
+                    gasConsumptionHours = Math.ceil(visibleHours);
+                    refreshGasTracking();
+                  }
+                },
+                onPanComplete: ({ chart: panChart }) => {
+                  userZoomedGas = true;
+                  const { min } = panChart.scales.x;
+                  const oldestTimestamp = Date.now() - gasConsumptionHours * 60 * 60 * 1000;
+                  if (min < oldestTimestamp) {
+                    gasConsumptionHours += 4; // Load more hours
+                    refreshGasTracking();
+                  }
+                }
               }
             },
             scales: {
@@ -901,7 +924,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               x: {
                 ...baseOptions.scales.x,
                 type: 'time',
-                time: { unit: 'hour', tooltipFormat: 'PPpp', displayFormats: { hour: 'MM-dd HH:mm' } },
+                time: { unit: 'hour', tooltipFormat: 'PPpp' },
                 min: new Date(Date.now() - gasConsumptionHours * 60 * 60 * 1000),
                 max: new Date()
               },
@@ -935,7 +958,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
           } else {
             gasConsumptionChart.data.datasets[0].data = points;
-            gasConsumptionChart.options = options;
+            if (!userZoomedGas) {
+                gasConsumptionChart.options.scales.x.min = new Date(Date.now() - gasConsumptionHours * 60 * 60 * 1000);
+            }
             gasConsumptionChart.update();
           }
         }
@@ -1236,7 +1261,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if(document.getElementById('loadMoreGasBtn')) {
             document.getElementById('loadMoreGasBtn').addEventListener('click', () => {
-                gasConsumptionHours += 1;
+                gasConsumptionHours += 24;
                 refreshGasTracking();
             });
         }

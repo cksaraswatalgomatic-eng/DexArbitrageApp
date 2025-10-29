@@ -72,15 +72,15 @@
         time: {
           unit: 'hour', // Default unit
           displayFormats: {
-            millisecond: 'HH:mm:ss.SSS UTC',
-            second: 'HH:mm:ss UTC',
-            minute: 'HH:mm UTC',
-            hour: 'MMM d, HH:mm UTC',
-            day: 'MMM d, yyyy UTC',
-            week: 'MMM d, yyyy UTC',
-            month: 'MMM yyyy UTC',
-            quarter: 'qq yyyy UTC',
-            year: 'yyyy UTC',
+            millisecond: 'HH:mm:ss.SSS',
+            second: 'HH:mm:ss',
+            minute: 'HH:mm',
+            hour: 'MMM d, HH:mm',
+            day: 'MMM d, yyyy',
+            week: 'MMM d, yyyy',
+            month: 'MMM yyyy',
+            quarter: 'qq yyyy',
+            year: 'yyyy',
           },
         },
       };

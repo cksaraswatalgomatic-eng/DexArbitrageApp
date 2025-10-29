@@ -2531,16 +2531,16 @@ app.get('/gas-balance/consumption', (req, res) => {
     const windowStart = new Date(now - hours * 60 * 60 * 1000).toISOString();
 
     const totals = db.prepare(
-      `SELECT timestamp, gas_balance
+      `SELECT timestamp, gas_balance, gas_deposit, source
        FROM gas_balance_tracking
-       WHERE contract = '__total__' AND source = 'auto-total' AND datetime(timestamp) >= datetime(?)
+       WHERE contract = '__total__' AND datetime(timestamp) >= datetime(?)
        ORDER BY datetime(timestamp)`
     ).all(windowStart);
 
     const prev = db.prepare(
-      `SELECT timestamp, gas_balance
+      `SELECT timestamp, gas_balance, gas_deposit, source
        FROM gas_balance_tracking
-       WHERE contract = '__total__' AND source = 'auto-total' AND datetime(timestamp) < datetime(?)
+       WHERE contract = '__total__' AND datetime(timestamp) < datetime(?)
        ORDER BY datetime(timestamp) DESC
        LIMIT 1`
     ).get(windowStart);
@@ -2552,43 +2552,50 @@ app.get('/gas-balance/consumption', (req, res) => {
       return res.json([]);
     }
 
-    const depositStmt = db.prepare(
-      `SELECT COALESCE(SUM(gas_deposit), 0) AS total
-       FROM gas_balance_tracking
-       WHERE contract = '__total__'
-         AND source = 'manual'
-         AND datetime(timestamp) > datetime(?)
-         AND datetime(timestamp) <= datetime(?)`
-    );
-
     const buckets = new Map();
+    let previousAutoTotalBalance = null;
 
-    for (let i = 1; i < series.length; i += 1) {
-      const prevEntry = series[i - 1];
+    // Initialize previousAutoTotalBalance from the 'prev' entry if it's an auto-total entry
+    if (series.length > 0 && series[0].source === 'auto-total') {
+      previousAutoTotalBalance = Number(series[0].gas_balance);
+    }
+
+    for (let i = 0; i < series.length; i += 1) {
       const currEntry = series[i];
-      const prevBalance = Number(prevEntry.gas_balance);
       const currBalance = Number(currEntry.gas_balance);
-      if (!Number.isFinite(prevBalance) || !Number.isFinite(currBalance)) continue;
+      const currDeposit = Number(currEntry.gas_deposit);
 
-      const depositTotal = Number(depositStmt.get(prevEntry.timestamp, currEntry.timestamp)?.total) || 0;
-      let consumption = prevBalance - currBalance;
-      if (!Number.isFinite(consumption) || consumption < 0) consumption = 0;
+      if (!Number.isFinite(currBalance)) continue;
 
-      const endTime = new Date(currEntry.timestamp);
-      if (Number.isNaN(endTime.getTime())) continue;
-      const hourStart = new Date(endTime);
+      const entryTime = new Date(currEntry.timestamp);
+      if (Number.isNaN(entryTime.getTime())) continue;
+
+      const hourStart = new Date(entryTime);
       hourStart.setMinutes(0, 0, 0);
+      hourStart.setSeconds(0, 0); // Ensure exact hour start
       const bucketKey = hourStart.toISOString();
+
       const bucket = buckets.get(bucketKey) || {
         timestamp: bucketKey,
         consumption: 0,
         deposit: 0,
-        latestTotal: currBalance,
-        sampleTime: currEntry.timestamp
+        latestTotal: null, // Will be updated by the latest entry in the bucket
+        sampleTime: null
       };
-      if (!Number.isFinite(bucket.deposit)) bucket.deposit = 0;
-      bucket.consumption += consumption;
-      bucket.deposit += depositTotal;
+
+      if (currEntry.source === 'auto-total') {
+        if (previousAutoTotalBalance !== null && Number.isFinite(previousAutoTotalBalance)) {
+          let consumption = previousAutoTotalBalance - currBalance;
+          if (consumption < 0) consumption = 0; // Consumption cannot be negative
+          bucket.consumption += consumption;
+        }
+        previousAutoTotalBalance = currBalance;
+      } else if (currEntry.source === 'manual') {
+        if (Number.isFinite(currDeposit) && currDeposit > 0) {
+          bucket.deposit += currDeposit;
+        }
+      }
+
       bucket.latestTotal = currBalance;
       bucket.sampleTime = currEntry.timestamp;
       buckets.set(bucketKey, bucket);

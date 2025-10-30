@@ -825,7 +825,7 @@ async function maybeNotifyLowProfitTrade({ server, notifier, trade, origin = 'st
   const delta = profitValue - rule.threshold;
   const payload = {
     title: `Low profit trade: ${pair}`,
-    message: `Profit: ${profitValue.toFixed(2)}`,
+    message: `Server: ${serverLabel} | Profit: ${profitValue.toFixed(2)}`,
     cooldownMinutes: rule.cooldownMinutes,
     uniqueKey: trade.id != null ? `low-profit-${trade.id}` : undefined,
     details: {

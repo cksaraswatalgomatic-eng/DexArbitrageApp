@@ -1506,51 +1506,59 @@ async function sendHourlyDigest() {
   }
 }
 async function sendDailyDigest() {
-  const server = getActiveServer();
-  if (!server) return;
+  const cfg = loadServers();
+  const servers = cfg.servers;
+  let message = '📊 *Daily Digest for All Servers*\n\n';
 
-  const notifier = ensureNotifier(server.id);
-  if (!notifier) return;
+  for (const server of servers) {
+    const notifier = ensureNotifier(server.id);
+    if (!notifier) continue;
 
-  try {
-    const db = ensureDb(server.id);
-    const now = Date.now();
-    const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+    try {
+      const db = ensureDb(server.id);
+      const now = Date.now();
+      const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
 
-    const tradesLast24h = db.prepare('SELECT * FROM completed_trades WHERE lastUpdateTime >= ?').all(twentyFourHoursAgo);
-    const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
-    const profitLast24h = tradesLast24h.reduce((acc, t) => acc + netProfit(t), 0);
+      const tradesLast24h = db.prepare('SELECT * FROM completed_trades WHERE lastUpdateTime >= ?').all(twentyFourHoursAgo);
+      const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
+      const profitLast24h = tradesLast24h.reduce((acc, t) => acc + netProfit(t), 0);
 
-    const txsLast24h = db.prepare('SELECT * FROM contract_transactions WHERE timestamp >= ?').all(twentyFourHoursAgo);
-    const successCount = txsLast24h.filter(t => !t.isError).length;
-    const errorCount = txsLast24h.length - successCount;
-    const successRate = txsLast24h.length > 0 ? (successCount / txsLast24h.length) * 100 : 100;
+      const txsLast24h = db.prepare('SELECT * FROM contract_transactions WHERE timestamp >= ?').all(twentyFourHoursAgo);
+      const successCount = txsLast24h.filter(t => !t.isError).length;
+      const errorCount = txsLast24h.length - successCount;
+      const successRate = txsLast24h.length > 0 ? (successCount / txsLast24h.length) * 100 : 100;
 
-    const topPairs = db.prepare('SELECT pair, COUNT(*) as count, SUM(executedGrossProfit) as totalProfit FROM completed_trades WHERE lastUpdateTime >= ? GROUP BY pair ORDER BY totalProfit DESC LIMIT 5').all(twentyFourHoursAgo);
+      const topPairs = db.prepare('SELECT pair, COUNT(*) as count, SUM(executedGrossProfit) as totalProfit FROM completed_trades WHERE lastUpdateTime >= ? GROUP BY pair ORDER BY totalProfit DESC LIMIT 5').all(twentyFourHoursAgo);
 
-    const totalFeeSpend = tradesLast24h.reduce((acc, t) => acc + (t.executedFeeTotal || 0), 0);
+      const totalFeeSpend = tradesLast24h.reduce((acc, t) => acc + (t.executedFeeTotal || 0), 0);
 
-    const gasLowOccurrences = db.prepare('SELECT COUNT(*) as count FROM gas_balances WHERE timestamp >= ? AND is_low = 1').get(new Date(twentyFourHoursAgo).toISOString()).count;
+      const gasLowOccurrences = db.prepare('SELECT COUNT(*) as count FROM gas_balances WHERE timestamp >= ? AND is_low = 1').get(new Date(twentyFourHoursAgo).toISOString()).count;
 
-    let message = `Daily digest for ${server.label}:\n`;
-    message += `24h P&L: ${Number.isFinite(profitLast24h) ? profitLast24h.toFixed(2) : '0.00'}\n`;
-    message += `Success Rate: ${Number.isFinite(successRate) ? successRate.toFixed(2) : '0.00'}%\n`;
-    message += `Error Count: ${Number.isFinite(errorCount) ? errorCount : '0'}\n`;
-    message += `Top Pairs (by profit):\n`;
-    for (const pair of topPairs) {
-      message += `  - ${pair.pair}: ${Number.isFinite(pair.totalProfit) ? pair.totalProfit.toFixed(2) : '0.00'}\n`;
+      message += `*${server.label}*:\n`;
+      message += `  - 24h P&L: ${Number.isFinite(profitLast24h) ? profitLast24h.toFixed(2) : '0.00'}\n`;
+      message += `  - Success Rate: ${Number.isFinite(successRate) ? successRate.toFixed(2) : '0.00'}%\n`;
+      message += `  - Error Count: ${Number.isFinite(errorCount) ? errorCount : '0'}\n`;
+      message += `  - Top Pairs (by profit):\n`;
+      for (const pair of topPairs) {
+        message += `    - ${pair.pair}: ${Number.isFinite(pair.totalProfit) ? pair.totalProfit.toFixed(2) : '0.00'}\n`;
+      }
+      message += `  - Total Fee Spend: ${Number.isFinite(totalFeeSpend) ? totalFeeSpend.toFixed(2) : '0.00'}\n`;
+      message += `  - Low Gas Occurrences: ${Number.isFinite(gasLowOccurrences) ? gasLowOccurrences : '0'}\n\n`;
+
+    } catch (err) {
+      console.error(`Failed to gather daily digest data for server ${server.label}:`, err.message);
     }
-    message += `Total Fee Spend: ${Number.isFinite(totalFeeSpend) ? totalFeeSpend.toFixed(2) : '0.00'}\n`;
-    message += `Low Gas Occurrences: ${Number.isFinite(gasLowOccurrences) ? gasLowOccurrences : '0'}\n`;
+  }
 
-    notifier.notify('dailyDigest', {
-      title: `Daily Digest: ${server.label}`,
-      message: message,
-      channels: notifier.getRuleConfig('dailyDigest')?.channels
-    }).catch(err => console.error('Notifier error (daily digest): ', err.message));
-
-  } catch (err) {
-    console.error('Failed to send daily digest:', err.message);
+  if (servers.length > 0) {
+    const firstServerNotifier = ensureNotifier(servers[0].id);
+    if (firstServerNotifier) {
+      firstServerNotifier.notify('dailyDigest', {
+        title: `Daily Digest for All Servers`,
+        message: message,
+        channels: firstServerNotifier.getRuleConfig('dailyDigest')?.channels
+      }).catch(err => console.error('Notifier error (daily digest): ', err.message));
+    }
   }
 }
 

@@ -150,6 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!chart) {
         const ctx = canvas.getContext('2d');
         const baseOptions = getChartBaseOptions();
+        const textColor = getComputedStyle(document.body).getPropertyValue('--text-color').trim() || '#C9D1D9';
 
         chart = new Chart(ctx, {
           type: 'line',
@@ -184,7 +185,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 backgroundColor: 'rgba(255, 140, 0, 0.1)',
                 borderWidth: 1.5,
                 pointRadius: 0,
-                parsing: false
+                parsing: false,
+                yAxisID: 'y1'
               }
             ]
           },
@@ -206,6 +208,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 min: xBounds.min,
                 max: xBounds.max,
               },
+              y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                grid: {
+                  drawOnChartArea: false, // only draw grid lines for the first Y axis
+                },
+                ticks: { color: textColor },
+              }
             },
             plugins: {
               ...baseOptions.plugins,

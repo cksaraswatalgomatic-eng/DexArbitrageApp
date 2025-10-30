@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const cron = require('node-cron');
@@ -812,8 +812,7 @@ async function maybeNotifyLowProfitTrade({ server, notifier, trade, origin = 'st
   const serverId = server?.id || 'unknown';
   const serverLabel = server?.label || serverId;
   const rule = ruleOverride || resolveProfitRule(notifier);
-  const executedProfit = safeNumber(trade.executedProfit);
-  const profitValue = Number.isFinite(executedProfit) ? executedProfit : safeNumber(trade.estimatedProfit);
+  const profitValue = (Number(trade.executedQtyDst) * Number(trade.executedDstPrice)) - (Number(trade.executedSrcPrice) * Number(trade.executedQtySrc)) - (0.0002 * Number(trade.executedQtyDst) * Number(trade.executedDstPrice));
   console.log(`[notify:profit:${origin}] evaluate trade=${trade.id ?? 'unknown'} server=${serverId} profit=${Number.isFinite(profitValue) ? profitValue : 'null'} threshold=${rule.threshold}`);
   if (!Number.isFinite(profitValue)) {
     return { triggered: false, reason: 'no_profit_value' };

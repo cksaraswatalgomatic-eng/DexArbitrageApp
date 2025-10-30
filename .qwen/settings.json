@@ -1,3 +1,5 @@
 {
-  "approvalMode": "auto-edit"
+  "tools": {
+    "approvalMode": "auto-edit"
+  }
 }

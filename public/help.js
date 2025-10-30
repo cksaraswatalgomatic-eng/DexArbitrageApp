@@ -1,7 +1,16 @@
 (() => {
   const HELP = {
     // Dashboard
-    'total-chart': { title: 'Total USDT Balance Over Time', body: 'Combined Total USDT = DEX (usdtVal + coinVal) + BinanceF (USDT + sum of unrealized PnL). Zoom with wheel/drag, pan with Ctrl+drag. Reset via header.', link: '/docs.html#total-chart' },
+    'total-chart': { title: 'Total USDT Balance Over Time', body: 'Combined totals across DEX venues and BinanceF. Scroll or pinch to explore history.', link: '/docs.html#total-chart' },
+    'gas-consumption-chart': { title: 'Gas Consumption', body: 'Hourly gas usage adjusted for manual deposits.', link: null },
+    'consolidated-total-balance-chart': { title: 'Total USDT Balance Over Time (All Servers)', body: 'Combined totals across all configured servers. Outlier filter hides data points below a specified threshold to improve chart readability.', link: null },
+    'arbitrage-opportunity-analysis': { title: 'Arbitrage Opportunity Analysis', body: 'Analyze historical arbitrage opportunities, including buy/sell differences, CEX/DEX volumes, and server prices. Use filters to refine the data.', link: null },
+    'liquidity-monitoring': { title: 'Liquidity Monitoring', body: 'Real-time liquidity and price data for selected cryptocurrencies. Line chart shows price in USDT, bars show liquidity (volume per 2-minute interval) in USDT. Liquidity bars are filtered to exclude outliers using IQR method (Q3 + 2*IQR) by default, or set a custom maximum value below.', link: null },
+    'trade-success-prediction': { title: 'Trade Success Prediction', body: 'Predict the profitability of a trade based on various features. Train a model and then use the form to get predictions.', link: null },
+    'pair-analysis-overview': { title: 'Pair Analysis Overview', body: 'Summary of trade data, including options to filter by limit, reload data, visualize tables, and access a detailed pair deep dive.', link: null },
+    'individual-pair-profitability-analysis': { title: 'Individual Pair Profitability Analysis', body: 'Detailed analysis of a selected pair's profitability, including time-wise net profit distribution and net profit correlation with various attributes.', link: null },
+    'pair-selection-configuration': { title: 'Pair Selection & Configuration', body: 'Select a trading pair and configure parameters for detailed analysis, including data limit and the X variable for scatter plots.', link: null },
+    'additional-analysis': { title: 'Additional Analysis', body: 'Access further analytical tools such as net profit per trade visualization and data export options for the selected pair.', link: null },
     'dex-table': { title: 'DEX Exchange Balances', body: 'Per DEX exchange totals and top tokens (totalUsdt > 0.1). Columns sortable; search to filter.', link: '/docs.html#dex-table' },
     'cex-table': { title: 'BinanceF Balances', body: 'USDT total = wallet USDT + sum of unrealized PnL. Token USDT ≈ (entryPrice * total)/leverage + unrealizedProfit. Columns sortable; use search.', link: '/docs.html#cex-table' },
     'trades-table': { title: 'Completed Trades', body: 'Includes pair, executedGrossProfit (green/red), Quantity = executedSrcPrice * executedQtySrc, timestamps, and parsed props (Dex/Diff/slips).', link: '/docs.html#trades-table' },

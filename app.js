@@ -929,8 +929,9 @@ async function maybeNotifyLowCexVolume({ server, notifier, curId, volume, timest
 
 function calculateTotals(snapshot) {
   let totalUsdt = 0;
+  let hasValidData = false;
 
-  if (!snapshot || typeof snapshot !== 'object') {
+  if (!snapshot || typeof snapshot !== 'object' || Object.keys(snapshot).length === 0) {
     return { totalUsdt: null, totalCoin: null };
   }
 
@@ -938,12 +939,22 @@ function calculateTotals(snapshot) {
     if (!ex || typeof ex !== 'object') continue;
 
     if (name === 'BinanceF') {
-      totalUsdt += Number(ex.usdtVal) || 0;
+      if (ex.usdtVal != null && Number.isFinite(Number(ex.usdtVal))) {
+        totalUsdt += Number(ex.usdtVal);
+        hasValidData = true;
+      }
     } else {
-      totalUsdt += Number(ex.coinVal) || 0;
+      if (ex.coinVal != null && Number.isFinite(Number(ex.coinVal))) {
+        totalUsdt += Number(ex.coinVal);
+        hasValidData = true;
+      }
     }
   }
-  // The meaning of totalCoin is now ambiguous, so we nullify it.
+
+  if (!hasValidData) {
+    return { totalUsdt: null, totalCoin: null };
+  }
+
   return {
     totalUsdt: Number.isFinite(totalUsdt) ? totalUsdt : null,
     totalCoin: null,
@@ -1018,6 +1029,10 @@ async function fetchBalancesAndStoreFor(server) {
     const resp = await axios.get(url, { timeout: 15000 });
     const data = resp.data;
     const { totalUsdt, totalCoin } = calculateTotals(data);
+    if (totalUsdt === null || !Number.isFinite(totalUsdt)) {
+      console.warn(`[balances:${server.label}] Skipping storing balance because totalUsdt is null or not a finite number.`);
+      return;
+    }
     const row = { timestamp: new Date().toISOString(), total_usdt: totalUsdt, total_coin: totalCoin, raw_data: JSON.stringify(data) };
     const db = ensureDb(server.id);
     db.prepare(`INSERT INTO balances_history (timestamp, total_usdt, total_coin, raw_data) VALUES (@timestamp,@total_usdt,@total_coin,@raw_data)`).run(row);

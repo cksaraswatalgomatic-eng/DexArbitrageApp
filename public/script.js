@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tradesLimitEl = document.getElementById('tradesLimit');
     let gasConsumptionChart = null;
     let gasConsumptionHours = 4;
+    let userZoomedGas = false;
 
 
     let chart;

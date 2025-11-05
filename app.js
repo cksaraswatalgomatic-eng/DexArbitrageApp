@@ -98,6 +98,7 @@ function loadServers() {
       ],
       notificationRules: {
         "profit-trade": { "cooldownMinutes": 60 },
+        "high-profit-trade": { "cooldownMinutes": 60, "threshold": 100, "channels": [] },
         "lowGas": { "cooldownMinutes": 60 },
         "pollFailed": { "cooldownMinutes": 60 },
         "lowCexVolume": { "threshold": 10, "cooldownMinutes": 5 },
@@ -784,6 +785,36 @@ function resolveProfitRule(notifier) {
   };
 }
 
+function resolveHighProfitRule(notifier) {
+  const fallback = {
+    threshold: 100,
+    cooldownMinutes: 60,
+    channels: [],
+  };
+  if (!notifier || typeof notifier.getRuleConfig !== 'function') return fallback;
+  const thresholdCfg = notifier.getRuleConfig('high-profit') || {};
+  const dispatchCfg = notifier.getRuleConfig('high-profit-trade') || {};
+  const thresholdRaw = dispatchCfg.thresholdAbsolute != null
+    ? dispatchCfg.thresholdAbsolute
+    : (thresholdCfg.thresholdAbsolute != null
+      ? thresholdCfg.thresholdAbsolute
+      : (thresholdCfg.thresholdPercent != null ? thresholdCfg.thresholdPercent : thresholdCfg.threshold));
+  const thresholdNum = Number(thresholdRaw);
+  const cooldownRaw = dispatchCfg.cooldownMinutes != null
+    ? dispatchCfg.cooldownMinutes
+    : (thresholdCfg.cooldownMinutes != null ? thresholdCfg.cooldownMinutes : thresholdCfg.cooldown);
+  const cooldownNum = Number(cooldownRaw);
+  const channelSource = Array.isArray(dispatchCfg.channels) && dispatchCfg.channels.length
+    ? dispatchCfg.channels
+    : (Array.isArray(thresholdCfg.channels) ? thresholdCfg.channels : []);
+  const channels = channelSource.filter((ch) => typeof ch === 'string' && ch.trim());
+  return {
+    threshold: Number.isFinite(thresholdNum) ? thresholdNum : fallback.threshold,
+    cooldownMinutes: Number.isFinite(cooldownNum) && cooldownNum > 0 ? cooldownNum : fallback.cooldownMinutes,
+    channels,
+  };
+}
+
 function resolveLowCexVolumeRule(notifier) {
   const fallback = {
     threshold: 10,
@@ -858,6 +889,63 @@ async function maybeNotifyLowProfitTrade({ server, notifier, trade, origin = 'st
     return { triggered: true, result };
   } catch (err) {
     console.error(`[notify:profit:${origin}] notify error trade=${trade.id ?? 'unknown'} server=${serverLabel}:`, err?.message || err);
+    return { triggered: false, error: err };
+  }
+}
+
+async function maybeNotifyHighProfitTrade({ server, notifier, trade, origin = 'store', ruleOverride }) {
+  if (!notifier || !trade) {
+    return { triggered: false, reason: 'missing_context' };
+  }
+  const serverId = server?.id || 'unknown';
+  const serverLabel = server?.label || serverId;
+  const rule = ruleOverride || resolveHighProfitRule(notifier);
+  const profitValue = (Number(trade.executedQtyDst) * Number(trade.executedDstPrice)) - (Number(trade.executedSrcPrice) * Number(trade.executedQtySrc)) - (0.0002 * Number(trade.executedQtyDst) * Number(trade.executedDstPrice));
+  console.log(`[notify:high-profit:${origin}] evaluate trade=${trade.id ?? 'unknown'} server=${serverId} profit=${Number.isFinite(profitValue) ? profitValue : 'null'} threshold=${rule.threshold}`);
+  if (!Number.isFinite(profitValue)) {
+    return { triggered: false, reason: 'no_profit_value' };
+  }
+  if (profitValue < rule.threshold) {
+    return { triggered: false, reason: 'below_threshold' };
+  }
+
+  const pair = trade.pair || trade.token || 'unknown';
+  const delta = profitValue - rule.threshold;
+  const props = normalizePropsRaw(trade.props);
+  const dexValue = props ? props.Dex : 'N/A';
+  
+  const title = profitValue > 30 ? `💸 High profit trade: ${pair}` : `High profit trade: ${pair}`;
+  const message = `Server: ${serverLabel} | Profit: ${profitValue.toFixed(2)} | Dex: ${dexValue}`;
+
+  const payload = {
+    title: title,
+    message: message,
+    cooldownMinutes: rule.cooldownMinutes,
+    uniqueKey: trade.id != null ? `high-profit-${trade.id}` : undefined,
+    details: {
+      tradeId: trade.id ?? null,
+      pair,
+      profit: profitValue,
+      server: serverLabel,
+      origin,
+      threshold: rule.threshold,
+      delta,
+      dex: dexValue,
+    },
+  };
+  if (rule.channels.length) {
+    payload.channels = rule.channels;
+  }
+  try {
+    const result = await notifier.notify('high-profit-trade', payload);
+    if (result?.skipped === 'cooldown') {
+      console.log(`[notify:high-profit:${origin}] skipped by cooldown trade=${trade.id ?? 'unknown'} server=${serverLabel}`);
+      return { triggered: false, reason: 'cooldown', result };
+    }
+    console.log(`[notify:high-profit:${origin}] dispatched trade=${trade.id ?? 'unknown'} server=${serverLabel} profit=${profitValue}`);
+    return { triggered: true, result };
+  } catch (err) {
+    console.error(`[notify:high-profit:${origin}] notify error trade=${trade.id ?? 'unknown'} server=${serverLabel}:`, err?.message || err);
     return { triggered: false, error: err };
   }
 }
@@ -1144,6 +1232,12 @@ function storeCompletedTrades(server, trades, sourceLabel = 'recent') {
             trade: t,
             origin: 'store',
           }).catch(err => console.error('[notify:profit:store] unhandled error:', err?.message || err));
+          maybeNotifyHighProfitTrade({
+            server,
+            notifier,
+            trade: t,
+            origin: 'store',
+          }).catch(err => console.error('[notify:high-profit:store] unhandled error:', err?.message || err));
         }
       }
     }
@@ -1773,6 +1867,17 @@ async function checkNotificationConditions(server) {
         trade,
         origin: 'cron',
         ruleOverride: profitRule,
+      });
+    }
+
+    const highProfitRule = resolveHighProfitRule(notifier);
+    for (const trade of recentTrades) {
+      await maybeNotifyHighProfitTrade({
+        server,
+        notifier,
+        trade,
+        origin: 'cron',
+        ruleOverride: highProfitRule,
       });
     }
 

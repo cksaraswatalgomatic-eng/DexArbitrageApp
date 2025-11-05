@@ -139,6 +139,7 @@
             <div style="border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
               <h3 style="margin: 0 0 8px 0; font-size: 1.2em; color: var(--text);">Profit Thresholds</h3>
               <label style="display: block; margin-bottom: 6px;">Low Profit Threshold <input id="profitThreshold" type="number" step="0.01" value="-5" style="width: 100px; margin-left: 8px;" /></label>
+              <label style="display: block; margin-bottom: 6px;">High Profit Threshold <input id="highProfitThreshold" type="number" step="0.01" value="100" style="width: 100px; margin-left: 8px;" /></label>
               <label style="display: block; margin-bottom: 12px;">Cooldown (minutes) <input id="profitCooldown" type="number" min="1" value="30" style="width: 100px; margin-left: 8px;" /></label>
               <div style="margin-top:8px">
                 <h4 style="margin: 0 0 6px 0; font-size: 0.95em;">Channels:</h4>
@@ -387,6 +388,11 @@
           const profitChannels = rules.profit.channels || ['slack'];
           setChannelCheckboxes('profit', profitChannels);
         }
+
+        if (rules['high-profit-trade']) {
+          const highProfitThresholdValue = (rules['high-profit-trade'].thresholdAbsolute != null ? rules['high-profit-trade'].thresholdAbsolute : rules['high-profit-trade'].threshold);
+          document.getElementById('highProfitThreshold').value = highProfitThresholdValue != null ? highProfitThresholdValue : 100;
+        }
         
         // Low gas settings
         if (rules.lowGas) {
@@ -439,11 +445,19 @@
         
         const profitThresholdValue = parseFloat(document.getElementById('profitThreshold').value);
         const normalizedProfitThreshold = Number.isFinite(profitThresholdValue) ? profitThresholdValue : -5;
+        const highProfitThresholdValue = parseFloat(document.getElementById('highProfitThreshold').value);
+        const normalizedHighProfitThreshold = Number.isFinite(highProfitThresholdValue) ? highProfitThresholdValue : 100;
+
         const payload = {
           notificationRules: {
 
             'profit-trade': {
               thresholdAbsolute: normalizedProfitThreshold,
+              cooldownMinutes: parseInt(document.getElementById('profitCooldown').value) || 60,
+              channels: getChannelsFromCheckboxes('profit')
+            },
+            'high-profit-trade': {
+              thresholdAbsolute: normalizedHighProfitThreshold,
               cooldownMinutes: parseInt(document.getElementById('profitCooldown').value) || 60,
               channels: getChannelsFromCheckboxes('profit')
             },
@@ -465,6 +479,12 @@
               thresholdAbsolute: normalizedProfitThreshold,
               thresholdPercent: normalizedProfitThreshold,
               cooldownMinutes: parseInt(document.getElementById('profitCooldown').value) || 30,
+              channels: getChannelsFromCheckboxes('profit')
+            },
+            'high-profit': {
+              thresholdAbsolute: normalizedHighProfitThreshold,
+              thresholdPercent: normalizedHighProfitThreshold,
+              cooldownMinutes: parseInt(document.getElementById('profitCooldown').value) || 60,
               channels: getChannelsFromCheckboxes('profit')
             },
             dailyDigest: {

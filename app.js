@@ -823,9 +823,15 @@ async function maybeNotifyLowProfitTrade({ server, notifier, trade, origin = 'st
 
   const pair = trade.pair || trade.token || 'unknown';
   const delta = profitValue - rule.threshold;
+  const props = safeJsonParse(trade.props);
+  const dexValue = props ? props.Dex : 'N/A';
+  
+  const title = profitValue < -30 ? `⚠️ Low profit trade: ${pair}` : `Low profit trade: ${pair}`;
+  const message = `Server: ${serverLabel} | Profit: ${profitValue.toFixed(2)} | Dex: ${dexValue}`;
+
   const payload = {
-    title: `Low profit trade: ${pair}`,
-    message: `Server: ${serverLabel} | Profit: ${profitValue.toFixed(2)}`,
+    title: title,
+    message: message,
     cooldownMinutes: rule.cooldownMinutes,
     uniqueKey: trade.id != null ? `low-profit-${trade.id}` : undefined,
     details: {
@@ -836,6 +842,7 @@ async function maybeNotifyLowProfitTrade({ server, notifier, trade, origin = 'st
       origin,
       threshold: rule.threshold,
       delta,
+      dex: dexValue,
     },
   };
   if (rule.channels.length) {

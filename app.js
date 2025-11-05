@@ -823,7 +823,7 @@ async function maybeNotifyLowProfitTrade({ server, notifier, trade, origin = 'st
 
   const pair = trade.pair || trade.token || 'unknown';
   const delta = profitValue - rule.threshold;
-  const props = safeJsonParse(trade.props);
+  const props = normalizePropsRaw(trade.props);
   const dexValue = props ? props.Dex : 'N/A';
   
   const title = profitValue < -30 ? `⚠️ Low profit trade: ${pair}` : `Low profit trade: ${pair}`;

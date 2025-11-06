@@ -3385,6 +3385,170 @@ app.get('/consolidated/token-performance', async (req, res) => {
   }
 });
 
+// New endpoint to get consolidated gas consumption data for all servers
+app.get('/consolidated/gas-consumption', async (req, res) => {
+  try {
+    const cfg = loadServers();
+    const allServersGasConsumption = {};
+
+    for (const server of cfg.servers) {
+      try {
+        const db = ensureDb(server.id);
+        const rows = db.prepare(
+          `SELECT
+            STRFTIME('%Y-%m-%d', DATETIME(timestamp / 1000, 'unixepoch')) AS gas_date,
+            SUM(gas_balance) AS daily_gas_balance
+          FROM gas_balances
+          WHERE contract != '__total__'
+          GROUP BY gas_date
+          ORDER BY gas_date ASC`
+        ).all();
+
+        for (const row of rows) {
+          if (!allServersGasConsumption[row.gas_date]) {
+            allServersGasConsumption[row.gas_date] = 0;
+          }
+          allServersGasConsumption[row.gas_date] += row.daily_gas_balance || 0;
+        }
+      } catch (serverErr) {
+        console.error(`[api:/consolidated/gas-consumption] server:${server.id} ${serverErr.message}`);
+      }
+    }
+
+    const result = Object.keys(allServersGasConsumption).map(date => ({
+      date: date,
+      consumption: allServersGasConsumption[date]
+    })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    res.json(result);
+  } catch (err) {
+    console.error('[api:/consolidated/gas-consumption] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// New endpoint to get consolidated gas tracking statistics for different time periods
+app.get('/consolidated/gas-tracking', async (req, res) => {
+  try {
+    const cfg = loadServers();
+    const now = Date.now();
+    
+    // Define time periods in milliseconds
+    const periods = [
+      { label: 'Last 1h', cutoff: now - (1 * 60 * 60 * 1000) },
+      { label: 'Last 4h', cutoff: now - (4 * 60 * 60 * 1000) },
+      { label: 'Last 8h', cutoff: now - (8 * 60 * 60 * 1000) },
+      { label: 'Last 12h', cutoff: now - (12 * 60 * 60 * 1000) },
+      { label: 'Last 24h', cutoff: now - (24 * 60 * 60 * 1000) },
+      { label: 'Last 2 Days', cutoff: now - (2 * 24 * 60 * 60 * 1000) },
+      { label: 'Last 7 Days', cutoff: now - (7 * 24 * 60 * 60 * 1000) },
+    ];
+
+    // Object to store stats for each period
+    const allStats = periods.map(period => ({
+      label: period.label,
+      consumption: 0,
+      deposit: 0
+    }));
+
+    // For each server, gather its gas tracking data
+    for (const server of cfg.servers) {
+      try {
+        const db = ensureDb(server.id);
+        
+        // Get all gas balance tracking data for this server ordered by timestamp
+        const trackingRows = db.prepare(`
+          SELECT timestamp, gas_balance, gas_deposit, source
+          FROM gas_balance_tracking
+          WHERE contract = '__total__'
+          ORDER BY datetime(timestamp) ASC
+        `).all();
+
+        if (trackingRows.length === 0) continue;
+
+        // Process each time period for this server
+        for (let i = 0; i < periods.length; i++) {
+          const period = periods[i];
+          const periodStats = allStats[i];
+          
+          // Find all tracking entries that occurred after the cutoff time
+          for (const row of trackingRows) {
+            const itemTimestamp = new Date(row.timestamp).getTime();
+            
+            if (itemTimestamp >= period.cutoff) {
+              const depositVal = Number(row.gas_deposit);
+              if (Number.isFinite(depositVal) && depositVal !== 0) {
+                periodStats.deposit += depositVal;
+              }
+            }
+          }
+        }
+      } catch (serverErr) {
+        console.error(`[api:/consolidated/gas-tracking] server:${server.id} ${serverErr.message}`);
+      }
+    }
+
+    // Now let's calculate real consumption using the same logic as in the script.js file
+    // which calculates consumption based on differences between auto-total entries
+    for (const server of cfg.servers) {
+      try {
+        const db = ensureDb(server.id);
+        
+        // Get gas balance tracking records for the server
+        const series = db.prepare(
+          `SELECT timestamp, gas_balance, gas_deposit, source
+           FROM gas_balance_tracking
+           WHERE contract = '__total__'
+           ORDER BY datetime(timestamp) ASC`
+        ).all();
+
+        if (series.length <= 1) continue; // Not enough data to calculate consumption
+
+        let previousAutoTotalBalance = null;
+
+        // Initialize previousAutoTotalBalance from the first entry if it's an auto-total entry
+        if (series.length > 0 && series[0].source === 'auto-total') {
+          previousAutoTotalBalance = Number(series[0].gas_balance);
+        }
+
+        for (let i = 1; i < series.length; i += 1) {
+          const prevEntry = series[i - 1];
+          const currEntry = series[i];
+          const prevBalance = Number(prevEntry.gas_balance);
+          const currBalance = Number(currEntry.gas_balance);
+          const currDeposit = Number(currEntry.gas_deposit);
+
+          if (!Number.isFinite(prevBalance) || !Number.isFinite(currBalance)) continue;
+
+          const entryTime = new Date(currEntry.timestamp).getTime();
+          if (Number.isNaN(entryTime)) continue;
+
+          // Calculate consumption for each period
+          for (let j = 0; j < periods.length; j++) {
+            if (entryTime >= periods[j].cutoff) {
+              if (currEntry.source === 'auto-total') {
+                if (previousAutoTotalBalance !== null && Number.isFinite(previousAutoTotalBalance)) {
+                  let consumption = previousAutoTotalBalance - currBalance;
+                  if (consumption < 0) consumption = 0; // Consumption cannot be negative
+                  allStats[j].consumption += consumption;
+                }
+                previousAutoTotalBalance = currBalance;
+              }
+            }
+          }
+        }
+      } catch (serverErr) {
+        console.error(`[api:/consolidated/gas-tracking] server:${server.id} gas processing error ${serverErr.message}`);
+      }
+    }
+
+    res.json(allStats);
+  } catch (err) {
+    console.error('[api:/consolidated/gas-tracking] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.delete('/trades/:id', (req, res) => {  try {
     const db = getDbFromReq(req);
     const id = req.params.id;

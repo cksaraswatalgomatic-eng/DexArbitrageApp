@@ -622,6 +622,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  const renderConsolidatedGasTrackingTable = async () => {
+    const tableBody = document.querySelector('#consolidatedGasTrackingTable tbody');
+    if (!tableBody) return;
+    
+    try {
+      const data = await fetchJSON('/consolidated/gas-tracking');
+      tableBody.innerHTML = '';
+
+      // Add entries to the table
+      data.forEach(item => {
+        const tr = document.createElement('tr');
+        const consumption = (item.consumption != null && !isNaN(item.consumption)) ? Number(item.consumption).toFixed(2) : '0.00';
+        const deposit = (item.deposit != null && !isNaN(item.deposit)) ? Number(item.deposit).toFixed(2) : '0.00';
+        
+        tr.innerHTML = `
+          <td>${item.label || ''}</td>
+          <td>${consumption}</td>
+          <td>${deposit}</td>
+        `;
+        tableBody.appendChild(tr);
+      });
+    } catch (error) {
+      console.error('Error fetching consolidated gas tracking data:', error);
+      tableBody.innerHTML = '<tr><td colspan="3">Error loading data</td></tr>';
+    }
+  };
+
   const renderConsolidatedTokenPerformanceChart = async () => {
     const data = await getTokenPerformanceData();
     const allTokens = [...data.topPerformers, ...data.worstPerformers];
@@ -704,6 +731,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderConsolidatedTotalBalanceChart(),
     renderConsolidatedBalancesTable(),
     renderConsolidatedDailyProfitTable(),
+    renderConsolidatedGasTrackingTable(),
     renderConsolidatedTokenPerformanceChart(), // Call the new chart function
     renderConsolidatedTokenPerformanceTables()
   ]);

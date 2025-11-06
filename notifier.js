@@ -144,6 +144,9 @@ class Notifier {
   }
 
   async notify(ruleKey, payload = {}) {
+    if (ruleKey === 'pollFailed' && payload.message && /contract/i.test(payload.message)) {
+      return { skipped: 'ignored_keyword' };
+    }
     this.ensureTables();
     const now = Date.now();
     const stateKey = this.makeStateKey(ruleKey, payload.uniqueKey);

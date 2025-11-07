@@ -4124,33 +4124,59 @@ app.get('/status/server', async (req, res) => {
     }
 
     const lines = text.split(/\r?\n/);
-    const sdiffLine = lines.find(l => l.startsWith('SDIFF_Uniswap_ckhvar2'));
-    const blacklistLine = lines.find(l => l.startsWith('SDIFF Uniswap BlackList:'));
-
     let sdiffData = null;
-    if (sdiffLine) {
-      const parts = sdiffLine.split(/\s+/);
-      const propsIndex = sdiffLine.indexOf('Mindiff:');
-      const propsStr = propsIndex > -1 ? sdiffLine.substring(propsIndex) : '';
 
-      const tokenMatches = [...propsStr.matchAll(/\b([A-Za-z0-9_]+)\(([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)\)/g)];
-      const tokens = tokenMatches.map(match => ({
-        name: match[1],
-        buy: match[2],
-        sell: match[3],
-      }));
+    // Universal token parser
+    const parseTokens = (str) => {
+        const tokenMatches = [...str.matchAll(/\b([A-Za-z0-9_]+)\(([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)\)/g)];
+        return tokenMatches.map(match => ({
+            name: match[1],
+            buy: match[2],
+            sell: match[3],
+        }));
+    };
 
-      const m1Index = parts.findIndex(p => p === 'M1');
-      const up = m1Index !== -1 && parts.length > m1Index + 1 ? parts[m1Index + 1] : null;
+    // Check for new multi-line format
+    const headerLineIndex = lines.findIndex(l => l.includes("Addr") && l.includes("State") && l.includes("Up"));
+    const sdiffDataLine = lines.find(l => l.trim().startsWith('SDIFF_'));
 
-      sdiffData = {
-        up: up,
-        mindiff: propsStr.match(/Mindiff:([\d.]+)/)?.[1],
-        maxOrderSize: propsStr.match(/MaxOrderSize: (\d+)/)?.[1],
-        tokens: tokens,
-      };
+    if (headerLineIndex !== -1 && sdiffDataLine) {
+        // New format
+        const headerParts = lines[headerLineIndex].trim().split(/\s+/);
+        const upIndex = headerParts.indexOf('Up');
+        
+        const dataParts = sdiffDataLine.trim().split(/\s+/);
+        const up = (upIndex !== -1 && dataParts.length > upIndex) ? dataParts[upIndex] : null;
+
+        const propsLine = lines.find(l => l.includes('Mindiff:'));
+        if (propsLine) {
+            sdiffData = {
+                up: up,
+                mindiff: propsLine.match(/Mindiff:([\d.]+)/)?.[1],
+                maxOrderSize: propsLine.match(/MaxOrderSize:\s*(\d+)/)?.[1],
+                tokens: parseTokens(propsLine),
+            };
+        }
     }
 
+    // Fallback to old single-line format if new one fails
+    if (!sdiffData && sdiffDataLine) {
+        const parts = sdiffDataLine.split(/\s+/);
+        const propsIndex = sdiffDataLine.indexOf('Mindiff:');
+        const propsStr = propsIndex > -1 ? sdiffDataLine.substring(propsIndex) : '';
+
+        const m1Index = parts.findIndex(p => p === 'M1');
+        const up = m1Index !== -1 && parts.length > m1Index + 1 ? parts[m1Index + 1] : null;
+
+        sdiffData = {
+            up: up,
+            mindiff: propsStr.match(/Mindiff:([\d.]+)/)?.[1],
+            maxOrderSize: propsStr.match(/MaxOrderSize:\s*(\d+)/)?.[1],
+            tokens: parseTokens(propsStr),
+        };
+    }
+
+    const blacklistLine = lines.find(l => l.startsWith('SDIFF Uniswap BlackList:'));
     let blacklistData = null;
     if (blacklistLine) {
       const str = blacklistLine.replace('SDIFF Uniswap BlackList:', '').trim();

@@ -8,12 +8,12 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/light-theme.css" />
-    <link rel="stylesheet" href="/updated-styles.css" />
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
   </head>
-  <body>
+  <body class="login-page">
     <header>
       <div id="brand">
         <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
@@ -25,10 +25,6 @@
     </header>
     <main class="login-container">
       <section class="card login-card">
-        <div class="brand-login">
-          <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
-          <h1>Dex Arbitrage Login</h1>
-        </div>
         <form id="loginForm">
           <div class="form-group">
             <label for="username">Username:</label>
@@ -39,6 +35,7 @@
             <input type="password" id="password" name="password" required />
           </div>
           <button type="submit" class="btn-orange login-btn">Login</button>
+          <p class="forgot-password"><a href="#">Forgot Password?</a></p>
           <p id="errorMessage" class="error-message"></p>
         </form>
       </section>

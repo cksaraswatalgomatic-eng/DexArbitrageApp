@@ -319,6 +319,108 @@ tbody tr:hover {
   padding: 0.25rem 0.75rem;
 }
 
+.info-btn:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+
+.popover {
+  position: absolute;
+  z-index: 1000;
+  max-width: 360px;
+  background: var(--background-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 14px 12px 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.popover .close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+}
+.popover .close:hover { color: var(--accent-cyan); }
+
+/* 11. Login Page Styles */
+body.login-page {
+  background: linear-gradient(-45deg, #0D1117, #161B22, #0D1117);
+  background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: calc(100vh - 61px); /* 61px is the header height */
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 2.5rem;
+}
+
+.login-card .form-group {
+  margin-bottom: 1.5rem;
+}
+
+.login-card label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.login-card input {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1.1rem;
+  margin-top: 1rem;
+}
+
+.forgot-password {
+  text-align: right;
+  margin-top: 1rem;
+}
+
+.forgot-password a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.forgot-password a:hover {
+  color: var(--accent-cyan);
+}
+
+/* Notification specific styles */
+.notification-unread {
+  font-weight: bold;
+  background-color: rgba(0, 229, 255, 0.05);
+}
+
 /* 9. Responsive Design */
 .mobile-menu-button {
   display: none; /* Hidden by default */
@@ -428,11 +530,8 @@ tbody tr:hover {
 }
 .popover .close:hover { color: var(--accent-cyan); }
 
-/* Notification specific styles */
-.notification-unread {
-  font-weight: bold;
-  background-color: rgba(0, 229, 255, 0.05);
-}
+
+
 
 /* NEW RESPONSIVE STYLES */
 

@@ -244,7 +244,7 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
 
 /* Mobile-specific overrides */
 @media (max-width: 1024px) {
-  .nav-menu-wrapper {
+  .dropdown-container {
     display: none;
   }
   
@@ -279,6 +279,7 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
 .nav-dropdown .nav-link {
   display: block; /* Ensure links are block level inside the dropdown */
   width: 100%;
+}
 
 .nav-dropdown .nav-link:hover {
   background-color: rgba(31, 111, 235, 0.2);
@@ -299,9 +300,6 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
     /* No specific display: none !important here, it's handled by default display: none and hover */
   }
 
-}
-
-/* Mobile-specific overrides */
 }
 
 .icon-btn {

@@ -202,6 +202,11 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
 }
 
 /* Dropdown specific styles */
+.nav-menu-wrapper {
+  position: relative;
+  display: inline-block; /* Allow it to sit next to other controls */
+}
+
 .dropdown-container {
   position: relative;
   display: inline-block; /* Allow it to sit next to other controls */
@@ -223,9 +228,15 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
   min-width: 200px; /* Ensure dropdown has a reasonable width */
 }
 
-.dropdown-container:hover .nav-dropdown,
-.dropdown-container:focus-within .nav-dropdown {
-  display: flex; /* Show dropdown on hover or when a child element is focused */
+/* Show dropdown on hover of the nav-menu-wrapper (for desktop) */
+.nav-menu-wrapper:hover .nav-dropdown,
+.nav-menu-wrapper:focus-within .nav-dropdown {
+  display: flex;
+}
+
+/* Show dropdown when it has the 'open' class (for mobile) */
+.nav-dropdown.open {
+  display: flex;
 }
 
 .nav-dropdown .nav-link {
@@ -235,25 +246,38 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
 }
 
 @media (min-width: 1025px) {
-  /* On larger screens, the mobile menu button is hidden, and the dropdown is handled by hover */
+  /* On larger screens, hide the mobile menu button */
   .mobile-menu-button {
     display: none;
   }
+  /* Ensure the nav-menu-wrapper is visible on larger screens */
+  .nav-menu-wrapper {
+    display: inline-block !important; /* Ensure it's always visible */
+  }
+  /* The nav-dropdown is controlled by hover on nav-menu-wrapper */
   .nav-dropdown {
     /* No specific display: none !important here, it's handled by default display: none and hover */
   }
 }
 
 @media (max-width: 1024px) {
-  /* On smaller screens, hide the dropdown container and show the mobile menu button */
-  .dropdown-container {
+  /* On smaller screens, hide the nav-menu-wrapper (Pages button and its dropdown) */
+  .nav-menu-wrapper {
     display: none;
   }
+  /* Show the mobile menu button */
   .mobile-menu-button {
     display: block;
   }
-  .nav-dropdown.open {
-    display: flex; /* Show it as a flex column when open */
+  /* Position the nav-dropdown for mobile (it's now a direct child of controls) */
+  .nav-dropdown {
+    position: absolute; /* Keep absolute positioning */
+    top: 100%; /* Position below the controls */
+    right: 0;
+    left: auto; /* Reset left to auto */
+    width: auto; /* Allow width to be determined by content or min-width */
+    min-width: 200px;
+    /* Hidden by default, shown with .open class */
   }
 }
 

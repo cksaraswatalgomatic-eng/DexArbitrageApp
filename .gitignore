@@ -10,7 +10,7 @@ npm-debug.log*
 build/
 dist/
 tmp/
-users.json
+
 trade_model.joblib
 models/
 servers.json
@@ -27,3 +27,5 @@ data.sqlite-wal
 # SQLite artifacts
 *.sqlite-wal
 *.sqlite-shm
+.eslintrc.json
+eslint.config.js

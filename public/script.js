@@ -1,3 +1,4 @@
+/* eslint-disable no-empty */
 document.addEventListener('DOMContentLoaded', async () => {
     const lastUpdatedEl = document.getElementById('lastUpdated');
     const refreshBtn = document.getElementById('refreshBtn');
@@ -230,7 +231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   if (!reachedEndOfHistory && historyOldest) {
                     const { min } = zoomChart.scales.x;
                     if (min < historyOldest.timestamp.getTime()) {
-                      loadBalancesHistory(historyOldest.timestamp.toISOString());
+                      // loadBalancesHistory(historyOldest.timestamp.toISOString());
                     }
                   }
                 },
@@ -240,7 +241,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   if (!reachedEndOfHistory && historyOldest) {
                     const { min } = panChart.scales.x;
                     if (min < historyOldest.timestamp.getTime()) {
-                      loadBalancesHistory(historyOldest.timestamp.toISOString());
+                      // loadBalancesHistory(historyOldest.timestamp.toISOString());
                     }
                   }
                 }
@@ -674,7 +675,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function escapeHtml(value) {
           const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-          return String(value ?? '').replace(/[&<>"']/g, (ch) => map[ch] || ch);
+          return String(value ?? '').replace(/[&<>'"']/g, (ch) => map[ch] || ch);
         }
 
         async function refreshGasTracking(latestTotalHint, feedback) {
@@ -860,8 +861,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               const deposit = entry.deposit;
                 html += `<tr>` +
                         `<td>${entry.label}</td>` +
-                        `<td>${fmtNum(consumption, 4)}</td>` +
-                        `<td>${fmtNum(deposit, 4)}</td>` +
+                        `<td>${fmtNum(consumption, 2)}</td>` +
+                        `<td>${fmtNum(deposit, 2)}</td>` +
                         `</tr>`;
             }
             html += '</tbody></table></div>';
@@ -901,9 +902,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 callbacks: {
                   ...tooltipCallbacks,
                   label(context) {
-                    const consumptionVal = fmtNum(context.parsed.y, 4);
+                    const consumptionVal = fmtNum(context.parsed.y, 2);
                     const totalVal = context.raw && Number.isFinite(Number(context.raw.latestTotal))
-                      ? fmtNum(Number(context.raw.latestTotal), 4)
+                      ? fmtNum(Number(context.raw.latestTotal), 2)
                       : null;
                     let label = `Consumption: ${consumptionVal}`;
                     if (totalVal) label += ` | Total: ${totalVal}`;
@@ -1005,7 +1006,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 for (const token of data.sdiff.tokens) {
                   const buyColor = getGradientColor(token.buy);
                   const sellColor = getGradientColor(token.sell);
-                  tokenRows.push(`<strong><a href="/token-analysis.html?token=${token.name}">${token.name}</a>:</strong> buy=<span style="color:${buyColor}">${token.buy}</span>, sell=<span style="color:${sellColor}">${token.sell}</span>`);
+                  tokenRows.push(`<strong><a href="/token-analysis.html?token=${token.name}">${token.name}</a>:</strong> buy=<span style="color:${buyColor}">${fmtNum(token.buy, 2)}</span>, sell=<span style="color:${sellColor}">${fmtNum(token.sell, 2)}</span>`);
                 }
               }
             }
@@ -1050,7 +1051,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               combinedHtml += '</tbody></table></div>';
             }
             if (Number.isFinite(totalGasFromStatus)) {
-              combinedHtml += `<div class="muted" style="margin-top:0.5rem;">Total gas balance: ${fmtNum(totalGasFromStatus, 4)}</div>`;
+              combinedHtml += `<div class="muted" style="margin-top:0.5rem;">Total gas balance: ${fmtNum(totalGasFromStatus, 2)}</div>`;
             }
 
             if (sdiffStatusEl) sdiffStatusEl.innerHTML = sdiffHtml;
@@ -1152,14 +1153,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tr.innerHTML = `
                   <td>${ex.exchange}</td>
                   <td>${t.currency}</td>
-                  <td>${fmtNum(t.total)}</td>
-                  <td>${fmtNum(t.totalUsdt)}</td>
-                  <td>${fmtNum(currentPrice)}</td>
+                  <td>${fmtNum(t.total, 2)}</td>
+                  <td>${fmtNum(t.totalUsdt, 2)}</td>
+                  <td>${fmtNum(currentPrice, 2)}</td>
                 `;
                 if(dexTableBody) dexTableBody.appendChild(tr);
               }
             }
-            if(dexSummary) dexSummary.textContent = `Total DEX USDT: ${fmtNum(dexTotal)}`;
+            if(dexSummary) dexSummary.textContent = `Total DEX USDT: ${fmtNum(dexTotal, 2)}`;
           } else {
             if(dexSummary) dexSummary.textContent = 'No DEX data available';
           }
@@ -1185,15 +1186,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
               tr.innerHTML = `
                 <td>${t.currency}</td>
-                <td>${fmtNum(t.total)}</td>
-                <td>${fmtNum(usdtValue)}</td>
-                <td>${fmtNum(totalUsdt)}</td>
-                <td>${t.entryPrice ? fmtNum(t.entryPrice) : ''}</td>
-                <td>${unrealizedProfit ? fmtNum(unrealizedProfit) : '0'}</td>
+                <td>${fmtNum(t.total, 2)}</td>
+                <td>${fmtNum(usdtValue, 2)}</td>
+                <td>${fmtNum(totalUsdt, 2)}</td>
+                <td>${t.entryPrice ? fmtNum(t.entryPrice, 2) : ''}</td>
+                <td>${unrealizedProfit ? fmtNum(unrealizedProfit, 2) : '0'}</td>
               `;
               if(cexTableBody) cexTableBody.appendChild(tr);
             }
-            if(cexSummary) cexSummary.textContent = `BinanceF Total USDT: ${fmtNum(data.cex.totalUSDT)}  |  USDT: ${fmtNum(data.cex.usdtTotal)}  |  Sum PnL: ${fmtNum(data.cex.unrealizedSum)}`;
+            if(cexSummary) cexSummary.textContent = `BinanceF Total USDT: ${fmtNum(data.cex.totalUSDT, 2)}  |  USDT: ${fmtNum(data.cex.usdtTotal, 2)}  |  Sum PnL: ${fmtNum(data.cex.unrealizedSum, 2)}`;
           } else {
             if(cexSummary) cexSummary.textContent = 'No BinanceF data available';
           }
@@ -1204,7 +1205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const dexTotalText = `Total DEX USDT: ${fmtNum(dexTotal)}`;
           const cexTotal = data.cex ? data.cex.totalUSDT || 0 : 0;
           const combined = dexTotal + cexTotal;
-          if(totalEl) totalEl.textContent = `Total USDT (DEX + BinanceF): ${fmtNum(combined)}  |  BinanceF Total USDT: ${fmtNum(cexTotal)}  |  ${dexTotalText}`;
+          if(totalEl) totalEl.textContent = `Total USDT (DEX + BinanceF): ${fmtNum(combined, 2)}  |  BinanceF Total USDT: ${fmtNum(cexTotal, 2)}  |  ${dexTotalText}`;
           enableTableFeatures('#tradesTable', 'tradesSearch');
 
           const comparisonTableBody = document.querySelector('#comparisonTable tbody');
@@ -1246,9 +1247,9 @@ document.addEventListener('DOMContentLoaded', async () => {
               const tr = document.createElement('tr');
               tr.innerHTML = `
                     <td>${tokenName}</td>
-                    <td>${fmtNum(dexToken.totalUsdt)}</td>
-                    <td>${fmtNum(cexToken.totalUsdt)}</td>
-                    <td class="${diffClass}">${fmtNum(difference)}</td>
+                    <td>${fmtNum(dexToken.totalUsdt, 2)}</td>
+                    <td>${fmtNum(cexToken.totalUsdt, 2)}</td>
+                    <td class="${diffClass}">${fmtNum(difference, 2)}</td>
                 `;
               if(comparisonTableBody) comparisonTableBody.appendChild(tr);
             }
@@ -1325,11 +1326,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tr.innerHTML = `
                   <td>${t.pair ?? ''}</td>
                   <td>${tokenLabel ? `<a href="${tokenLink}">${tokenLabel}</a>` : ''}</td>
-                  <td class="${egpClass}">${fmtNum(t.executedGrossProfit)}</td>
-                  <td style="${netProfitStyle}">${fmtNum(netProfit)}</td>
-                  <td>${qty != null ? fmtNum(qty) : ''}</td>
+                  <td class="${egpClass}">${fmtNum(t.executedGrossProfit, 2)}</td>
+                  <td style="${netProfitStyle}">${fmtNum(netProfit, 2)}</td>
+                  <td>${qty != null ? fmtNum(qty, 2) : ''}</td>
                   <td>${t.lastUpdateTime ? fmtTime(t.lastUpdateTime) : ''}</td>
-                  <td>${props.Dex}</td>
+                  <td>${props.Dex ?? ''}</td>
                   <td>${props.Diff ?? ''}</td>
                   <td class="${dexSlipClass}">${props.DexSlip ?? ''}</td>
                   <td class="${cexSlipClass}">${props.CexSlip ?? ''}</td>
@@ -1406,5 +1407,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         if(tradesLimitEl){
             tradesLimitEl.addEventListener('change', loadTrades);
         }
+    }
+    // Tab switching logic
+    const tabContainers = document.querySelectorAll('.tab-container');
+
+    tabContainers.forEach(container => {
+      const tabButtons = container.querySelectorAll('.tab-header .tab-btn');
+      const tabContents = container.querySelectorAll('.tab-content');
+
+      tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          // Deactivate all buttons and content in this container
+          tabButtons.forEach(btn => btn.classList.remove('active'));
+          tabContents.forEach(content => content.classList.remove('active'));
+
+          // Activate the clicked button and its corresponding content
+          button.classList.add('active');
+          const targetTabId = button.dataset.tab;
+          const targetTabContent = container.querySelector(`#${targetTabId}`);
+          if (targetTabContent) {
+            targetTabContent.classList.add('active');
+          }
+        });
+      });
+    });
+
+    // Dropdown menu logic
+    const navDropdownButton = document.getElementById('nav-dropdown-button');
+    const navDropdown = document.getElementById('nav-dropdown');
+
+    if (navDropdownButton && navDropdown) {
+      navDropdownButton.addEventListener('click', (event) => {
+        event.stopPropagation(); // Prevent document click from closing immediately
+        navDropdown.classList.toggle('open');
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!navDropdown.contains(event.target) && !navDropdownButton.contains(event.target)) {
+          navDropdown.classList.remove('open');
+        }
+      });
     }
 });

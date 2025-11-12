@@ -1,5 +1,5 @@
-const axios = require('axios');
-const nodemailer = require('nodemailer');
+import axios from 'axios';
+import nodemailer from 'nodemailer';
 
 function toNumber(value) {
   const n = Number(value);
@@ -267,4 +267,4 @@ class Notifier {
   }
 }
 
-module.exports = { Notifier };
+export { Notifier };

@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, no-undef */
 document.addEventListener('DOMContentLoaded', async () => {
   // Initialize Chart.js
   await waitForChart();
@@ -10,7 +11,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const refreshBtn = document.getElementById('refreshBtn');
   
   // Add Load More button to the DOM
-  const chartHeader = document.querySelector('.chart-header');
   const chartNav = document.querySelector('.chart-nav');
   const loadMoreBtn = document.createElement('button');
   loadMoreBtn.id = 'loadMoreBtn';
@@ -52,14 +52,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   let currentPage = 1;
   let currentDisplayData = [];
-  let totalDisplayData = 0;
   
   // Initialize chart variable
   let liquidityChart = null;
   let rawData = null; // Store original data for threshold filtering
-  let timeWindowStart = new Date(); // Start with current time
-  timeWindowStart.setDate(timeWindowStart.getDate() - 1); // Go back 1 day by default
-  let timeWindowEnd = new Date(); // End at current time
   let previousTimeWindows = []; // Track loaded time windows to avoid duplicates
   let isLoadingMore = false; // Prevent multiple simultaneous requests
   
@@ -514,4 +510,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initial load
   await loadSymbols();
   await loadData();
+
+  // Dropdown menu logic
+  const navDropdownButton = document.getElementById('nav-dropdown-button');
+  const navDropdown = document.getElementById('nav-dropdown');
+
+  if (navDropdownButton && navDropdown) {
+    navDropdownButton.addEventListener('click', (event) => {
+      event.stopPropagation(); // Prevent document click from closing immediately
+      navDropdown.classList.toggle('open');
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!navDropdown.contains(event.target) && !navDropdownButton.contains(event.target)) {
+        navDropdown.classList.remove('open');
+      }
+    });
+  }
 });

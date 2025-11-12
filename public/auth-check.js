@@ -1,4 +1,4 @@
-﻿// public/auth-check.js
+// public/auth-check.js
 (function () {
   function parseCookies() {
     return document.cookie.split(';').reduce((acc, part) => {

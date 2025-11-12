@@ -55,7 +55,7 @@ function main() {
   const lastBal = db.prepare('SELECT id, timestamp, total_usdt, total_coin, raw_data FROM balances_history ORDER BY id DESC LIMIT 1').get();
   let parts = { dexTotal: 0, cexTotal: 0, combined: 0 };
   if (lastBal?.raw_data) {
-    try { parts = computeDexCex(JSON.parse(lastBal.raw_data)); } catch {}
+    try { parts = computeDexCex(JSON.parse(lastBal.raw_data)); } catch {/* ignore */}
   }
 
   const last5 = db.prepare('SELECT id, timestamp, total_usdt, total_coin FROM balances_history ORDER BY id DESC LIMIT 5').all();

@@ -1,0 +1,85 @@
+import globals from "globals";
+import js from "@eslint/js";
+import prettier from "eslint-config-prettier";
+
+export default [
+  {
+    files: ["**/*.js"],
+    languageOptions: {
+      ecmaVersion: 2021,
+      sourceType: "module",
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+        "Chart": "readonly",
+        "waitForChart": "readonly",
+        "loadBalancesHistory": "readonly",
+        "loadTokenTimeSeries": "readonly",
+        "tokenSelect": "readonly",
+        "loadTimePatterns": "readonly"
+      },
+    },
+    rules: {
+      "no-unused-vars": "warn",
+      "no-console": "off"
+    },
+  },
+  js.configs.recommended,
+  prettier,
+  {
+    ignores: [
+      "node_modules/",
+      "__pycache__/",
+      "*.bak",
+      "*.corrupted_backup",
+      "check_brackets.js",
+      "check_bytes.js",
+      "compress.js",
+      "dashboard_inspector.js",
+      "data-fetch-worker.js",
+      "debug_remove.js",
+      "direct_check.js",
+      "exact_fix.js",
+      "fetch-worker.js",
+      "fix_duplication.js",
+      "fix_exact.js",
+      "fix_exact2.js",
+      "fix_line.js",
+      "fix_pattern.js",
+      "fix_regex.js",
+      "fix_systematically.js",
+      "hash-passwords.js",
+      "identify_issues.js",
+      "notifier.js",
+      "predict.py",
+      "remove_line.js",
+      "search_pattern.js",
+      "simple_fix.js",
+      "simple_read.js",
+      "temp_fix.js",
+      "temp_fixed_line.txt",
+      "temp_function.js",
+      "temp_line.txt",
+      "train.py",
+      ".env.example",
+      "app.js.after_bcrypt_fix",
+      "app.js.clean",
+      "buffer_read.js",
+      "public/consolidated-tracking-updated.html",
+      "public/consolidated-tracking-updated.html.gz",
+      "public/consolidated-tracking.html.gz",
+      "public/consolidated-tracking.html.gz.bak",
+      "public/consolidated-tracking.html.uncompressed",
+      "public/temp-content.html",
+      "scripts/export_diff_dataset.py",
+      "scripts/monitor_model.py",
+      "scripts/schedule_retrain.sh",
+      "models/",
+      "data_exports/",
+      ".git/",
+      ".gemini/",
+      ".genkit/",
+      ".qwen/"
+    ],
+  }
+];

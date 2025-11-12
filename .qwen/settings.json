@@ -1,5 +1,6 @@
 {
   "tools": {
     "approvalMode": "auto-edit"
-  }
+  },
+  "$version": 2
 }

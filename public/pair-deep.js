@@ -1,4 +1,5 @@
-﻿const zoomPlugin =
+﻿/* eslint-disable no-unused-vars */
+const zoomPlugin =
   window.ChartZoom ||
   (window['chartjs-plugin-zoom'] && (window['chartjs-plugin-zoom'].default || window['chartjs-plugin-zoom'])) ||
   null;
@@ -80,7 +81,7 @@ function toNum(v){ const n=Number(v); return Number.isFinite(n)?n:null; }
 
 function computeHistogram(values, bins=20){
   const min=Math.min(...values), max=Math.max(...values);
-  const w=(max-min||1)/bins; const edges=Array.from({length:bins+1},(_,i)=>min+i*w);
+  const w=(max-min||1)/bins; const edges=Array.from({length:bins+1},(_,)=>min+_*w);
   const counts=Array(bins).fill(0);
   values.forEach(v=>{ let idx=Math.floor((v-min)/w); if(idx>=bins) idx=bins-1; if(idx<0) idx=0; counts[idx]++; });
   const centers=edges.slice(0,-1).map((e,i)=>e+w/2);
@@ -200,7 +201,7 @@ function renderNetProfitPerTradeChart(rows) {
   // Reset zoom to show all data
   try { 
     netProfitChart.resetZoom(); 
-  } catch {}
+  } catch {/* ignore */}
   netProfitChart.update('none');
 }
 
@@ -366,7 +367,7 @@ async function run(){
   // Reset zoom to show all data
   try { 
     cumChart.resetZoom(); 
-  } catch {}
+  } catch {/* ignore */}
   cumChart.update('none');
 
   // Histogram of net profit
@@ -433,7 +434,7 @@ async function run(){
   // Reset zoom to show all data
   try { 
     histChart.resetZoom(); 
-  } catch {}
+  } catch {/* ignore */}
   histChart.update('none');
 
   // Scatter X vs Net Profit
@@ -512,7 +513,7 @@ async function run(){
   // Reset zoom to show all data
   try { 
     scatterChart.resetZoom(); 
-  } catch {}
+  } catch {/* ignore */}
   scatterChart.update('none');
 
   statusEl.textContent = `Rows: ${rows.length}`;

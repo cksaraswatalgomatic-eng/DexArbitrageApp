@@ -1,4 +1,5 @@
-function getCookie(name){ const m = document.cookie.match('(?:^|; )'+name.replace(/([.$?*|{}()\[\]\\\/\+^])/g,'\\$1')+'=([^;]*)'); return m? decodeURIComponent(m[1]) : undefined; }
+/* eslint-disable no-useless-escape */
+function getCookie(name){ const m = document.cookie.match('(?:^|; )'+name.replace(/([.$?*|{}()\[\]\\\/+^])/g,'\\$1')+'=([^;]*)'); return m? decodeURIComponent(m[1]) : undefined; }
 function setCookie(name, value){ const d=new Date(); d.setFullYear(d.getFullYear()+1); document.cookie = `${name}=${encodeURIComponent(value)}; path=/; expires=${d.toUTCString()}`; }
 function applyThemeFromCookie(){ const th=getCookie('theme'); const root=document.documentElement; if (th==='light'){ root.classList.add('theme-light'); } else { root.classList.remove('theme-light'); } }
 
@@ -29,3 +30,21 @@ window.__theme = {
   set(th){ setCookie('theme', th); applyThemeFromCookie(); },
   get(){ return getCookie('theme')||'dark'; }
 };
+
+document.addEventListener('DOMContentLoaded', () => {
+  const navDropdownButton = document.getElementById('nav-dropdown-button');
+  const navDropdown = document.getElementById('nav-dropdown');
+
+  if (navDropdownButton && navDropdown) {
+    navDropdownButton.addEventListener('click', (event) => {
+      event.stopPropagation(); // Prevent document click from closing immediately
+      navDropdown.classList.toggle('open');
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!navDropdown.contains(event.target) && !navDropdownButton.contains(event.target)) {
+        navDropdown.classList.remove('open');
+      }
+    });
+  }
+});

@@ -1,4 +1,27 @@
+/* eslint-disable no-unused-vars, no-undef */
 document.addEventListener('DOMContentLoaded', async () => {
+  // Add the consolidated-main-layout class to the main element
+  const mainElement = document.querySelector('main');
+  if (mainElement) {
+    mainElement.classList.add('consolidated-main-layout');
+  }
+
+  // Programmatically create and arrange the grid-2 layout
+  const latestDailyProfitSection = document.querySelector('section.card:has(#consolidatedDailyProfitTable)');
+  const tokenPerformanceSection = document.querySelector('section.card:has(#consolidatedTokenPerformanceChart)');
+  const consolidatedGasTrackingSection = document.querySelector('section.card:has(#consolidatedGasTrackingTable)');
+
+  if (latestDailyProfitSection && tokenPerformanceSection && consolidatedGasTrackingSection && mainElement) {
+    const grid2Div = document.createElement('div');
+    grid2Div.classList.add('grid-2');
+
+    grid2Div.appendChild(latestDailyProfitSection);
+    grid2Div.appendChild(tokenPerformanceSection);
+
+    // Insert the new grid2Div before the consolidatedGasTrackingSection
+    mainElement.insertBefore(grid2Div, consolidatedGasTrackingSection);
+  }
+
   const consolidatedDailyProfitChartCtx = document.getElementById('consolidatedDailyProfitChart').getContext('2d');
   const consolidatedTotalBalanceChartCtx = document.getElementById('consolidatedTotalBalanceChart').getContext('2d');
   const consolidatedBalancesTableBody = document.querySelector('#consolidatedBalancesTable tbody');
@@ -42,7 +65,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const consolidatedThresholds = {};
   let consolidatedSeries = [];
-  let consolidatedServerInfos = [];
   let totalBalanceHistoryCache = null;
   let totalBalanceHistoryPromise = null;
   let isApplyingConsolidatedData = false;
@@ -141,23 +163,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (data.length === 0) return 0;
     const mid = Math.floor(data.length / 2);
     return data.length % 2 === 0 ? (data[mid - 1] + data[mid]) / 2 : data[mid];
-  }
-
-  function removeOutliersIQR(data) {
-    if (data.length < 4) return data; // Not enough data to calculate quartiles reliably
-
-    const values = data.map(entry => Number(entry.total)).filter(Number.isFinite);
-    if (values.length === 0) return data;
-
-    const { q1, q3 } = calculateQuartiles(values);
-    const iqr = q3 - q1;
-    const lowerBound = q1 - 1.5 * iqr;
-    const upperBound = q3 + 1.5 * iqr;
-
-    return data.filter(entry => {
-      const total = Number(entry.total);
-      return Number.isFinite(total) && total >= lowerBound && total <= upperBound;
-    });
   }
 
   function ensureConsolidatedControls() {
@@ -735,4 +740,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderConsolidatedTokenPerformanceChart(), // Call the new chart function
     renderConsolidatedTokenPerformanceTables()
   ]);
+
+  // Dropdown menu logic
+  const navDropdownButton = document.getElementById('nav-dropdown-button');
+  const navDropdown = document.getElementById('nav-dropdown');
+
+  if (navDropdownButton && navDropdown) {
+    navDropdownButton.addEventListener('click', (event) => {
+      event.stopPropagation(); // Prevent document click from closing immediately
+      navDropdown.classList.toggle('open');
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!navDropdown.contains(event.target) && !navDropdownButton.contains(event.target)) {
+        navDropdown.classList.remove('open');
+      }
+    });
+  }
 });

@@ -36,7 +36,16 @@ body {
 main {
   padding: 1.5rem;
   display: grid;
-  gap: 1.5rem;
+  grid-template-columns: 1fr 1fr; /* Two columns for main content */
+  gap: 1rem;
+  max-width: 1600px; /* Adjust as needed */
+  margin: 0 auto;
+}
+
+.full-screen-main {
+  max-width: none; /* Remove max-width constraint */
+  grid-template-columns: 1fr; /* Single column layout */
+  padding: 0; /* Remove padding */
 }
 
 .card {
@@ -44,37 +53,65 @@ main {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
 }
 
-.card:hover {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 15px rgba(0, 229, 255, 0.2), 0 0 30px rgba(0, 229, 255, 0.1);
+/* Explicit grid placement */
+.total-balance-section {
+  grid-column: 1 / -1; /* Span all columns */
+  grid-row: 1;
 }
 
-.grid-2 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 1.5rem;
+.server-status-section {
+  grid-column: 1;
+  grid-row: 2 / span 2; /* Span two rows, starting from row 2 */
 }
 
-.grid-3 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
+.daily-profit-section {
+  grid-column: 2;
+  grid-row: 2;
 }
 
-.vertical-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  width: 100%;
+.gas-consumption-section {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.tab-section-container {
+  grid-column: 1;
+  grid-row: 4;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+
+.comparison-section {
+  grid-column: 2;
+  grid-row: 4;
+}
+
+.completed-trades-section {
+  grid-column: 1 / -1; /* Span all columns */
+  grid-row: 5;
 }
 
 .full-width {
   width: 100%;
   grid-column: 1 / -1; /* Span across all columns in a grid */
+  max-width: none; /* Remove max-width constraint */
+  grid-template-columns: 1fr; /* Single column layout */
+  padding: 0; /* Remove padding */
+}
+
+.consolidated-main-layout {
+  display: block; /* Override display: grid from main */
+  grid-template-columns: 1fr; /* Single column layout */
+  gap: 0; /* Remove gap between sections */
 }
 
 /* 4. Header & Navigation */
@@ -89,6 +126,7 @@ header {
   position: sticky;
   top: 0;
   z-index: 100;
+  flex-wrap: nowrap; /* Prevent header content from wrapping */
 }
 
 #brand {
@@ -114,6 +152,15 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap; /* Allow controls to wrap to prevent overflow */
+  justify-content: flex-end;
+  position: relative; /* Needed for absolute positioning of dropdown */
+}
+
+.header-icons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem; /* Smaller gap for icons */
 }
 
 .controls .logout-btn {
@@ -125,7 +172,9 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
 }
 
 .nav-links-container {
-  display: contents;
+  display: flex;
+  gap: 0.5rem;
+  white-space: nowrap; /* Prevent nav links from wrapping */
 }
 
 .nav-link {
@@ -140,6 +189,62 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
 .nav-link:hover, .nav-link.active {
   color: var(--accent-cyan);
   background-color: rgba(0, 229, 255, 0.1);
+}
+
+/* Dropdown specific styles */
+.dropdown-container {
+  position: relative;
+  display: inline-block; /* Allow it to sit next to other controls */
+}
+
+.nav-dropdown {
+  display: none; /* Hidden by default */
+  position: absolute;
+  top: 100%; /* Position below the trigger button */
+  right: 0; /* Align to the right of the trigger button */
+  background: var(--background-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.5rem;
+  flex-direction: column; /* Stack links vertically */
+  gap: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 200;
+  min-width: 200px; /* Ensure dropdown has a reasonable width */
+}
+
+.dropdown-container:hover .nav-dropdown,
+.dropdown-container:focus-within .nav-dropdown {
+  display: flex; /* Show dropdown on hover or when a child element is focused */
+}
+
+.nav-dropdown .nav-link {
+  display: block; /* Ensure links are block level inside the dropdown */
+  width: 100%;
+  padding: 0.5rem 1rem;
+}
+
+@media (min-width: 1025px) {
+  /* On larger screens, the mobile menu button is hidden, and the dropdown is handled by hover */
+  .mobile-menu-button {
+    display: none;
+  }
+  .nav-dropdown {
+    /* No specific display: none !important here, it's handled by default display: none and hover */
+  }
+}
+
+@media (max-width: 1024px) {
+  /* On smaller screens, hide the dropdown container and show the mobile menu button */
+  .dropdown-container {
+    display: none;
+  }
+  .mobile-menu-button {
+    display: block;
+  }
+  .nav-dropdown.open {
+    display: flex; /* Show it as a flex column when open */
+  }
 }
 
 .icon-btn {
@@ -432,33 +537,12 @@ body.login-page {
 }
 
 @media (max-width: 1024px) {
-  .nav-link {
-    display: none;
-  }
-  .mobile-menu-button {
-    display: block;
-  }
   .nav-links-container {
-    display: none;
-    position: absolute;
-    top: 60px;
-    right: 1rem;
-    background: var(--background-panel);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 0.5rem;
-    flex-direction: column;
-    gap: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    z-index: 200;
+    display: none; /* Hide the inline nav links container */
   }
-  .nav-links-container.open {
-    display: flex;
-  }
-  .nav-links-container .nav-link {
-    display: block;
-    width: 100%;
-    padding: 0.5rem 1rem;
+
+  .mobile-menu-button {
+    display: block; /* Show the hamburger button */
   }
 }
 
@@ -622,9 +706,7 @@ body.login-page {
     gap: 0.5rem;
   }
 
-  .grid-2, .grid-3 {
-    grid-template-columns: 1fr; /* Stack grid items */
-  }
+
 
   .chart-header {
     flex-direction: column;

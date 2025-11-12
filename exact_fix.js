@@ -9,10 +9,10 @@ let content = fs.readFileSync('D:\\\\Project\\\\DexArbitrageApp\\\\app.js', 'utf
 
 // First, fix the pattern in handleProfitNotifications function (around line ~300)
 // The original duplication pattern where extra }); was added
-content = content.replace(/\n  \}\);\n\n\n\n  \}\);\n}/, '\n  });\n}');
+content = content.replace(/\n {2}\}\);\n\n\n\n {2}\}\);\n}/, '\n  });\n}');
 
 // Second, fix the pattern in handleLowGasNotifications function (around line ~345)
-content = content.replace(/\n  \}\);\n\n\n\n  \}\);\n}/, '\n  });\n}');
+content = content.replace(/\n {2}\}\);\n\n\n\n {2}\}\);\n}/, '\n  });\n}');
 
 // Write the fixed content back
 fs.writeFileSync('D:\\\\Project\\\\DexArbitrageApp\\\\app.js', content);

@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 const tableBody = document.querySelector('#notificationsTable tbody');
 const statusEl = document.getElementById('notificationsStatus');
 const limitEl = document.getElementById('notificationsLimit');
@@ -30,7 +31,7 @@ function normalizeDetails(details) {
       if (typeof val === 'object') {
         try {
           return `${key}: ${JSON.stringify(val)}`;
-        } catch (err) {
+} catch (err) {
           return `${key}: [object]`;
         }
       }
@@ -195,7 +196,26 @@ limitEl?.addEventListener('change', () => {
 });
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', loadNotifications);
+  document.addEventListener('DOMContentLoaded', () => {
+    loadNotifications();
+
+    // Dropdown menu logic
+    const navDropdownButton = document.getElementById('nav-dropdown-button');
+    const navDropdown = document.getElementById('nav-dropdown');
+
+    if (navDropdownButton && navDropdown) {
+      navDropdownButton.addEventListener('click', (event) => {
+        event.stopPropagation(); // Prevent document click from closing immediately
+        navDropdown.classList.toggle('open');
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!navDropdown.contains(event.target) && !navDropdownButton.contains(event.target)) {
+          navDropdown.classList.remove('open');
+        }
+      });
+    }
+  });
 } else {
   loadNotifications();
 }

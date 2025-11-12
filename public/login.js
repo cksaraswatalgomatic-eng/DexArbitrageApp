@@ -1,9 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOMContentLoaded event fired in login.js');
   const loginForm = document.getElementById('loginForm');
   const errorMessage = document.getElementById('errorMessage');
 
   if (loginForm) {
+    console.log('loginForm element found.');
     loginForm.addEventListener('submit', async (event) => {
+      console.log('Login form submitted.');
       event.preventDefault();
 
       const username = loginForm.username.value;

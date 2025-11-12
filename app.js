@@ -1,15 +1,21 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-const cron = require('node-cron');
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
-const cookieParser = require('cookie-parser');
-const expressStaticGzip = require('express-static-gzip');
-const { Notifier } = require('./notifier');
-const bcrypt = require('bcrypt');
-const compression = require('compression'); 
+/* eslint-disable no-unused-vars */
+import express from 'express';
+import cors from 'cors';
+import axios from 'axios';
+import cron from 'node-cron';
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs';
+import cookieParser from 'cookie-parser';
+import expressStaticGzip from 'express-static-gzip';
+import { Notifier } from './notifier.js';
+import bcrypt from 'bcrypt';
+import compression from 'compression';
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let ethPrice = null;
 async function getEthPrice() {
@@ -54,7 +60,6 @@ cron.schedule('*/5 * * * *', getBnbPrice);
 const PORT = process.env.PORT || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.sqlite');
 const BALANCES_URL = process.env.BALANCES_URL || 'http://195.201.178.120:3001/balance';
-const TRADES_URL = process.env.TRADES_URL || 'http://195.201.178.120:3001/completed';
 const SERVERS_FILE = path.join(__dirname, 'servers.json');
 
 let etherscanBase = process.env.ETHERSCAN_API_URL || 'https://api.etherscan.io/v2';
@@ -1098,15 +1103,15 @@ function normalizePropsRaw(input) {
       const execKey = ['Market','Limit','PostOnly','IOC','FOK'].find(k => Object.prototype.hasOwnProperty.call(p, k));
       if (execKey) { out.Exec = execKey; const v = Number(p[execKey]); if (Number.isFinite(v)) out.CexSlip = v; }
       // Find Dex as value of any key whose value is 'BUY' or 'SELL'
-      for (const [k, v] of Object.entries(p)) {
-        if (v === 'BUY' || v === 'SELL') {
+for (const [_k, v] of Object.entries(p)) {
+        if (String(v) === 'SELL' || String(v) === 'BUY') {
           out.Dex = String(v);
           break;
         }
       }
       // Find numeric key/value pair -> key = Diff, value = DexSlip
-      for (const [k, v] of Object.entries(p)) {
-        const nk = Number(k); const nv = Number(v);
+      for (const [__k, v] of Object.entries(p)) {
+        const nk = Number(__k); const nv = Number(v);
         if (Number.isFinite(nk) && Number.isFinite(nv)) { out.Diff = nk; out.DexSlip = nv; break; }
       }
     }
@@ -1721,7 +1726,7 @@ async function fetchLiquidityData() {
           // Process up to 2 candles (for last 2 minutes)
           for (let j = 0; j < Math.min(response.data.length, 2); j++) {
             const candle = response.data[j];
-            const openTime = candle[0];
+            const _openTime = candle[0];
             closeTime = candle[6];
             const volume = parseFloat(candle[7]); // quoteAssetVolume (USDT volume)
             const price = parseFloat(candle[4]); // close price
@@ -3516,7 +3521,7 @@ app.get('/consolidated/gas-tracking', async (req, res) => {
           const currEntry = series[i];
           const prevBalance = Number(prevEntry.gas_balance);
           const currBalance = Number(currEntry.gas_balance);
-          const currDeposit = Number(currEntry.gas_deposit);
+          const _currDeposit = Number(currEntry.gas_deposit);
 
           if (!Number.isFinite(prevBalance) || !Number.isFinite(currBalance)) continue;
 
@@ -4368,7 +4373,7 @@ app.get('/contracts/analysis', async (req, res) => {
 });
 
 
-const { spawn } = require('child_process');
+
 
 // Endpoint to get the latest trades for ML training
 app.get('/ml/training-data', (req, res) => {
@@ -4501,7 +4506,7 @@ app.post('/ml/train', (req, res) => {
     fs.writeFileSync(csvPath, csvHeader + csvRows);
     
     // Create subdirectories for the expected structure
-    const tradesDir = path.join(dataDir, 'trades_with_diff.parquet');
+    const _tradesDir = path.join(dataDir, 'trades_with_diff.parquet');
     
     // Write training data in parquet format (expected by the training script)
     // We'll write a simplified version with the required columns
@@ -4516,7 +4521,7 @@ app.post('/ml/train', (req, res) => {
     
     // Write the data in a format compatible with the training script
     // Since the original training script expects a parquet file, we'll create both
-    const parquetPath = path.join(dataDir, 'trades_with_diff.parquet');
+    const _parquetPath = path.join(dataDir, 'trades_with_diff.parquet');
     const csvPathDetailed = path.join(dataDir, 'trades_with_diff.csv');
     
     // Write as CSV since we may not have pyarrow installed
@@ -4749,6 +4754,6 @@ app.listen(PORT, '0.0.0.0', () => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\nShutting down...');
-  try { for (const d of dbCache.values()) d.close(); } catch (_) {}
+  try { for (const d of dbCache.values()) d.close(); } catch (__e) { /* ignore */ }
   process.exit(0);
 });

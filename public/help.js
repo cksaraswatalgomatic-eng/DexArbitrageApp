@@ -14,6 +14,10 @@
     'dex-table': { title: 'DEX Exchange Balances', body: 'Per DEX exchange totals and top tokens (totalUsdt > 0.1). Columns sortable; search to filter.', link: '/docs.html#dex-table' },
     'cex-table': { title: 'BinanceF Balances', body: 'USDT total = wallet USDT + sum of unrealized PnL. Token USDT ≈ (entryPrice * total)/leverage + unrealizedProfit. Columns sortable; use search.', link: '/docs.html#cex-table' },
     'trades-table': { title: 'Completed Trades', body: 'Includes pair, executedGrossProfit (green/red), Quantity = executedSrcPrice * executedQtySrc, timestamps, and parsed props (Dex/Diff/slips).', link: '/docs.html#trades-table' },
+    'server-status': { title: 'Server Status', body: 'Provides a real-time overview of the bot\'s operational status, including strategy parameters, recent profitability, trade counts, and gas balances.' },
+    'daily-profit': { title: 'Daily Profit', body: 'A bar chart summarizing daily net profits. Use the navigation buttons to view different weeks.' },
+    'gas-consumption': { title: 'Gas Consumption', body: 'Tracks hourly gas usage and manual deposits to help manage on-chain costs.' },
+    'dex-cex-comparison': { title: 'DEX vs CEX Comparison', body: 'A side-by-side comparison of token balances (in USDT) between DEX and CEX wallets.' },
     'bot-status-summary': { title: 'Bot Status Summary', body: 'Operational parameters, recent profit windows (1h–24h), trade counts, strategy hints, and gas balances (alerts <2 USDT).', link: '/docs.html#bot-status' },
 
     // Pair Analysis
@@ -95,4 +99,22 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
   else wire();
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const navDropdownButton = document.getElementById('nav-dropdown-button');
+    const navDropdown = document.getElementById('nav-dropdown');
+
+    if (navDropdownButton && navDropdown) {
+      navDropdownButton.addEventListener('click', (event) => {
+        event.stopPropagation(); // Prevent document click from closing immediately
+        navDropdown.classList.toggle('open');
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!navDropdown.contains(event.target) && !navDropdownButton.contains(event.target)) {
+          navDropdown.classList.remove('open');
+        }
+      });
+    }
+  });
 })();

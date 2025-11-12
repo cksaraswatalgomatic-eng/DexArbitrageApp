@@ -234,9 +234,12 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
   display: flex;
 }
 
-/* Show dropdown when it has the 'open' class (for mobile) */
+/* Show dropdown when it has the 'open' class (for mobile menu and desktop programmatic open) */
 .nav-dropdown.open {
-  display: flex;
+  display: flex !important;
+  z-index: 1001 !important; /* Bring to front when open */
+  opacity: 1 !important; /* Make visible when open */
+  visibility: visible !important; /* Make visible when open */
 }
 
 /* Mobile-specific overrides */
@@ -276,7 +279,10 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
 .nav-dropdown .nav-link {
   display: block; /* Ensure links are block level inside the dropdown */
   width: 100%;
-  padding: 0.5rem 1rem;
+
+.nav-dropdown .nav-link:hover {
+  background-color: rgba(31, 111, 235, 0.2);
+  color: var(--accent-cyan);
 }
 
 @media (min-width: 1025px) {
@@ -292,32 +298,10 @@ h1 { font-size: 1.5rem; margin-bottom: 0; }
   .nav-dropdown {
     /* No specific display: none !important here, it's handled by default display: none and hover */
   }
+
 }
 
-  /* Style the nav links specifically for mobile */
-  .nav-dropdown .nav-link {
-    display: block;
-    width: 90%;
-    max-width: 400px;
-    padding: 1rem 1.5rem;
-    margin: 0.5rem 0;
-    text-align: center;
-    border-radius: 8px;
-    background-color: var(--background-panel);
-    border: 1px solid var(--border-color);
-    text-decoration: none;
-    color: var(--text-primary);
-    font-size: 1.2rem;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  }
-  
-  .nav-dropdown .nav-link:hover {
-    background-color: rgba(31, 111, 235, 0.2);
-    color: var(--accent-cyan);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
+/* Mobile-specific overrides */
 }
 
 .icon-btn {

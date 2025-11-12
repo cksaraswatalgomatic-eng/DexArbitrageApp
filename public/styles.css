@@ -36,7 +36,7 @@ body {
 main {
   padding: 1.5rem;
   display: grid;
-  grid-template-columns: 1fr 1fr; /* Two columns for main content */
+  grid-template-columns: 1fr; /* Default to single column for mobile-first approach */
   gap: 1rem;
   max-width: 1600px; /* Adjust as needed */
   margin: 0 auto;
@@ -55,63 +55,72 @@ main {
   padding: 1.5rem;
 }
 
-/* Explicit grid placement */
-.total-balance-section {
-  grid-column: 1 / -1; /* Span all columns */
-  grid-row: 1;
-}
-
-.server-status-section {
-  grid-column: 1;
-  grid-row: 2 / span 2; /* Span two rows, starting from row 2 */
-}
-
-.daily-profit-section {
-  grid-column: 2;
-  grid-row: 2;
-}
-
-.gas-consumption-section {
-  grid-column: 2;
-  grid-row: 3;
-}
-
-.tab-section-container {
-  grid-column: 1;
-  grid-row: 4;
-}
-
-.tab-content {
-  display: none;
-}
-
-.tab-content.active {
-  display: block;
-}
-
-
-.comparison-section {
-  grid-column: 2;
-  grid-row: 4;
-}
-
+/* Remove explicit grid placement for individual sections, let them flow naturally */
+.total-balance-section,
+.server-status-section,
+.daily-profit-section,
+.gas-consumption-section,
+.tab-section-container,
+.comparison-section,
 .completed-trades-section {
-  grid-column: 1 / -1; /* Span all columns */
-  grid-row: 5;
+  grid-column: auto;
+  grid-row: auto;
 }
 
 .full-width {
   width: 100%;
   grid-column: 1 / -1; /* Span across all columns in a grid */
   max-width: none; /* Remove max-width constraint */
-  grid-template-columns: 1fr; /* Single column layout */
+  /* grid-template-columns: 1fr; This is already handled by main's default */
   padding: 0; /* Remove padding */
 }
 
 .consolidated-main-layout {
-  display: block; /* Override display: grid from main */
-  grid-template-columns: 1fr; /* Single column layout */
-  gap: 0; /* Remove gap between sections */
+  display: grid; /* Change to grid to benefit from responsive grid changes */
+  grid-template-columns: 1fr; /* Default to single column */
+  gap: 1rem; /* Maintain consistent gap */
+}
+
+/* Media query for larger screens to enable two-column layout for consolidated-main-layout */
+@media (min-width: 769px) {
+  .consolidated-main-layout {
+    grid-template-columns: 1fr 1fr; /* Two columns for larger screens */
+  }
+  /* Specific placement for consolidated-tracking sections if needed */
+  .consolidated-main-layout .full-width {
+    grid-column: 1 / -1;
+  }
+  main {
+    grid-template-columns: 1fr 1fr; /* Two columns for larger screens */
+  }
+
+  /* Re-apply specific grid placement for larger screens if desired, or let them flow */
+  .total-balance-section {
+    grid-column: 1 / -1;
+  }
+  .server-status-section {
+    grid-column: 1;
+    grid-row: 2 / span 2;
+  }
+  .daily-profit-section {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .gas-consumption-section {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .tab-section-container {
+    grid-column: 1;
+    grid-row: 4;
+  }
+  .comparison-section {
+    grid-column: 2;
+    grid-row: 4;
+  }
+  .completed-trades-section {
+    grid-column: 1 / -1;
+  }
 }
 
 /* 4. Header & Navigation */
@@ -126,7 +135,7 @@ header {
   position: sticky;
   top: 0;
   z-index: 100;
-  flex-wrap: nowrap; /* Prevent header content from wrapping */
+  flex-wrap: wrap; /* Allow header content to wrap */
 }
 
 #brand {
@@ -138,6 +147,7 @@ header {
 .brand-img {
   height: 32px;
   width: auto;
+  max-width: 100%; /* Ensure image scales down */
 }
 
 h1, h2, h3, h4 {
@@ -686,6 +696,19 @@ body.login-page {
     font-size: 13px;
   }
 
+  main {
+    padding: 1rem;
+    grid-template-columns: 1fr; /* Ensure single column on smaller screens */
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  h1 {
+    font-size: 1.2rem;
+  }
+
   header {
     flex-direction: column;
     align-items: flex-start;
@@ -694,19 +717,16 @@ body.login-page {
 
   #brand {
     margin-bottom: 1rem;
-  }
-
-  h1 {
-    font-size: 1.2rem;
+    width: 100%; /* Ensure brand takes full width */
+    justify-content: center; /* Center brand content */
   }
 
   .controls {
     flex-wrap: wrap;
     width: 100%;
     gap: 0.5rem;
+    justify-content: center; /* Center controls on small screens */
   }
-
-
 
   .chart-header {
     flex-direction: column;
@@ -715,6 +735,38 @@ body.login-page {
 
   .chart-nav {
     margin-top: 0.5rem;
+    flex-wrap: wrap; /* Allow chart nav items to wrap */
+    justify-content: center;
+  }
+
+  .inline-control-group {
+    flex-direction: column; /* Stack inline controls vertically */
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .inline-control {
+    width: 100%;
+    justify-content: space-between; /* Distribute label and input */
+  }
+
+  .inline-control input {
+    width: auto; /* Allow input to take necessary width */
+    flex-grow: 1; /* Allow input to grow */
+  }
+
+  .table-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .pagination-nav {
+    justify-content: center;
+  }
+
+  /* Adjust specific elements that might still overflow */
+  .login-card {
+    padding: 1.5rem;
   }
 }
 
@@ -730,5 +782,23 @@ body.login-page {
   .btn, button, select, input {
     padding: 0.4rem 0.8rem;
     font-size: 12px;
+  }
+
+  /* Further adjustments for very small screens */
+  .header-icons {
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .icon-btn {
+    font-size: 1.2rem;
+    padding: 0.3rem;
+  }
+
+  .popover {
+    max-width: 90%;
+    left: 5% !important; /* Center popover */
+    right: 5% !important;
   }
 }

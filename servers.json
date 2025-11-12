@@ -1,5 +1,5 @@
 {
-  "activeId": "base",
+  "activeId": "polygonhttp-116-202-118-60-3001--mfxq1p4y",
   "servers": [
     {
       "id": "bnb",
@@ -7,21 +7,23 @@
       "baseUrl": "http://195.201.178.120:3001",
       "balancesPath": "/balance",
       "completedPath": "/completed",
-      "contractAddress": "",
+      "contractAddress": "0x88ed6ece0c9152251d29a58ad947109b262151c1",
       "explorerSite": "https://bscscan.com",
       "explorerApiBase": "https://api.bscscan.com",
-      "explorerApiKey": ""
+      "explorerApiKey": "WYES7TD22MCZ9MINPBVTM6SKBTHBMBGR43",
+      "chainId": 56
     },
     {
       "id": "arbitrum",
       "label": "ARBITRUM",
-      "baseUrl": "http://168.119.69.230:3001",
+      "baseUrl": "http://65.21.77.124:3001",
       "balancesPath": "/balance",
       "completedPath": "/completed",
-      "contractAddress": "",
+      "contractAddress": "0xcea75c03f181c1032daa124ca78d6a3ff35a7ba0",
       "explorerSite": "https://arbiscan.io",
       "explorerApiBase": "https://api.arbiscan.io",
-      "explorerApiKey": ""
+      "explorerApiKey": "WYES7TD22MCZ9MINPBVTM6SKBTHBMBGR43",
+      "chainId": 42161
     },
     {
       "id": "base",
@@ -41,10 +43,114 @@
       "baseUrl": "http://116.202.118.60:3001",
       "balancesPath": "/balance",
       "completedPath": "/completed",
-      "contractAddress": "",
+      "contractAddress": "0xDBC545681c215de5CF7DA2eB50ECF1B080c73f33",
       "explorerSite": "https://polygonscan.com",
       "explorerApiBase": "https://api.polygonscan.com",
-      "explorerApiKey": ""
+      "explorerApiKey": "WYES7TD22MCZ9MINPBVTM6SKBTHBMBGR43",
+      "chainId": 137
     }
-  ]
+  ],
+  "notifications": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "8353595287:AAE_CFXatbYIrGxZoQw83ztcJniSxkXAUpA",
+      "chatId": "-1003039046761"
+    },
+    "slack": {
+      "enabled": true,
+      "webhookUrl": ""
+    },
+    "email": {
+      "enabled": true,
+      "smtpHost": "",
+      "smtpPort": "587",
+      "secure": false,
+      "user": "",
+      "pass": "",
+      "from": "",
+      "to": ""
+    }
+  },
+  "notificationRules": {
+    "profit-trade": {
+      "thresholdAbsolute": -5,
+      "cooldownMinutes": 30,
+      "channels": [
+        "slack",
+        "telegram"
+      ]
+    },
+    "high-profit-trade": {
+      "thresholdAbsolute": 5,
+      "cooldownMinutes": 30,
+      "channels": [
+        "slack",
+        "telegram"
+      ]
+    },
+    "lowGas": {
+      "threshold": 2,
+      "cooldownMinutes": 60,
+      "channels": [
+        "slack",
+        "telegram"
+      ]
+    },
+    "lowCexVolume": {
+      "threshold": 10,
+      "cooldownMinutes": 5,
+      "channels": [
+        "slack"
+      ]
+    },
+    "pollFailed": {
+      "cooldownMinutes": 30,
+      "channels": [
+        "slack",
+        "telegram"
+      ]
+    },
+    "profit": {
+      "thresholdAbsolute": -5,
+      "thresholdPercent": -5,
+      "cooldownMinutes": 30,
+      "channels": [
+        "slack",
+        "telegram"
+      ]
+    },
+    "high-profit": {
+      "thresholdAbsolute": 5,
+      "thresholdPercent": 5,
+      "cooldownMinutes": 30,
+      "channels": [
+        "slack",
+        "telegram"
+      ]
+    },
+    "dailyDigest": {
+      "enabled": true,
+      "hour": 9,
+      "minute": 0,
+      "channels": [
+        "telegram"
+      ],
+      "cooldownMinutes": 1440
+    },
+    "hourlyDigest": {
+      "enabled": true,
+      "minute": 5,
+      "channels": [
+        "slack"
+      ],
+      "cooldownMinutes": 60
+    },
+    "balanceUpdate": {
+      "cooldownMinutes": 60,
+      "channels": [
+        "slack",
+        "telegram"
+      ]
+    }
+  }
 }

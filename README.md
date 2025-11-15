@@ -9,6 +9,7 @@ Simple Node.js app that periodically fetches balances and completed trades from 
 - Serves a static UI from `public/` and JSON APIs via Express.
 - CORS enabled for easy local development and embedding.
 - **Diff Analysis Page:** Provides detailed visualization and analysis of price differences (diffs) between DEX and CEX, including historical data, server token values, and integrated trade profitability.
+- **Reports & Analytics Page:** `/reports.html` offers KPI cards, equity curves, trade quality histograms, and a paginated ledger with CSV/export tooling over completed trades + balances, now filterable by normalized trade props (Token, Exec, Dex, Diff, DexSlip, CexSlip, LHdelta).
 
  - Notification system with Telegram, Slack, and Email providers, including configurable rules, digests, and a notifications dashboard.
 ## Prerequisites
@@ -93,6 +94,16 @@ npm start
   - `startTime` and `endTime` are optional timestamps (milliseconds) to filter trades.
   - Returns an array of `{ lastUpdateTime, netProfit }`.
 - Static UI: files under `public/` are served at `/`.
+
+### Reporting APIs
+
+The `/reports.html` page consumes the following filter-aware endpoints:
+
+- `GET /api/reports/options`: distinct pairs/exchanges/statuses/networks for populating filter controls.
+- `POST /api/reports/summary`: accepts `timeRange`, `pairs`, `srcExchanges`, `dstExchanges`, `statuses`, `nwIds`, `fsmTypes`, `hedgeMode`, `thresholds` (`minNotional`, `minAbsPnl`) and returns KPI metrics and histogram data.
+- Every endpoint also accepts `propsFilters` to slice by normalized trade props (`tokens`, `execs`, `dexes`, plus numeric min/max for `diff`, `dexSlip`, `cexSlip`, `lhDelta`).
+- `POST /api/reports/equity`: same filter payload, returns `{ balancesCurve, tradeCurve }` for the two equity charts.
+- `POST /api/reports/trades`: same filters plus `page`, `pageSize`, optional `format: 'csv'` for exports, returning paginated trade rows with derived net PnL, notional, and returns.
 
 Example requests:
 
@@ -292,8 +303,4 @@ This is a condensed guide to the inâ€‘app documentation available at `/docs
 
 Open `/docs.html` in the app for deeper explanations with examples.
 
-## Natural Language SQL
 
-- `/nlsql.html` lets analysts ask English questions and receive SQL + results + summaries powered by local Ollama models (`sqlcoder:7b` for Text-to-SQL, `qwen2.5:3b-instruct` for summaries). The UI shows chat history on the left, Results/SQL/Explain/Charts tabs on the right, and badges for timeout/row caps.
-- All translations go through `/api/nlsql/ask`, `/api/nlsql/dryrun`, and `/api/nlsql/run`. Sanitization enforces read-only SELECT, auto-injects `LIMIT 100`, clamps to `NLSQL_MAX_ROWS`, and uses a read-only SQLite connection. Query metadata logs to `logs/nlsql.log`.
-- Schema guidance comes from `odata_dictionary`, which is seeded on first run with table/column notes and question/SQL examples; extend it as you add tables. Full setup, env vars, and safety guidance live in `docs/nlsql.md`.

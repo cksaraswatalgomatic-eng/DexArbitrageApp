@@ -134,6 +134,34 @@ const diffHistoryPruneTracker = new Map();
 
 const DIFF_HISTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const DIFF_HISTORY_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const REPORT_DEFAULT_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
+const REPORT_TIME_PRESETS = {
+  today: () => {
+    const end = Date.now();
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+    return { start: start.getTime(), end };
+  },
+  '24h': () => {
+    const end = Date.now();
+    return { start: end - (24 * 60 * 60 * 1000), end };
+  },
+  '7d': () => {
+    const end = Date.now();
+    return { start: end - (7 * 24 * 60 * 60 * 1000), end };
+  },
+  '30d': () => {
+    const end = Date.now();
+    return { start: end - (30 * 24 * 60 * 60 * 1000), end };
+  },
+  ytd: () => {
+    const now = new Date();
+    const start = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+    return { start: start.getTime(), end: now.getTime() };
+  },
+  all: () => ({ start: 0, end: Date.now() })
+};
+const REPORT_TRADE_TIME_EXPR = 'COALESCE(t.lastUpdateTime, t.executedTime, t.creationTime)';
 
 function ensureNotifier(serverId) {
   if (notifierCache.has(serverId)) return notifierCache.get(serverId);
@@ -1090,6 +1118,28 @@ function normalizePropsRaw(input) {
     const p = typeof input === 'string' ? JSON.parse(input) : (input || {});
     const out = {};
 
+    const assignToken = (value) => {
+      if (value != null && value !== '') {
+        out.Token = String(value);
+      }
+    };
+    const assignLhd = (value) => {
+      const num = Number(value);
+      if (Number.isFinite(num)) out.LHdelta = num;
+    };
+
+    if (p && typeof p === 'object') {
+      for (const key of Object.keys(p)) {
+        const lower = key.toLowerCase();
+        if (!out.Token && (lower === 'token' || lower === 'pair' || lower === 'asset')) {
+          assignToken(p[key]);
+        }
+        if (lower === 'lhdelta' || lower === 'lhd' || lower === 'lh') {
+          assignLhd(p[key]);
+        }
+      }
+    }
+
     // Direct keys
     if (p && (p.Diff != null || p.DexSlip != null || p.CexSlip != null || p.Dex != null || p.Exec != null)) {
       if (p.Diff != null) out.Diff = Number(p.Diff);
@@ -1100,19 +1150,31 @@ function normalizePropsRaw(input) {
     } else {
       // Heuristic format: { 'SOME_link_xxxx': 'SELL', '0.14': '0.06', 'Market': '0.27' }
       // Exec key is one of these, value is CexSlip
-      const execKey = ['Market','Limit','PostOnly','IOC','FOK'].find(k => Object.prototype.hasOwnProperty.call(p, k));
-      if (execKey) { out.Exec = execKey; const v = Number(p[execKey]); if (Number.isFinite(v)) out.CexSlip = v; }
+      const execKey = ['Market', 'Limit', 'PostOnly', 'IOC', 'FOK'].find((k) =>
+        Object.prototype.hasOwnProperty.call(p, k)
+      );
+      if (execKey) {
+        out.Exec = execKey;
+        const v = Number(p[execKey]);
+        if (Number.isFinite(v)) out.CexSlip = v;
+      }
       // Find Dex as value of any key whose value is 'BUY' or 'SELL'
-for (const [_k, v] of Object.entries(p)) {
+      for (const [_k, v] of Object.entries(p)) {
         if (String(v) === 'SELL' || String(v) === 'BUY') {
           out.Dex = String(v);
+          if (!out.Token) assignToken(_k);
           break;
         }
       }
       // Find numeric key/value pair -> key = Diff, value = DexSlip
       for (const [__k, v] of Object.entries(p)) {
-        const nk = Number(__k); const nv = Number(v);
-        if (Number.isFinite(nk) && Number.isFinite(nv)) { out.Diff = nk; out.DexSlip = nv; break; }
+        const nk = Number(__k);
+        const nv = Number(v);
+        if (Number.isFinite(nk) && Number.isFinite(nv)) {
+          out.Diff = nk;
+          out.DexSlip = nv;
+          break;
+        }
       }
     }
     return out;
@@ -4725,6 +4787,662 @@ app.get('/liquidity-data/fetch-now', async (req, res) => {
   } catch (error) {
     console.error('[manual] Error triggering liquidity data fetch:', error);
     res.status(500).json({ error: 'Failed to trigger liquidity data fetch', details: error.message });
+  }
+});
+
+// Reports analytics helpers
+function toStringArray(value) {
+  if (Array.isArray(value)) {
+    return value.map(v => (v == null ? '' : String(v).trim())).filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value.split(',').map(v => v.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function numericOrNull(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function normalizeRangeInput(range) {
+  if (!range || typeof range !== 'object') return { min: null, max: null };
+  const min = numericOrNull(range.min ?? range.start ?? range.from);
+  const max = numericOrNull(range.max ?? range.end ?? range.to);
+  return {
+    min: Number.isFinite(min) ? min : null,
+    max: Number.isFinite(max) ? max : null,
+  };
+}
+
+function hasRangeValue(range) {
+  if (!range) return false;
+  return Number.isFinite(range.min) || Number.isFinite(range.max);
+}
+
+function normalizeReportFilters(payload = {}) {
+  const now = Date.now();
+  const timeRange = payload.timeRange || {};
+  let end = numericOrNull(timeRange.end ?? payload.endTime);
+  let start = numericOrNull(timeRange.start ?? payload.startTime);
+  const presetKey = typeof timeRange.preset === 'string'
+    ? timeRange.preset.toLowerCase()
+    : (typeof payload.timePreset === 'string' ? payload.timePreset.toLowerCase() : null);
+
+  if (!Number.isFinite(end)) end = now;
+  if (!Number.isFinite(start)) {
+    const presetFactory = presetKey && REPORT_TIME_PRESETS[presetKey];
+    if (presetFactory) {
+      const derived = presetFactory();
+      start = derived.start;
+      if (!Number.isFinite(end) && Number.isFinite(derived.end)) {
+        end = derived.end;
+      }
+    } else {
+      start = end - REPORT_DEFAULT_RANGE_MS;
+    }
+  }
+  if (!Number.isFinite(start) || start >= end) {
+    start = Math.max(0, end - REPORT_DEFAULT_RANGE_MS);
+  }
+
+  const minNotional = numericOrNull(payload?.thresholds?.minNotional ?? payload.minNotional);
+  const minAbsPnl = numericOrNull(payload?.thresholds?.minAbsPnl ?? payload.minAbsPnl);
+  const normalizedHedge = typeof payload.hedgeMode === 'string' ? payload.hedgeMode.toLowerCase() : 'all';
+
+  const filters = {
+    start,
+    end,
+    pairs: toStringArray(payload.pairs),
+    srcExchanges: toStringArray(payload.srcExchanges),
+    dstExchanges: toStringArray(payload.dstExchanges),
+    statuses: toStringArray(payload.statuses),
+    nwIds: toStringArray(payload.nwIds),
+    fsmTypes: toStringArray(payload.fsmTypes),
+    hedgeMode: ['hedge', 'non-hedge'].includes(normalizedHedge) ? normalizedHedge : 'all',
+    thresholds: {
+      minNotional: Number.isFinite(minNotional) && minNotional > 0 ? minNotional : null,
+      minAbsPnl: Number.isFinite(minAbsPnl) && minAbsPnl > 0 ? minAbsPnl : null,
+    }
+  };
+
+  const propsFiltersRaw = payload.propsFilters || {};
+  const propsFilters = {
+    tokens: toStringArray(propsFiltersRaw.tokens),
+    execs: toStringArray(propsFiltersRaw.execs),
+    dexes: toStringArray(propsFiltersRaw.dexes),
+    ranges: {
+      Diff: normalizeRangeInput(propsFiltersRaw.diff || propsFiltersRaw.Diff),
+      DexSlip: normalizeRangeInput(propsFiltersRaw.dexSlip || propsFiltersRaw.DexSlip),
+      CexSlip: normalizeRangeInput(propsFiltersRaw.cexSlip || propsFiltersRaw.CexSlip),
+      LHdelta: normalizeRangeInput(propsFiltersRaw.lhDelta || propsFiltersRaw.LHdelta || propsFiltersRaw.lhd),
+    }
+  };
+
+  const hasPropsEquals = propsFilters.tokens.length || propsFilters.execs.length || propsFilters.dexes.length;
+  const hasPropsRanges = Object.values(propsFilters.ranges).some(hasRangeValue);
+  if (hasPropsEquals || hasPropsRanges) {
+    filters.props = propsFilters;
+  }
+
+  return filters;
+}
+
+function reportTradeTimeExpr(alias = 't') {
+  return REPORT_TRADE_TIME_EXPR.replace(/t\./g, `${alias}.`);
+}
+
+function buildReportTradeFilterClause(filters, alias = 't') {
+  const clauses = [];
+  const params = [];
+  const timeExpr = reportTradeTimeExpr(alias);
+
+  if (Number.isFinite(filters.start) && Number.isFinite(filters.end)) {
+    clauses.push(`${timeExpr} BETWEEN ? AND ?`);
+    params.push(filters.start, filters.end);
+  }
+
+  const addInClause = (values, column) => {
+    if (!values || !values.length) return;
+    const placeholders = values.map(() => '?').join(', ');
+    clauses.push(`${alias}.${column} IN (${placeholders})`);
+    params.push(...values);
+  };
+
+  addInClause(filters.pairs, 'pair');
+  addInClause(filters.srcExchanges, 'srcExchange');
+  addInClause(filters.dstExchanges, 'dstExchange');
+  addInClause(filters.statuses, 'status');
+  addInClause(filters.nwIds, 'nwId');
+  addInClause(filters.fsmTypes, 'fsmType');
+
+  if (filters.hedgeMode === 'hedge') {
+    clauses.push(`COALESCE(${alias}.hedge, 0) = 1`);
+  } else if (filters.hedgeMode === 'non-hedge') {
+    clauses.push(`COALESCE(${alias}.hedge, 0) = 0`);
+  }
+
+  if (filters.thresholds?.minNotional != null) {
+    clauses.push(`ABS(COALESCE(${alias}.executedSrcPrice, 0) * COALESCE(${alias}.executedQtySrc, 0)) >= ?`);
+    params.push(filters.thresholds.minNotional);
+  }
+  if (filters.thresholds?.minAbsPnl != null) {
+    clauses.push(`ABS(COALESCE(${alias}.executedGrossProfit, 0) - COALESCE(${alias}.executedFeeTotal, 0) - COALESCE(${alias}.txFee, 0)) >= ?`);
+    params.push(filters.thresholds.minAbsPnl);
+  }
+
+  if (filters.props) {
+    const jsonExpr = (field) => `json_extract(${alias}.props, '$.${field}')`;
+    const addJsonInClause = (values, field) => {
+      if (!values || !values.length) return;
+      const placeholders = values.map(() => '?').join(', ');
+      clauses.push(`${jsonExpr(field)} IN (${placeholders})`);
+      params.push(...values);
+    };
+    addJsonInClause(filters.props.tokens, 'Token');
+    addJsonInClause(filters.props.execs, 'Exec');
+    addJsonInClause(filters.props.dexes, 'Dex');
+
+    const addRangeClause = (range, field) => {
+      if (!hasRangeValue(range)) return;
+      const expr = `CAST(${jsonExpr(field)} AS REAL)`;
+      if (Number.isFinite(range.min)) {
+        clauses.push(`${expr} >= ?`);
+        params.push(range.min);
+      }
+      if (Number.isFinite(range.max)) {
+        clauses.push(`${expr} <= ?`);
+        params.push(range.max);
+      }
+    };
+
+    if (filters.props.ranges) {
+      addRangeClause(filters.props.ranges.Diff, 'Diff');
+      addRangeClause(filters.props.ranges.DexSlip, 'DexSlip');
+      addRangeClause(filters.props.ranges.CexSlip, 'CexSlip');
+      addRangeClause(filters.props.ranges.LHdelta, 'LHdelta');
+    }
+  }
+
+  const clause = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
+  return { clause, params };
+}
+
+function fetchReportTrades(db, filters, options = {}) {
+  const alias = options.alias || 't';
+  const columns = options.columns || `${alias}.*`;
+  const { clause, params } = buildReportTradeFilterClause(filters, alias);
+  let sql = `SELECT ${columns} FROM completed_trades ${alias}${clause}`;
+  if (options.orderBy) {
+    sql += ` ${options.orderBy}`;
+  }
+  if (Number.isInteger(options.limit)) {
+    sql += ' LIMIT ?';
+    params.push(options.limit);
+  }
+  if (Number.isInteger(options.offset)) {
+    sql += ' OFFSET ?';
+    params.push(options.offset);
+  }
+  return db.prepare(sql).all(params);
+}
+
+function countReportTrades(db, filters) {
+  const { clause, params } = buildReportTradeFilterClause(filters, 't');
+  const row = db.prepare(`SELECT COUNT(1) as cnt FROM completed_trades t${clause}`).get(params);
+  return row?.cnt || 0;
+}
+
+function computeTradeNetPnl(row) {
+  const qtyDst = safeNumber(row.executedQtyDst) ?? 0;
+  const dstPrice = safeNumber(row.executedDstPrice) ?? 0;
+  const qtySrc = safeNumber(row.executedQtySrc) ?? 0;
+  const srcPrice = safeNumber(row.executedSrcPrice) ?? 0;
+  const grossValue = qtyDst * dstPrice;
+  const srcCost = qtySrc * srcPrice;
+  const estFee = 0.0002 * grossValue;
+  const net = grossValue - srcCost - estFee;
+  return Number.isFinite(net) ? net : 0;
+}
+
+function computeTradeNotional(row) {
+  const price = safeNumber(row.executedSrcPrice) ?? 0;
+  const qty = safeNumber(row.executedQtySrc) ?? 0;
+  const notional = price * qty;
+  return Number.isFinite(notional) ? Math.abs(notional) : 0;
+}
+
+function mapReportTrades(rows) {
+  return rows.map((row) => {
+    const timestamp = Number(row.lastUpdateTime ?? row.executedTime ?? row.creationTime ?? null);
+    const netPnl = computeTradeNetPnl(row);
+    const notional = computeTradeNotional(row);
+    const ret = Number.isFinite(notional) && Math.abs(notional) > 0 ? netPnl / notional : null;
+    const propsParsed = safeJsonParse(row.props, null);
+    return {
+      ...row,
+      timestamp: Number.isFinite(timestamp) ? timestamp : null,
+      netPnl,
+      notional,
+      ret,
+      propsParsed,
+    };
+  });
+}
+
+function computeMedian(values) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
+
+function computeReportHistogram(values, bucketCount = 20) {
+  const clean = values.filter(Number.isFinite);
+  if (!clean.length) return { bins: [], counts: [] };
+  let min = clean[0];
+  let max = clean[0];
+  for (const val of clean) {
+    if (val < min) min = val;
+    if (val > max) max = val;
+  }
+  if (min === max) {
+    return {
+      bins: [{ label: min.toFixed(2), start: min, end: max }],
+      counts: [clean.length]
+    };
+  }
+  const range = max - min || 1;
+  const step = range / bucketCount;
+  const bins = [];
+  const counts = Array(bucketCount).fill(0);
+  for (let i = 0; i < bucketCount; i++) {
+    const start = min + (i * step);
+    const end = i === bucketCount - 1 ? max : start + step;
+    bins.push({ label: `${start.toFixed(2)} to ${end.toFixed(2)}`, start, end });
+  }
+  for (const value of clean) {
+    let idx = Math.floor((value - min) / step);
+    if (!Number.isFinite(idx) || idx < 0) idx = 0;
+    if (idx >= bucketCount) idx = bucketCount - 1;
+    counts[idx]++;
+  }
+  return { bins, counts, min, max };
+}
+
+function buildTradeCurve(trades) {
+  const sorted = [...trades].sort((a, b) => {
+    const tsA = Number.isFinite(a.timestamp) ? a.timestamp : 0;
+    const tsB = Number.isFinite(b.timestamp) ? b.timestamp : 0;
+    return tsA - tsB;
+  });
+  const points = [];
+  let cumulative = 0;
+  for (const trade of sorted) {
+    if (!Number.isFinite(trade.timestamp)) continue;
+    cumulative += trade.netPnl || 0;
+    points.push({ t: trade.timestamp, value: cumulative });
+  }
+  return points;
+}
+
+function computeMaxDrawdownFromCurve(curve) {
+  let peak = null;
+  let maxDrawdown = 0;
+  for (const point of curve) {
+    if (peak == null || point.value > peak) {
+      peak = point.value;
+    }
+    const drawdown = (peak ?? 0) - point.value;
+    if (drawdown > maxDrawdown) maxDrawdown = drawdown;
+  }
+  return maxDrawdown;
+}
+
+function computeSharpeRatio(trades, startEquity) {
+  if (!Number.isFinite(startEquity) || startEquity === 0) return 0;
+  const daily = new Map();
+  for (const trade of trades) {
+    if (!Number.isFinite(trade.timestamp)) continue;
+    const dateKey = new Date(trade.timestamp).toISOString().slice(0, 10);
+    daily.set(dateKey, (daily.get(dateKey) || 0) + (trade.netPnl || 0));
+  }
+  if (!daily.size) return 0;
+  const returns = Array.from(daily.values())
+    .map(val => val / startEquity)
+    .filter(Number.isFinite);
+  if (!returns.length) return 0;
+  const mean = returns.reduce((sum, val) => sum + val, 0) / returns.length;
+  if (returns.length === 1) return mean;
+  const variance = returns.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / (returns.length - 1 || 1);
+  const std = Math.sqrt(variance);
+  if (!Number.isFinite(std) || std === 0) return 0;
+  return mean / std;
+}
+
+function getStartingEquityForFilters(db, filters) {
+  const startIso = new Date(filters.start).toISOString();
+  const endIso = new Date(filters.end).toISOString();
+  let row = db.prepare(
+    'SELECT timestamp, total_usdt, total_coin, raw_data FROM balances_history WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp ASC LIMIT 1'
+  ).get(startIso, endIso);
+  if (!row) {
+    row = db.prepare(
+      'SELECT timestamp, total_usdt, total_coin, raw_data FROM balances_history ORDER BY timestamp ASC LIMIT 1'
+    ).get();
+  }
+  const parsed = row ? parseBalanceRowValue(row) : null;
+  return parsed?.equity ?? null;
+}
+
+function parseBalanceRowValue(row) {
+  let equity = safeNumber(row.total_usdt);
+  let dex = null;
+  let cex = null;
+  if (row.raw_data) {
+    const snapshot = safeJsonParse(row.raw_data, null);
+    if (snapshot) {
+      const totals = computeDexCex(snapshot);
+      if (Number.isFinite(totals.dexTotal)) dex = totals.dexTotal;
+      if (Number.isFinite(totals.cexTotal)) cex = totals.cexTotal;
+      if (Number.isFinite(totals.combined) && totals.combined !== 0) {
+        equity = totals.combined;
+      }
+    }
+  }
+  if (!Number.isFinite(equity)) {
+    const fallback = safeNumber(row.total_coin);
+    if (Number.isFinite(fallback)) equity = fallback;
+  }
+  return { equity: Number.isFinite(equity) ? equity : null, dex, cex };
+}
+
+function parseTimestampValue(value) {
+  if (value == null) return null;
+  const num = Number(value);
+  if (Number.isFinite(num)) return num;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function fetchBalanceSeries(db, filters) {
+  const startIso = new Date(filters.start).toISOString();
+  const endIso = new Date(filters.end).toISOString();
+  let rows = db.prepare(
+    'SELECT timestamp, total_usdt, total_coin, raw_data FROM balances_history WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp ASC'
+  ).all(startIso, endIso);
+  if (!rows.length) {
+    rows = db.prepare(
+      'SELECT timestamp, total_usdt, total_coin, raw_data FROM balances_history ORDER BY timestamp DESC LIMIT 500'
+    ).all().reverse();
+  }
+  return rows.map(row => {
+    const parsed = parseBalanceRowValue(row);
+    return {
+      t: parseTimestampValue(row.timestamp),
+      equity: parsed.equity,
+      dex: parsed.dex,
+      cex: parsed.cex
+    };
+  }).filter(point => Number.isFinite(point.t) && Number.isFinite(point.equity));
+}
+
+function buildReportSummary(trades, filters, startEquity) {
+  const netPnls = trades.map(t => t.netPnl).filter(Number.isFinite);
+  const returns = trades.map(t => t.ret).filter(Number.isFinite);
+  const totalNetPnl = netPnls.reduce((sum, val) => sum + val, 0);
+  const wins = trades.filter(t => t.netPnl > 0).length;
+  const losses = trades.filter(t => t.netPnl < 0).length;
+  const totalTrades = trades.length;
+  const avgPnl = totalTrades ? totalNetPnl / totalTrades : 0;
+  const medianPnl = computeMedian(netPnls);
+  const tradeCurve = buildTradeCurve(trades);
+  const maxDrawdown = computeMaxDrawdownFromCurve(tradeCurve);
+  const sharpe = computeSharpeRatio(trades, startEquity);
+  return {
+    timeRange: { start: filters.start, end: filters.end },
+    totals: {
+      netPnl: totalNetPnl,
+      trades: totalTrades,
+      wins,
+      losses,
+    },
+    stats: {
+      avgPnl,
+      medianPnl,
+      winRate: totalTrades ? wins / totalTrades : 0,
+      maxDrawdown,
+      sharpe,
+      startEquity: Number.isFinite(startEquity) ? startEquity : null,
+    },
+    histograms: {
+      netPnl: computeReportHistogram(netPnls),
+      returns: computeReportHistogram(returns),
+    }
+  };
+}
+
+function buildTradesCsv(trades) {
+  const headers = [
+    'id',
+    'timestamp',
+    'token',
+    'netProfit',
+    'LHdelta',
+    'Exec',
+    'CexSlip',
+    'Dex',
+    'Diff',
+    'DexSlip'
+  ];
+  const rows = trades.map(t => ([
+    t.id,
+    t.timestamp ? new Date(t.timestamp).toISOString() : '',
+    (t.propsParsed?.Token || t.pair || ''),
+    Number.isFinite(t.netPnl) ? t.netPnl : '',
+    t.propsParsed?.LHdelta != null ? t.propsParsed.LHdelta : '',
+    t.propsParsed?.Exec ?? '',
+    t.propsParsed?.CexSlip != null ? t.propsParsed.CexSlip : '',
+    t.propsParsed?.Dex ?? '',
+    t.propsParsed?.Diff != null ? t.propsParsed.Diff : '',
+    t.propsParsed?.DexSlip != null ? t.propsParsed.DexSlip : '',
+  ]));
+  const formatValue = (value) => {
+    if (value == null) return '';
+    const str = String(value).replace(/"/g, '""');
+    if (/[",\n]/.test(str)) {
+      return `"${str}"`;
+    }
+    return str;
+  };
+  const csvLines = [headers.join(',')];
+  for (const row of rows) {
+    csvLines.push(row.map(formatValue).join(','));
+  }
+  return csvLines.join('\n');
+}
+
+app.get('/api/reports/options', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const distinct = (column, table = 'completed_trades') => db.prepare(
+      `SELECT DISTINCT ${column} AS value FROM ${table} WHERE ${column} IS NOT NULL AND TRIM(${column}) <> '' ORDER BY ${column} COLLATE NOCASE`
+    ).all().map(row => row.value);
+    const distinctJson = (jsonPath) => db.prepare(
+      `SELECT DISTINCT value FROM (
+        SELECT json_extract(props, ?) AS value FROM completed_trades WHERE props IS NOT NULL
+      ) WHERE value IS NOT NULL AND TRIM(CAST(value AS TEXT)) <> '' ORDER BY value COLLATE NOCASE`
+    ).all(jsonPath).map(row => row.value);
+    res.json({
+      pairs: distinct('pair'),
+      srcExchanges: distinct('srcExchange'),
+      dstExchanges: distinct('dstExchange'),
+      statuses: distinct('status'),
+      nwIds: distinct('nwId'),
+      fsmTypes: distinct('fsmType'),
+      tokens: distinctJson('$.Token'),
+      execs: distinctJson('$.Exec'),
+      dexes: distinctJson('$.Dex'),
+      contracts: db.prepare('SELECT DISTINCT contract FROM gas_balance_tracking ORDER BY contract').all().map(row => row.contract),
+    });
+  } catch (err) {
+    console.error('[api:/reports/options] error:', err.message);
+    res.status(500).json({ error: 'Failed to load report options' });
+  }
+});
+
+app.post('/api/reports/summary', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const filters = normalizeReportFilters(req.body || {});
+    const rows = fetchReportTrades(db, filters, {
+      columns: [
+        't.id',
+        't.pair',
+        't.srcExchange',
+        't.dstExchange',
+        't.status',
+        't.nwId',
+        't.fsmType',
+        't.hedge',
+        't.executedGrossProfit',
+        't.executedFeeTotal',
+        't.txFee',
+        't.executedSrcPrice',
+        't.executedDstPrice',
+        't.executedQtySrc',
+        't.executedQtyDst',
+        't.lastUpdateTime',
+        't.executedTime',
+        't.creationTime'
+      ].join(', ')
+    });
+    const trades = mapReportTrades(rows);
+    const startEquity = getStartingEquityForFilters(db, filters);
+    const summary = buildReportSummary(trades, filters, startEquity);
+    res.json(summary);
+  } catch (err) {
+    console.error('[api:/reports/summary] error:', err.message);
+    res.status(500).json({ error: 'Failed to compute report summary' });
+  }
+});
+
+app.post('/api/reports/equity', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const filters = normalizeReportFilters(req.body || {});
+    const timeExpr = reportTradeTimeExpr('t');
+    const rows = fetchReportTrades(db, filters, {
+      columns: [
+        't.executedGrossProfit',
+        't.executedFeeTotal',
+        't.txFee',
+        't.executedSrcPrice',
+        't.executedDstPrice',
+        't.executedQtySrc',
+        't.executedQtyDst',
+        't.lastUpdateTime',
+        't.executedTime',
+        't.creationTime'
+      ].join(', '),
+      orderBy: `ORDER BY ${timeExpr} ASC`
+    });
+    const trades = mapReportTrades(rows);
+    const tradeCurve = buildTradeCurve(trades);
+    const balancesCurve = fetchBalanceSeries(db, filters);
+    res.json({ balancesCurve, tradeCurve });
+  } catch (err) {
+    console.error('[api:/reports/equity] error:', err.message);
+    res.status(500).json({ error: 'Failed to build equity curves' });
+  }
+});
+
+app.post('/api/reports/trades', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const filters = normalizeReportFilters(req.body || {});
+    const format = typeof req.body?.format === 'string' ? req.body.format.toLowerCase() : '';
+    const pageSize = Math.min(Math.max(parseInt(req.body?.pageSize, 10) || 50, 1), 500);
+    const page = Math.max(parseInt(req.body?.page, 10) || 1, 1);
+    const offset = (page - 1) * pageSize;
+    const timeExpr = reportTradeTimeExpr('t');
+
+    if (format === 'csv') {
+      const exportRows = fetchReportTrades(db, filters, {
+        columns: [
+          't.id',
+          't.pair',
+          't.srcExchange',
+          't.dstExchange',
+          't.status',
+          't.nwId',
+          't.fsmType',
+          't.hedge',
+          't.executedGrossProfit',
+          't.executedFeeTotal',
+          't.txFee',
+          't.executedSrcPrice',
+          't.executedQtySrc',
+          't.executedDstPrice',
+          't.executedQtyDst',
+          't.lastUpdateTime',
+          't.executedTime',
+          't.creationTime'
+        ].join(', '),
+        orderBy: `ORDER BY ${timeExpr} ASC`
+      });
+      const exportTrades = mapReportTrades(exportRows);
+      const csv = buildTradesCsv(exportTrades);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="reports-trades.csv"');
+      return res.send(csv);
+    }
+
+    const total = countReportTrades(db, filters);
+    const rows = fetchReportTrades(db, filters, {
+      columns: [
+        't.id',
+        't.pair',
+        't.srcExchange',
+        't.dstExchange',
+        't.status',
+        't.nwId',
+        't.fsmType',
+        't.hedge',
+        't.executedGrossProfit',
+        't.executedFeeTotal',
+        't.txFee',
+        't.executedSrcPrice',
+        't.executedDstPrice',
+        't.executedQtySrc',
+        't.executedQtyDst',
+        't.props',
+        't.raw_data',
+        't.lastUpdateTime',
+        't.executedTime',
+        't.creationTime'
+      ].join(', '),
+      orderBy: `ORDER BY ${timeExpr} DESC`,
+      limit: pageSize,
+      offset
+    });
+    const trades = mapReportTrades(rows);
+    res.json({
+      rows: trades,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: total ? Math.ceil(total / pageSize) : 0,
+      }
+    });
+  } catch (err) {
+    console.error('[api:/reports/trades] error:', err.message);
+    res.status(500).json({ error: 'Failed to load trade ledger' });
   }
 });
 

@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reporting & Analytics - Dex Arbitrage</title>
+    <script src="/auth-check.js"></script>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" as="style" onload="this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"></noscript>
+    <link rel="stylesheet" href="/light-theme.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+  </head>
+  <body>
+    <header>
+      <div id="brand">
+        <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
+        <h1>Trade Reporting & Analytics</h1>
+      </div>
+      <div class="controls">
+        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
+        <label>Server:
+          <select id="serverSelect"></select>
+        </label>
+        <a class="icon-btn" href="/docs.html" title="Documentation" aria-label="Documentation">&#128218;</a>
+        <a class="icon-btn requires-admin" href="/servers.html" data-requires-role="admin" title="Server settings" aria-label="Server settings">&#9881;</a>
+        <a class="icon-btn" href="/notifications.html" title="Notifications" aria-label="Notifications">&#128276;</a>
+        <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
+        <button id="mobile-menu-button" class="mobile-menu-button">&#9776;</button>
+        <div class="nav-menu-wrapper">
+          <div class="dropdown-container">
+            <button id="nav-dropdown-button" class="btn">Pages</button>
+          </div>
+          <div class="nav-dropdown" id="nav-dropdown">
+            <a class="nav-link" href="/">Dashboard</a>
+            <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
+            <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
+            <a class="nav-link" href="/diff-analysis.html">Diff Analysis</a>
+            <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
+            <a class="nav-link" href="/ml-analysis.html">ML Analysis</a>
+            <a class="nav-link" href="/liquidity-monitoring.html">Liquidity Monitoring</a>
+            <a class="nav-link" href="/reports.html">Reports &amp; Analytics</a>
+            <a class="nav-link requires-admin" href="/consolidated-tracking.html" data-requires-role="admin">Consolidated Tracking</a>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main class="reports-main full-screen-main">
+      <div class="reports-layout">
+        <aside class="card filter-panel" aria-label="Filter panel">
+          <div class="filter-panel-header">
+            <h2>Filters</h2>
+            <span id="filters-summary" class="muted"></span>
+          </div>
+          <div class="filter-group">
+            <label for="timePreset">Time Range Preset</label>
+            <select id="timePreset">
+              <option value="24h">Last 24h</option>
+              <option value="7d" selected>Last 7d</option>
+              <option value="30d">Last 30d</option>
+              <option value="ytd">Year to Date</option>
+              <option value="all">All</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="filter-group time-custom" id="customRangeGroup">
+            <label>Custom Range</label>
+            <input type="datetime-local" id="timeStart" aria-label="Start time" />
+            <input type="datetime-local" id="timeEnd" aria-label="End time" />
+          </div>
+          <div class="filter-group">
+            <label for="tokenFilter">Token (props.Token)</label>
+            <select id="tokenFilter" multiple size="6"></select>
+          </div>
+          <div class="filter-group">
+            <label for="execFilter">Execution Type (props.Exec)</label>
+            <select id="execFilter" multiple size="4"></select>
+          </div>
+          <div class="filter-group">
+            <label for="dexFilter">Dex Side (props.Dex)</label>
+            <select id="dexFilter" multiple size="3"></select>
+          </div>
+          <div class="filter-group">
+            <label for="hedgeFilter">Hedge Mode</label>
+            <select id="hedgeFilter">
+              <option value="all">All Trades</option>
+              <option value="hedge">Hedge Only</option>
+              <option value="non-hedge">Non-Hedge Only</option>
+            </select>
+          </div>
+          <div class="filter-group filter-range">
+            <label>Diff (props.Diff)</label>
+            <div class="range-inputs">
+              <input type="number" id="diffMin" step="0.01" placeholder="Min" />
+              <input type="number" id="diffMax" step="0.01" placeholder="Max" />
+            </div>
+          </div>
+          <div class="filter-group filter-range">
+            <label>Dex Slip (props.DexSlip)</label>
+            <div class="range-inputs">
+              <input type="number" id="dexSlipMin" step="0.01" placeholder="Min" />
+              <input type="number" id="dexSlipMax" step="0.01" placeholder="Max" />
+            </div>
+          </div>
+          <div class="filter-group filter-range">
+            <label>Cex Slip (props.CexSlip)</label>
+            <div class="range-inputs">
+              <input type="number" id="cexSlipMin" step="0.01" placeholder="Min" />
+              <input type="number" id="cexSlipMax" step="0.01" placeholder="Max" />
+            </div>
+          </div>
+          <div class="filter-group filter-range">
+            <label>LHdelta (props.LHdelta)</label>
+            <div class="range-inputs">
+              <input type="number" id="lhDeltaMin" step="0.01" placeholder="Min" />
+              <input type="number" id="lhDeltaMax" step="0.01" placeholder="Max" />
+            </div>
+          </div>
+          <div class="filter-actions">
+            <div class="saved-views">
+              <label for="savedViews">
+                Saved Views
+                <select id="savedViews">
+                  <option value="">Load view…</option>
+                </select>
+              </label>
+            </div>
+            <div class="filter-buttons">
+              <button id="applyFilters" class="btn-orange" type="button">Apply Filters</button>
+              <button id="resetFilters" class="btn" type="button">Reset</button>
+              <button id="saveViewBtn" class="btn" type="button">Save View</button>
+            </div>
+          </div>
+        </aside>
+        <section class="reports-content">
+          <div class="card">
+            <div class="reports-header">
+              <div>
+                <h2>Overview</h2>
+                <p class="muted">Slice completed trades &amp; balances to monitor health, risk, and performance.</p>
+              </div>
+              <div class="reports-tabs" role="tablist">
+                <button class="tab-btn active" type="button" data-tab="overview">Overview</button>
+                <button class="tab-btn" type="button" data-tab="pair" disabled title="Coming soon">By Pair / Exchange</button>
+                <button class="tab-btn" type="button" data-tab="time" disabled title="Coming soon">Time Patterns</button>
+                <button class="tab-btn" type="button" data-tab="market" disabled title="Coming soon">Market Context</button>
+                <button class="tab-btn" type="button" data-tab="gas" disabled title="Coming soon">Gas &amp; Ops</button>
+              </div>
+            </div>
+            <div id="reports-status" class="muted" role="status">Ready.</div>
+          </div>
+
+          <section class="card">
+            <h2>KPI Strip</h2>
+            <div class="kpi-grid">
+              <article class="kpi-card" tabindex="0">
+                <span class="kpi-label">Total Net PnL</span>
+                <strong data-kpi="netPnl">—</strong>
+                <small class="muted">after fees &amp; tx</small>
+              </article>
+              <article class="kpi-card" tabindex="0">
+                <span class="kpi-label">Win Rate</span>
+                <strong data-kpi="winRate">—</strong>
+                <small class="muted">wins / total trades</small>
+              </article>
+              <article class="kpi-card" tabindex="0">
+                <span class="kpi-label"># Trades</span>
+                <strong data-kpi="trades">—</strong>
+                <small class="muted"><span data-kpi="wins">0</span> wins · <span data-kpi="losses">0</span> losses</small>
+              </article>
+              <article class="kpi-card" tabindex="0">
+                <span class="kpi-label">Avg PnL / Trade</span>
+                <strong data-kpi="avgPnl">—</strong>
+                <small class="muted">Mean net PnL</small>
+              </article>
+              <article class="kpi-card" tabindex="0">
+                <span class="kpi-label">Median PnL</span>
+                <strong data-kpi="medianPnl">—</strong>
+                <small class="muted">Middle trade</small>
+              </article>
+              <article class="kpi-card" tabindex="0">
+                <span class="kpi-label">Max Drawdown</span>
+                <strong data-kpi="maxDrawdown">—</strong>
+                <small class="muted">Peak-to-trough</small>
+              </article>
+              <article class="kpi-card" tabindex="0">
+                <span class="kpi-label">Sharpe-like</span>
+                <strong data-kpi="sharpe">—</strong>
+                <small class="muted">Daily returns / σ</small>
+              </article>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header chart-header">
+              <div>
+                <h2>Equity Curves</h2>
+                <p class="muted">Overlay balance snapshots against trade-based PnL to reveal drawdowns.</p>
+              </div>
+              <button id="reloadReports" class="btn" type="button">Reload Data</button>
+            </div>
+            <div class="grid-2 stacked-on-mobile">
+              <div>
+                <h3>Balance-based Equity</h3>
+                <div class="chart-container medium-chart">
+                  <canvas id="balancesEquityChart" aria-label="Balance equity chart"></canvas>
+                </div>
+              </div>
+              <div>
+                <h3>Trade-based Cumulative PnL</h3>
+                <div class="chart-container medium-chart">
+                  <canvas id="tradeEquityChart" aria-label="Trade equity chart"></canvas>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>Trade Quality</h2>
+            <div class="grid-2 stacked-on-mobile">
+              <div>
+                <h3>Net PnL Distribution</h3>
+                <div class="chart-container medium-chart">
+                  <canvas id="pnlHistogram"></canvas>
+                </div>
+              </div>
+              <div>
+                <h3>Return per Trade</h3>
+                <div class="chart-container medium-chart">
+                  <canvas id="returnHistogram"></canvas>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <div>
+                <h2>Trade Ledger</h2>
+                <p class="muted">Paginated, filter-aware ledger with export options.</p>
+              </div>
+              <div class="reports-table-actions">
+                <button id="exportTradesCsv" class="btn" type="button">Export Trades CSV</button>
+                <button id="exportSummaryCsv" class="btn" type="button">Export Summary CSV</button>
+                <button id="generateReportBtn" class="btn-orange" type="button">Generate Report</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table id="tradesTable">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Token</th>
+                    <th>Net Profit</th>
+                    <th>LHdelta</th>
+                    <th>Exec</th>
+                    <th>CexSlip</th>
+                    <th>Dex</th>
+                    <th>Diff</th>
+                    <th>DexSlip</th>
+                  </tr>
+                </thead>
+                <tbody id="tradesBody">
+                  <tr><td colspan="9" class="muted">No trades loaded yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="table-pagination" id="tradesPagination">
+              <button id="prevPage" class="btn" type="button">Prev</button>
+              <span id="tradesPageInfo">Page 1 / 1</span>
+              <button id="nextPage" class="btn" type="button">Next</button>
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
+    <dialog id="rawTradeDialog" class="raw-dialog">
+      <div class="raw-dialog-header">
+        <strong>Trade Payload</strong>
+        <button type="button" id="closeRawDialog" class="mini-btn">Close</button>
+      </div>
+      <pre id="rawTradeContent"></pre>
+    </dialog>
+    <footer>
+      <small>Reports powered by balances_history &amp; completed_trades. Use saved views to snapshot scenarios.</small>
+    </footer>
+    <script src="/reports.js"></script>
+    <script src="/servers-client.js"></script>
+    <script src="/help.js"></script>
+    <script src="/theme-switcher.js"></script>
+    <script src="/logout.js"></script>
+    <script src="/mobile-menu.js"></script>
+  </body>
+</html>

@@ -4893,6 +4893,20 @@ function reportTradeTimeExpr(alias = 't') {
   return REPORT_TRADE_TIME_EXPR.replace(/t\./g, `${alias}.`);
 }
 
+function reportNetPnlExpr(alias = 't') {
+  const qtyDst = `COALESCE(${alias}.executedQtyDst, 0)`;
+  const dstPrice = `COALESCE(${alias}.executedDstPrice, 0)`;
+  const qtySrc = `COALESCE(${alias}.executedQtySrc, 0)`;
+  const srcPrice = `COALESCE(${alias}.executedSrcPrice, 0)`;
+  return `((${qtyDst} * ${dstPrice}) * 0.9998) - (${qtySrc} * ${srcPrice})`;
+}
+
+function reportNotionalExpr(alias = 't') {
+  const price = `COALESCE(${alias}.executedSrcPrice, 0)`;
+  const qty = `COALESCE(${alias}.executedQtySrc, 0)`;
+  return `ABS(${price} * ${qty})`;
+}
+
 function buildReportTradeFilterClause(filters, alias = 't') {
   const clauses = [];
   const params = [];
@@ -4992,6 +5006,50 @@ function countReportTrades(db, filters) {
   const { clause, params } = buildReportTradeFilterClause(filters, 't');
   const row = db.prepare(`SELECT COUNT(1) as cnt FROM completed_trades t${clause}`).get(params);
   return row?.cnt || 0;
+}
+
+function fetchReportBreakdown(db, filters, options = {}) {
+  const alias = 't';
+  const { clause, params } = buildReportTradeFilterClause(filters, alias);
+  const rawLimit = Math.min(Math.max(parseInt(options?.pairLimit, 10) || 50, 1), 500);
+  const applyLimit = !options?.allPairs;
+  const netExpr = reportNetPnlExpr(alias);
+  const notionalExpr = reportNotionalExpr(alias);
+  const extendClause = (base, extra) => (base ? `${base} AND ${extra}` : ` WHERE ${extra}`);
+
+  const pairClause = extendClause(clause, `${alias}.pair IS NOT NULL AND TRIM(${alias}.pair) <> ''`);
+  const pairBase = `FROM completed_trades ${alias}${pairClause}`;
+  const pairParams = [...params];
+  let pairSql = `
+    SELECT
+      ${alias}.pair AS pair,
+      COUNT(1) AS trades,
+      SUM(CASE WHEN ${netExpr} > 0 THEN 1 ELSE 0 END) AS wins,
+      SUM(CASE WHEN ${netExpr} < 0 THEN 1 ELSE 0 END) AS losses,
+      SUM(${netExpr}) AS netPnl,
+      AVG(${netExpr}) AS avgPnl,
+      SUM(${notionalExpr}) AS notional
+    ${pairBase}
+    GROUP BY ${alias}.pair
+    ORDER BY netPnl DESC
+  `;
+  if (applyLimit) {
+    pairSql += ' LIMIT ?';
+    pairParams.push(rawLimit);
+  }
+  const pairRows = db.prepare(pairSql).all(pairParams);
+  const pairTotal = db.prepare(`
+    SELECT COUNT(*) AS cnt FROM (
+      SELECT ${alias}.pair ${pairBase}
+      GROUP BY ${alias}.pair
+    )
+  `).get(params)?.cnt || 0;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    pairs: pairRows,
+    totalPairs: pairTotal
+  };
 }
 
 function computeTradeNetPnl(row) {
@@ -5264,6 +5322,36 @@ function buildTradesCsv(trades) {
   return csvLines.join('\n');
 }
 
+function buildPairBreakdownCsv(rows) {
+  const headers = ['pair', 'trades', 'wins', 'losses', 'winRate', 'netPnl', 'avgPnl', 'notional'];
+  const formatValue = (value) => {
+    if (value == null) return '';
+    const str = String(value).replace(/"/g, '""');
+    if (/[",\n]/.test(str)) {
+      return `"${str}"`;
+    }
+    return str;
+  };
+  const csvLines = [headers.join(',')];
+  for (const row of rows || []) {
+    const trades = Number(row.trades) || 0;
+    const wins = Number(row.wins) || 0;
+    const losses = Number(row.losses) || 0;
+    const winRate = trades ? wins / trades : 0;
+    csvLines.push([
+      row.pair || '',
+      trades,
+      wins,
+      losses,
+      winRate,
+      Number(row.netPnl || 0),
+      Number(row.avgPnl || 0),
+      Number(row.notional || 0)
+    ].map(formatValue).join(','));
+  }
+  return csvLines.join('\n');
+}
+
 app.get('/api/reports/options', (req, res) => {
   try {
     const db = getDbFromReq(req);
@@ -5356,6 +5444,28 @@ app.post('/api/reports/equity', (req, res) => {
   } catch (err) {
     console.error('[api:/reports/equity] error:', err.message);
     res.status(500).json({ error: 'Failed to build equity curves' });
+  }
+});
+
+app.post('/api/reports/breakdown', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const filters = normalizeReportFilters(req.body || {});
+    const format = typeof req.body?.format === 'string' ? req.body.format.toLowerCase() : '';
+    const breakdown = fetchReportBreakdown(db, filters, {
+      pairLimit: req.body?.pairLimit,
+      allPairs: format === 'csv' && !req.body?.pairLimit
+    });
+    if (format === 'csv') {
+      const csv = buildPairBreakdownCsv(breakdown.pairs);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="reports-pairs.csv"');
+      return res.send(csv);
+    }
+    res.json(breakdown);
+  } catch (err) {
+    console.error('[api:/reports/breakdown] error:', err.message);
+    res.status(500).json({ error: 'Failed to load breakdown data' });
   }
 });
 

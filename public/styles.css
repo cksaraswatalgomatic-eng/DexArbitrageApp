@@ -972,6 +972,21 @@ body.login-page {
   cursor: not-allowed;
 }
 
+.tab-panel {
+  display: none;
+  margin-top: 1.5rem;
+}
+
+.tab-panel.active {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.breakdown-summary {
+  margin: 0.5rem 0 0;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

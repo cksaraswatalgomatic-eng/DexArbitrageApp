@@ -103,6 +103,7 @@ The `/reports.html` page consumes the following filter-aware endpoints:
 - `POST /api/reports/summary`: accepts `timeRange`, `pairs`, `srcExchanges`, `dstExchanges`, `statuses`, `nwIds`, `fsmTypes`, `hedgeMode`, `thresholds` (`minNotional`, `minAbsPnl`) and returns KPI metrics and histogram data. Net PnL is recomputed per trade as `(executedQtyDst * executedDstPrice) - (executedQtySrc * executedSrcPrice) - (0.0002 * executedQtyDst * executedDstPrice)` so the KPIs match the main dashboard.
 - Every endpoint also accepts `propsFilters` to slice by normalized trade props (`tokens`, `execs`, `dexes`, plus numeric min/max for `diff`, `dexSlip`, `cexSlip`, `lhDelta`).
 - `POST /api/reports/equity`: same filter payload, returns `{ balancesCurve, tradeCurve }` for the two equity charts.
+- `POST /api/reports/breakdown`: adds optional `pairLimit` (default 50, capped at 500) and returns aggregated stats (trades, win rate, total/avg net PnL, notional volume) per pair; pass `format: 'csv'` to download the full pair list as a CSV export.
 - `POST /api/reports/trades`: same filters plus `page`, `pageSize`, optional `format: 'csv'` for exports, returning paginated trade rows with derived net PnL, notional, and returns.
 
 Example requests:

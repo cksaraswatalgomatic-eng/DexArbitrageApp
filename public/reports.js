@@ -9,7 +9,13 @@
     trades: [],
     options: {},
     pagination: { page: 1, pageSize: DEFAULT_PAGE_SIZE, total: 0, totalPages: 0 },
+    breakdown: createEmptyBreakdown(),
+    activeTab: 'overview',
   };
+
+  function createEmptyBreakdown() {
+    return { pairs: [], totalPairs: 0, generatedAt: null };
+  }
 
   const elements = {};
   const charts = {
@@ -93,9 +99,14 @@
     elements.exportTradesBtn = document.getElementById('exportTradesCsv');
     elements.exportSummaryBtn = document.getElementById('exportSummaryCsv');
     elements.generateReportBtn = document.getElementById('generateReportBtn');
+    elements.exportPairsBtn = document.getElementById('exportPairsCsv');
     elements.rawDialog = document.getElementById('rawTradeDialog');
     elements.rawDialogContent = document.getElementById('rawTradeContent');
     elements.rawDialogClose = document.getElementById('closeRawDialog');
+    elements.tabButtons = document.querySelectorAll('.tab-btn[data-tab]');
+    elements.tabPanels = document.querySelectorAll('[data-tab-panel]');
+    elements.pairTableBody = document.getElementById('pairBreakdownBody');
+    elements.pairSummary = document.getElementById('pairBreakdownSummary');
   }
 
   function wireEvents() {
@@ -141,8 +152,37 @@
     elements.exportTradesBtn.addEventListener('click', exportTradesCsv);
     elements.exportSummaryBtn.addEventListener('click', exportSummaryCsv);
     elements.generateReportBtn.addEventListener('click', openPrintableReport);
+    if (elements.exportPairsBtn) {
+      elements.exportPairsBtn.addEventListener('click', exportPairsCsv);
+    }
     if (elements.rawDialog && elements.rawDialogClose) {
       elements.rawDialogClose.addEventListener('click', () => elements.rawDialog.close());
+    }
+    if (elements.tabButtons && elements.tabButtons.length) {
+      elements.tabButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (btn.disabled) return;
+          setActiveTab(btn.dataset.tab);
+        });
+      });
+      setActiveTab(state.activeTab);
+    }
+  }
+
+  function setActiveTab(tab) {
+    if (!tab) return;
+    state.activeTab = tab;
+    if (elements.tabButtons && elements.tabButtons.length) {
+      elements.tabButtons.forEach((btn) => {
+        const isActive = btn.dataset.tab === tab;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+    }
+    if (elements.tabPanels && elements.tabPanels.length) {
+      elements.tabPanels.forEach((panel) => {
+        panel.classList.toggle('active', panel.dataset.tabPanel === tab);
+      });
     }
   }
 
@@ -224,9 +264,10 @@
     setStatus('Loading report…');
     try {
       const payload = state.filtersPayload;
-      const [summary, equity] = await Promise.all([
+      const [summary, equity, breakdown] = await Promise.all([
         fetchJson('/api/reports/summary', payload),
         fetchJson('/api/reports/equity', payload),
+        fetchJson('/api/reports/breakdown', payload),
       ]);
       state.summary = summary;
       updateSummary(summary);
@@ -234,6 +275,7 @@
       updateFilterSummary(summary);
       updateKpis(summary);
       updateEquityCharts(equity);
+      updateBreakdowns(breakdown);
       await loadTradesPage(1);
       setStatus(`Updated ${new Date().toLocaleString()}`);
     } catch (err) {
@@ -326,6 +368,68 @@
       charts[key].options.scales.y.grid.color = colors.grid;
       charts[key].update('none');
     }
+  }
+
+  function updateBreakdowns(data) {
+    state.breakdown = { ...createEmptyBreakdown(), ...(data || {}) };
+    renderPairBreakdown();
+  }
+
+  function renderPairBreakdown() {
+    const rows = state.breakdown?.pairs || [];
+    renderBreakdownTable(elements.pairTableBody, rows, 6, (row) => {
+      const winRate = row.trades ? row.wins / row.trades : 0;
+      return [
+        row.pair || 'n/a',
+        formatInteger(row.trades),
+        formatPercentValue(winRate),
+        formatUsd(row.netPnl),
+        formatUsd(row.avgPnl),
+        formatUsd(row.notional),
+      ];
+    }, 'No pairs match the selected filters.');
+    updateBreakdownSummary(elements.pairSummary, rows, state.breakdown?.totalPairs, 'pairs');
+  }
+
+  function renderBreakdownTable(container, rows, columnCount, buildRow, emptyText) {
+    if (!container) return;
+    container.innerHTML = '';
+    const hasRows = rows && rows.length;
+    if (!hasRows) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = columnCount;
+      td.className = 'muted';
+      td.textContent = emptyText;
+      tr.appendChild(td);
+      container.appendChild(tr);
+      return;
+    }
+    rows.forEach((row) => {
+      const tr = document.createElement('tr');
+      const cells = buildRow(row);
+      cells.forEach((value) => {
+        const td = document.createElement('td');
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      container.appendChild(tr);
+    });
+  }
+
+  function updateBreakdownSummary(element, rows, total, label) {
+    if (!element) return;
+    if (!rows || !rows.length) {
+      element.textContent = `No ${label} match the selected filters.`;
+      return;
+    }
+    const shown = rows.length;
+    const totalText = formatInteger(total || shown);
+    const parts = [`Showing ${shown} of ${totalText} ${label}`];
+    if (state.breakdown?.generatedAt) {
+      parts.push(`Updated ${new Date(state.breakdown.generatedAt).toLocaleString()}`);
+    }
+    element.textContent = parts.join(' · ');
   }
 
   function updateLineChart(key, elementId, data, label) {
@@ -637,6 +741,29 @@
     }
   }
 
+  async function exportPairsCsv() {
+    if (!state.filtersPayload) {
+      setStatus('Apply filters before exporting pairs.');
+      return;
+    }
+    setStatus('Preparing pair CSV…');
+    try {
+      const payload = { ...state.filtersPayload, format: 'csv' };
+      const response = await fetch('/api/reports/breakdown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error('Failed to export pair breakdown');
+      const text = await response.text();
+      downloadBlob(text, 'reports-pairs.csv', 'text/csv');
+      setStatus('Pairs CSV exported.');
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || 'Failed to export pair breakdown CSV');
+    }
+  }
+
   function exportSummaryCsv() {
     if (!state.summary) {
       setStatus('Load summary before exporting.');
@@ -766,6 +893,11 @@
 
   function formatUsdRaw(value) {
     return currencyFmt.format(Number.isFinite(value) ? value : 0);
+  }
+
+  function formatPercentValue(value) {
+    const num = Number(value);
+    return percentFmt.format(Number.isFinite(num) ? num : 0);
   }
 
   function formatCompactCurrency(value) {

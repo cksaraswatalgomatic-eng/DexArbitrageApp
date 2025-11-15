@@ -105,6 +105,7 @@ The `/reports.html` page consumes the following filter-aware endpoints:
 - `POST /api/reports/equity`: same filter payload, returns `{ balancesCurve, tradeCurve }` for the two equity charts.
 - `POST /api/reports/breakdown`: adds optional `pairLimit` (default 50, capped at 500) and returns aggregated stats (trades, win rate, total/avg net PnL, notional volume) per pair; pass `format: 'csv'` to download the full pair list as a CSV export.
 - `POST /api/reports/time`: same filters, returns `{ dayOfWeek, hourOfDay, daily }` arrays plus totals so the UI can visualize day/time performance patterns.
+- `POST /api/reports/market`: same filters, returns exchange-level and token-level aggregates plus a net-PnL timeline for the Market Context tab.
 - `POST /api/reports/trades`: same filters plus `page`, `pageSize`, optional `format: 'csv'` for exports, returning paginated trade rows with derived net PnL, notional, and returns.
 
 Example requests:

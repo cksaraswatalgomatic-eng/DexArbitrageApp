@@ -4907,6 +4907,21 @@ function reportNotionalExpr(alias = 't') {
   return `ABS(${price} * ${qty})`;
 }
 
+function extractDexVenues(pair) {
+  if (!pair) return [];
+  const segments = String(pair).split('->');
+  const venues = new Set();
+  for (const segment of segments) {
+    const trimmed = segment.trim();
+    if (!trimmed) continue;
+    const code = trimmed.split('_')[0]?.toUpperCase();
+    if (['U3', 'U4', 'P3', 'P4', 'A3', 'A4', 'C3', 'C4'].includes(code)) {
+      venues.add(code);
+    }
+  }
+  return Array.from(venues);
+}
+
 function buildReportTradeFilterClause(filters, alias = 't') {
   const clauses = [];
   const params = [];
@@ -5561,6 +5576,18 @@ app.post('/api/reports/time', (req, res) => {
   }
 });
 
+app.post('/api/reports/market', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const filters = normalizeReportFilters(req.body || {});
+    const context = fetchReportMarketContext(db, filters);
+    res.json(context);
+  } catch (err) {
+    console.error('[api:/reports/market] error:', err.message);
+    res.status(500).json({ error: 'Failed to load market context' });
+  }
+});
+
 app.post('/api/reports/trades', (req, res) => {
   try {
     const db = getDbFromReq(req);
@@ -5677,3 +5704,64 @@ process.on('SIGINT', () => {
   try { for (const d of dbCache.values()) d.close(); } catch (__e) { /* ignore */ }
   process.exit(0);
 });
+function fetchReportMarketContext(db, filters) {
+  const alias = 't';
+  const { clause, params } = buildReportTradeFilterClause(filters, alias);
+  const base = `FROM completed_trades ${alias}${clause}`;
+  const netExpr = reportNetPnlExpr(alias);
+  const notionalExpr = reportNotionalExpr(alias);
+  const timeExpr = reportTradeTimeExpr(alias);
+  const tokenExpr = `json_extract(${alias}.props, '$.Token')`;
+  const extendClause = (baseClause, extra) => (baseClause ? `${baseClause} AND ${extra}` : ` WHERE ${extra}`);
+  const totalsRow = db.prepare(`SELECT COUNT(1) as trades FROM completed_trades ${alias}${clause}`).get(params);
+
+  const tokenClause = extendClause(clause, `${tokenExpr} IS NOT NULL AND TRIM(${tokenExpr}) <> ''`);
+  const tokenBase = `FROM completed_trades ${alias}${tokenClause}`;
+  const tokenRows = db.prepare(`
+    SELECT
+      ${tokenExpr} AS token,
+      COUNT(1) AS trades,
+      SUM(CASE WHEN ${netExpr} > 0 THEN 1 ELSE 0 END) AS wins,
+      SUM(CASE WHEN ${netExpr} < 0 THEN 1 ELSE 0 END) AS losses,
+      SUM(${netExpr}) AS netPnl,
+      AVG(${netExpr}) AS avgPnl,
+      SUM(${notionalExpr}) AS notional
+    ${tokenBase}
+    GROUP BY token
+    ORDER BY trades DESC
+    LIMIT 25
+  `).all(params);
+
+  const timelineClause = extendClause(clause, `${timeExpr} IS NOT NULL AND ${alias}.pair IS NOT NULL`);
+  const timelineRows = db.prepare(`
+    SELECT
+      date(datetime(${timeExpr} / 1000.0, 'unixepoch')) AS day,
+      ${alias}.pair AS pair,
+      ${netExpr} AS netPnl
+    FROM completed_trades ${alias}${timelineClause}
+  `).all(params);
+
+  const timelineMap = new Map();
+  for (const row of timelineRows) {
+    const venues = extractDexVenues(row.pair);
+    if (!venues.length || !row.day) continue;
+    if (!timelineMap.has(row.day)) {
+      timelineMap.set(row.day, { day: row.day, venues: {} });
+    }
+    const entry = timelineMap.get(row.day);
+    for (const venue of venues) {
+      entry.venues[venue] = (entry.venues[venue] || 0) + (Number(row.netPnl) || 0);
+    }
+  }
+  const timeline = Array.from(timelineMap.values()).sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    tokens: tokenRows,
+    timeline,
+    totals: {
+      trades: totalsRow?.trades || 0,
+      tokens: tokenRows.length
+    }
+  };
+}

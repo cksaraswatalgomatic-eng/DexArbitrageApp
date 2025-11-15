@@ -147,7 +147,7 @@
                 <button class="tab-btn active" type="button" data-tab="overview">Overview</button>
                 <button class="tab-btn" type="button" data-tab="pair">By Pair / Exchange</button>
                 <button class="tab-btn" type="button" data-tab="time">Time Patterns</button>
-                <button class="tab-btn" type="button" data-tab="market" disabled title="Coming soon">Market Context</button>
+                <button class="tab-btn" type="button" data-tab="market">Market Context</button>
                 <button class="tab-btn" type="button" data-tab="gas" disabled title="Coming soon">Gas &amp; Ops</button>
               </div>
             </div>
@@ -357,6 +357,42 @@
                   </thead>
                   <tbody id="timeHourBody">
                     <tr><td colspan="5" class="muted">No data yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="tab-panel" data-tab-panel="market">
+            <section class="card">
+              <div class="card-header">
+                <div>
+                  <h2>Market Context</h2>
+                  <p class="muted">See how exchanges and tokens contribute to performance across the selected range.</p>
+                </div>
+              </div>
+              <p id="marketSummary" class="muted breakdown-summary">Apply filters to load market context.</p>
+              <div class="chart-container large-chart">
+                <canvas id="marketTimelineChart" aria-label="Market net PnL timeline"></canvas>
+              </div>
+            </section>
+
+            <section class="card">
+              <h3>Token Exposure</h3>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Token</th>
+                      <th>Trades</th>
+                      <th>Win Rate</th>
+                      <th>Net PnL</th>
+                      <th>Avg PnL</th>
+                      <th>Volume</th>
+                    </tr>
+                  </thead>
+                  <tbody id="marketTokenBody">
+                    <tr><td colspan="6" class="muted">No data yet.</td></tr>
                   </tbody>
                 </table>
               </div>

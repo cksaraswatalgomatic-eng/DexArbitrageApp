@@ -11,6 +11,7 @@
     pagination: { page: 1, pageSize: DEFAULT_PAGE_SIZE, total: 0, totalPages: 0 },
     breakdown: createEmptyBreakdown(),
     timePatterns: createEmptyTimePatterns(),
+    marketContext: createEmptyMarketContext(),
     activeTab: 'overview',
   };
 
@@ -22,11 +23,23 @@
     return { dayOfWeek: [], hourOfDay: [], daily: [], totalTrades: 0, totalDays: 0, generatedAt: null };
   }
 
+  function createEmptyMarketContext() {
+    return {
+      srcExchanges: [],
+      dstExchanges: [],
+      tokens: [],
+      timeline: [],
+      totals: { trades: 0, tokens: 0 },
+      generatedAt: null,
+    };
+  }
+
   const elements = {};
   const charts = {
     balances: null,
     trade: null,
     timePnl: null,
+    marketTimeline: null,
     pnlHist: null,
     returnHist: null,
   };
@@ -35,6 +48,16 @@
   const numberFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
   const percentFmt = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 2 });
   const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const VENUE_INFO = {
+    U3: { label: 'Uniswap v3', color: '#FF7F0E' },
+    U4: { label: 'Uniswap v4', color: '#1F77B4' },
+    P3: { label: 'PancakeSwap v3', color: '#2CA02C' },
+    P4: { label: 'PancakeSwap v4', color: '#D62728' },
+    A3: { label: 'Aerodrome v3', color: '#9467BD' },
+    A4: { label: 'Aerodrome v4', color: '#8C564B' },
+    C3: { label: 'Camelot v3', color: '#E377C2' },
+    C4: { label: 'Camelot v4', color: '#7F7F7F' },
+  };
 
   function getCssVar(name, fallback) {
     const styles = getComputedStyle(document.documentElement);
@@ -117,6 +140,8 @@
     elements.timeSummary = document.getElementById('timePatternsSummary');
     elements.timeDayBody = document.getElementById('timeDayBody');
     elements.timeHourBody = document.getElementById('timeHourBody');
+    elements.marketSummary = document.getElementById('marketSummary');
+    elements.marketTokenBody = document.getElementById('marketTokenBody');
   }
 
   function wireEvents() {
@@ -274,11 +299,12 @@
     setStatus('Loading report…');
     try {
       const payload = state.filtersPayload;
-      const [summary, equity, breakdown, timePatterns] = await Promise.all([
+      const [summary, equity, breakdown, timePatterns, marketContext] = await Promise.all([
         fetchJson('/api/reports/summary', payload),
         fetchJson('/api/reports/equity', payload),
         fetchJson('/api/reports/breakdown', payload),
         fetchJson('/api/reports/time', payload),
+        fetchJson('/api/reports/market', payload),
       ]);
       state.summary = summary;
       updateSummary(summary);
@@ -288,6 +314,7 @@
       updateEquityCharts(equity);
       updateBreakdowns(breakdown);
       updateTimePatterns(timePatterns);
+      updateMarketContext(marketContext);
       await loadTradesPage(1);
       setStatus(`Updated ${new Date().toLocaleString()}`);
     } catch (err) {
@@ -466,6 +493,102 @@
       y: Number(row.netPnl) || 0,
     })).filter(point => Number.isFinite(point.x));
     updateLineChart('timePnl', 'timePnlChart', data, 'Net PnL per Day');
+  }
+
+  function updateMarketContext(data) {
+    state.marketContext = { ...createEmptyMarketContext(), ...(data || {}) };
+    renderMarketTables();
+    updateMarketSummary();
+    updateMarketChart();
+  }
+
+  function renderMarketTables() {
+    const tokenRows = state.marketContext?.tokens || [];
+    renderBreakdownTable(elements.marketTokenBody, tokenRows, 6, (row) => [
+      row.token || 'n/a',
+      formatInteger(row.trades),
+      formatPercentValue(calcWinRate(row)),
+      formatUsd(row.netPnl),
+      formatUsd(row.avgPnl),
+      formatUsd(row.notional),
+    ], 'No token data.');
+  }
+
+  function updateMarketSummary() {
+    if (!elements.marketSummary) return;
+    const totals = state.marketContext?.totals || {};
+    const tradeCount = Number(totals.trades) || 0;
+    if (!tradeCount) {
+      elements.marketSummary.textContent = 'No trades match the selected filters.';
+      return;
+    }
+    const tokenCount = Number(totals.tokens) || (state.marketContext?.tokens?.length ?? 0);
+    const parts = [
+      `${formatInteger(tradeCount)} trades`,
+      `${formatInteger(tokenCount)} tokens`,
+    ];
+    if (state.marketContext?.generatedAt) {
+      parts.push(`Updated ${new Date(state.marketContext.generatedAt).toLocaleString()}`);
+    }
+    elements.marketSummary.textContent = parts.join(' · ');
+  }
+
+  function updateMarketChart() {
+    const timeline = state.marketContext?.timeline || [];
+    const ctx = document.getElementById('marketTimelineChart');
+    if (!ctx) return;
+    const colors = getChartThemeColors();
+    const venueKeys = Object.keys(VENUE_INFO);
+    const datasets = venueKeys.map((key) => {
+      const color = VENUE_INFO[key].color;
+      return {
+        label: VENUE_INFO[key].label,
+        data: timeline.map((point) => ({
+          x: point.day ? new Date(point.day).getTime() : null,
+          y: Number(point.venues?.[key]) || 0,
+        })).filter(item => Number.isFinite(item.x)),
+        borderColor: color,
+        backgroundColor: color,
+        tension: 0.15,
+        pointRadius: 0
+      };
+    }).filter(ds => ds.data.some(point => point.y !== 0));
+    if (!charts.marketTimeline) {
+      charts.marketTimeline = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          animation: false,
+          parsing: false,
+          scales: {
+            x: { type: 'time', ticks: { color: colors.muted }, grid: { color: colors.grid } },
+            y: {
+              ticks: {
+                color: colors.muted,
+                callback: (val) => formatCompactCurrency(val)
+              },
+              grid: { color: colors.grid }
+            }
+          },
+          plugins: {
+            legend: { position: 'bottom', labels: { color: colors.text } },
+            tooltip: {
+              callbacks: {
+                label: (context) => `${context.dataset.label}: ${formatUsd(context.parsed.y)}`
+              }
+            }
+          }
+        }
+      });
+    } else {
+      charts.marketTimeline.data.datasets = datasets;
+      charts.marketTimeline.options.scales.x.ticks.color = colors.muted;
+      charts.marketTimeline.options.scales.x.grid.color = colors.grid;
+      charts.marketTimeline.options.scales.y.ticks.color = colors.muted;
+      charts.marketTimeline.options.scales.y.grid.color = colors.grid;
+      charts.marketTimeline.update('none');
+    }
   }
 
   function renderBreakdownTable(container, rows, columnCount, buildRow, emptyText) {
@@ -982,6 +1105,13 @@
     if (!Number.isFinite(num) || num < 0) return 'n/a';
     const wrapped = ((num % 24) + 24) % 24;
     return `${wrapped.toString().padStart(2, '0')}:00`;
+  }
+
+  function calcWinRate(row) {
+    const trades = Number(row?.trades) || 0;
+    if (!trades) return 0;
+    const wins = Number(row?.wins) || 0;
+    return wins / trades;
   }
 
   function formatCompactCurrency(value) {

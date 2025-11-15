@@ -9,7 +9,7 @@ Simple Node.js app that periodically fetches balances and completed trades from 
 - Serves a static UI from `public/` and JSON APIs via Express.
 - CORS enabled for easy local development and embedding.
 - **Diff Analysis Page:** Provides detailed visualization and analysis of price differences (diffs) between DEX and CEX, including historical data, server token values, and integrated trade profitability.
-- **Reports & Analytics Page:** `/reports.html` offers KPI cards, equity curves, trade quality histograms, and a paginated ledger with CSV/export tooling over completed trades + balances, now filterable by normalized trade props (Token, Exec, Dex, Diff, DexSlip, CexSlip, LHdelta).
+- **Reports & Analytics Page:** `/reports.html` offers KPI cards, equity curves, trade quality histograms, and a paginated ledger with CSV/export tooling over completed trades + balances, now filterable by normalized trade props (Token, Exec, Dex, Diff, DexSlip, CexSlip, LHdelta) and using the same net-profit math as the dashboard’s Completed Trades table (dest-value minus src-cost minus 20 bps slip).
 
  - Notification system with Telegram, Slack, and Email providers, including configurable rules, digests, and a notifications dashboard.
 ## Prerequisites
@@ -100,7 +100,7 @@ npm start
 The `/reports.html` page consumes the following filter-aware endpoints:
 
 - `GET /api/reports/options`: distinct pairs/exchanges/statuses/networks for populating filter controls.
-- `POST /api/reports/summary`: accepts `timeRange`, `pairs`, `srcExchanges`, `dstExchanges`, `statuses`, `nwIds`, `fsmTypes`, `hedgeMode`, `thresholds` (`minNotional`, `minAbsPnl`) and returns KPI metrics and histogram data.
+- `POST /api/reports/summary`: accepts `timeRange`, `pairs`, `srcExchanges`, `dstExchanges`, `statuses`, `nwIds`, `fsmTypes`, `hedgeMode`, `thresholds` (`minNotional`, `minAbsPnl`) and returns KPI metrics and histogram data. Net PnL is recomputed per trade as `(executedQtyDst * executedDstPrice) - (executedQtySrc * executedSrcPrice) - (0.0002 * executedQtyDst * executedDstPrice)` so the KPIs match the main dashboard.
 - Every endpoint also accepts `propsFilters` to slice by normalized trade props (`tokens`, `execs`, `dexes`, plus numeric min/max for `diff`, `dexSlip`, `cexSlip`, `lhDelta`).
 - `POST /api/reports/equity`: same filter payload, returns `{ balancesCurve, tradeCurve }` for the two equity charts.
 - `POST /api/reports/trades`: same filters plus `page`, `pageSize`, optional `format: 'csv'` for exports, returning paginated trade rows with derived net PnL, notional, and returns.

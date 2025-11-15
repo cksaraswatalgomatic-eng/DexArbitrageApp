@@ -5228,7 +5228,6 @@ function buildReportSummary(trades, filters, startEquity) {
 
 function buildTradesCsv(trades) {
   const headers = [
-    'id',
     'timestamp',
     'token',
     'netProfit',
@@ -5240,7 +5239,6 @@ function buildTradesCsv(trades) {
     'DexSlip'
   ];
   const rows = trades.map(t => ([
-    t.id,
     t.timestamp ? new Date(t.timestamp).toISOString() : '',
     (t.propsParsed?.Token || t.pair || ''),
     Number.isFinite(t.netPnl) ? t.netPnl : '',
@@ -5389,6 +5387,8 @@ app.post('/api/reports/trades', (req, res) => {
           't.executedQtySrc',
           't.executedDstPrice',
           't.executedQtyDst',
+          't.props',
+          't.raw_data',
           't.lastUpdateTime',
           't.executedTime',
           't.creationTime'

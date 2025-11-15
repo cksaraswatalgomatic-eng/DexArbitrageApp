@@ -23,8 +23,37 @@
   const numberFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
   const percentFmt = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 2 });
 
+  function getCssVar(name, fallback) {
+    const styles = getComputedStyle(document.documentElement);
+    const value = styles.getPropertyValue(name);
+    return value && value.trim() ? value.trim() : fallback;
+  }
+
+  function getChartThemeColors() {
+    return {
+      text: getCssVar('--text-primary', '#C9D1D9'),
+      muted: getCssVar('--text-muted', '#8B949E'),
+      grid: getCssVar('--border-color', '#30363D'),
+    };
+  }
+
+  function applyChartThemeDefaults() {
+    if (!window.Chart) return;
+    const colors = getChartThemeColors();
+    Chart.defaults.color = colors.text;
+    Chart.defaults.borderColor = colors.grid;
+    Chart.defaults.plugins = Chart.defaults.plugins || {};
+    Chart.defaults.plugins.legend = Chart.defaults.plugins.legend || {};
+    Chart.defaults.plugins.legend.labels = Chart.defaults.plugins.legend.labels || {};
+    Chart.defaults.plugins.legend.labels.color = colors.text;
+    Chart.defaults.plugins.tooltip = Chart.defaults.plugins.tooltip || {};
+    Chart.defaults.plugins.tooltip.titleColor = colors.text;
+    Chart.defaults.plugins.tooltip.bodyColor = colors.text;
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     cacheElements();
+    applyChartThemeDefaults();
     wireEvents();
     toggleCustomRange();
     setDefaultCustomRange();
@@ -273,6 +302,7 @@
     if (!ctx) return;
     const labels = (histogram?.bins || []).map(bin => bin.label);
     const counts = histogram?.counts || [];
+    const colors = getChartThemeColors();
     if (!charts[key]) {
       charts[key] = new Chart(ctx, {
         type: 'bar',
@@ -281,15 +311,19 @@
           responsive: true,
           animation: false,
           scales: {
-            x: { ticks: { color: 'var(--text-muted)' } },
-            y: { ticks: { color: 'var(--text-muted)' }, beginAtZero: true }
+            x: { ticks: { color: colors.muted }, grid: { color: colors.grid } },
+            y: { ticks: { color: colors.muted }, grid: { color: colors.grid }, beginAtZero: true }
           },
-          plugins: { legend: { display: false } }
+          plugins: { legend: { display: false, labels: { color: colors.text } } }
         }
       });
     } else {
       charts[key].data.labels = labels;
       charts[key].data.datasets[0].data = counts;
+      charts[key].options.scales.x.ticks.color = colors.muted;
+      charts[key].options.scales.x.grid.color = colors.grid;
+      charts[key].options.scales.y.ticks.color = colors.muted;
+      charts[key].options.scales.y.grid.color = colors.grid;
       charts[key].update('none');
     }
   }
@@ -297,6 +331,7 @@
   function updateLineChart(key, elementId, data, label) {
     const ctx = document.getElementById(elementId);
     if (!ctx) return;
+    const colors = getChartThemeColors();
     if (!charts[key]) {
       charts[key] = new Chart(ctx, {
         type: 'line',
@@ -316,16 +351,17 @@
           animation: false,
           parsing: false,
           scales: {
-            x: { type: 'time', ticks: { color: 'var(--text-muted)' } },
+            x: { type: 'time', ticks: { color: colors.muted }, grid: { color: colors.grid } },
             y: {
               ticks: {
-                color: 'var(--text-muted)',
+                color: colors.muted,
                 callback: (val) => formatCompactCurrency(val)
-              }
+              },
+              grid: { color: colors.grid }
             }
           },
           plugins: {
-            legend: { display: false },
+            legend: { display: false, labels: { color: colors.text } },
             tooltip: {
               callbacks: {
                 label: (context) => `${context.dataset.label}: ${formatUsd(context.parsed.y)}`
@@ -336,6 +372,10 @@
       });
     } else {
       charts[key].data.datasets[0].data = data;
+      charts[key].options.scales.x.ticks.color = colors.muted;
+      charts[key].options.scales.x.grid.color = colors.grid;
+      charts[key].options.scales.y.ticks.color = colors.muted;
+      charts[key].options.scales.y.grid.color = colors.grid;
       charts[key].update('none');
     }
   }

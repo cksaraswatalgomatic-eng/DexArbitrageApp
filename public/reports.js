@@ -659,7 +659,7 @@
       appendCell(tr, formatInteger(row.trades));
       appendCell(tr, formatUsd(row.profit));
       appendCell(tr, formatUsd(row.gasUsed));
-      appendCell(tr, formatUsd(row.netAfterGas));
+      appendCell(tr, formatUsd(row.netAfterGas), row.netAfterGas > 0 ? 'text-pos' : row.netAfterGas < 0 ? 'text-neg' : '');
       elements.gasOpsBody.appendChild(tr);
     });
   }
@@ -807,9 +807,12 @@
     elements.nextPage.disabled = !state.pagination.totalPages || state.pagination.page >= state.pagination.totalPages;
   }
 
-  function appendCell(row, text) {
+  function appendCell(row, text, className) {
     const td = document.createElement('td');
     td.textContent = text;
+    if (className) {
+      td.className = className;
+    }
     row.appendChild(td);
   }
 

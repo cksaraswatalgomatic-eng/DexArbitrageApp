@@ -41,7 +41,6 @@ DexArbitrageApp/
 │   ├── styles.css      # Dashboard styling
 │   ├── diff-analysis.html  # Diff analysis page
 │   ├── pair-analysis.html  # Pair analysis page
-│   ├── ml-analysis.html    # ML analysis page
 │   └── ...             # Other UI files
 └── scripts/
     └── inspect-db.js   # Database inspection utility

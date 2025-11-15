@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -17,7 +17,7 @@
         <h1>Documentation</h1>
       </div>
        <div class="controls">
-        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">🌓</button>
+        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">??</button>
         <a class="icon-btn" href="/notifications.html" title="Notifications" aria-label="Notifications">&#128276;</a>
         <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
                 <button id="mobile-menu-button" class="mobile-menu-button">&#9776;</button>
@@ -31,7 +31,6 @@
                     <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
                     <a class="nav-link" href="/diff-analysis.html">Diff Analysis</a>
                     <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
-                    <a class="nav-link" href="/ml-analysis.html">ML Analysis</a>
                     <a class="nav-link" href="/liquidity-monitoring.html">Liquidity Monitoring</a>
                     <a class="nav-link" href="/reports.html">Reports &amp; Analytics</a>
                     <a class="nav-link requires-admin" href="/consolidated-tracking.html" data-requires-role="admin">Consolidated Tracking</a>
@@ -49,15 +48,15 @@
       </section>
       <section class="card" id="dex-table">
         <h2>DEX Exchange Balances</h2>
-        <p>Breaks down DEX balances by exchange and token (only tokens with totalUsdt &gt; 0.1). Use the search box and click table headers to sort. The “Total DEX USDT” summary aggregates usdtVal and coinVal across exchanges.</p>
+        <p>Breaks down DEX balances by exchange and token (only tokens with totalUsdt &gt; 0.1). Use the search box and click table headers to sort. The �Total DEX USDT� summary aggregates usdtVal and coinVal across exchanges.</p>
       </section>
       <section class="card" id="cex-table">
         <h2>BinanceF Balances</h2>
-        <p>Shows USDT total as wallet USDT plus sum of unrealized PnL from positions. Token USDT value formula: (entryPrice × total)/leverage + unrealizedProfit. Sort and search like other tables.</p>
+        <p>Shows USDT total as wallet USDT plus sum of unrealized PnL from positions. Token USDT value formula: (entryPrice � total)/leverage + unrealizedProfit. Sort and search like other tables.</p>
       </section>
       <section class="card" id="trades-table">
         <h2>Completed Trades</h2>
-        <p>Includes pair, executedGrossProfit (green positive, red negative), Quantity (executedSrcPrice × executedQtySrc), timestamps, and parsed props (Dex, Diff, DexSlip, CexSlip). Click headers to sort and use search to filter.</p>
+        <p>Includes pair, executedGrossProfit (green positive, red negative), Quantity (executedSrcPrice � executedQtySrc), timestamps, and parsed props (Dex, Diff, DexSlip, CexSlip). Click headers to sort and use search to filter.</p>
       </section>
       <section class="card" id="bar-total-profit">
         <h2>Total Gross Profit by Pair</h2>
@@ -87,26 +86,6 @@
       <section class="card" id="scatter-deep">
         <h2>Feature vs Profit (Deep Dive)</h2>
         <p>Scatter of chosen X vs gross profit. Nonlinear shapes suggest the need for thresholds or different sizing rules.</p>
-      </section>
-      <section class="card" id="scatter-ml">
-        <h2>Scatter + Regression (ML Analysis)</h2>
-        <p>Linear fit (slope, intercept), correlation, and R². Points colored by sign of Y. Use Clip Outliers to tame extremes before inspecting fit.</p>
-      </section>
-      <section class="card" id="hist-ml-x">
-        <h2>Histogram X (ML Analysis)</h2>
-        <p>Distribution of the selected X variable. Use Bins to change resolution.</p>
-      </section>
-      <section class="card" id="hist-ml-y">
-        <h2>Histogram Y (ML Analysis)</h2>
-        <p>Distribution of Y. Apply Clip Outliers (%) to focus on the main mass of data.</p>
-      </section>
-      <section class="card" id="resid-ml">
-        <h2>Residuals (ML Analysis)</h2>
-        <p>Residual = Y − Ŷ. Pattern-free cloud around zero indicates a decent linear model. Structure suggests nonlinearity or missing features.</p>
-      </section>
-      <section class="card" id="corr-matrix">
-        <h2>Correlation Matrix (ML Analysis)</h2>
-        <p>Select variables and compute Pearson correlations. Green = positive, Red = negative; intensity ~ |corr|. Use to screen features and detect collinearity.</p>
       </section>
 
     </main>

@@ -284,12 +284,6 @@ This is a condensed guide to the inâ€‘app documentation available at `/docs
   - Cumulative Gross Profit over time (loads fully zoomed out).
   - Gross Profit Distribution histogram.
   - Scatter: chosen X vs gross profit.
-- ML Analysis:
-  - Scatter + Linear Regression, with correlation and RÂ². Points colored by sign of Y. Zoom/pan.
-  - Outlier clipping and histogram bin control.
-  - Histograms for X and Y and Residuals (Y âˆ’ Å¶) scatter.
-  - Correlation Matrix: Select variables, compute Pearson correlations; green positive, red negative.
-
 ## Diff Analysis Page Enhancements
 
 -   **Pagination:** Implemented pagination for the "Diff Analysis" chart and table, allowing data to be loaded in chunks of 5000 entries. A "Load More" button was added to fetch additional data.

@@ -31,12 +31,6 @@
     'hist-gp': { title: 'Distribution', body: 'Histogram of gross profits or chosen metric to see spread and skew.', link: '/docs.html#hist-gp' },
     'scatter-deep': { title: 'Feature vs Profit', body: 'Scatter of chosen X against gross profit. Inspect relationships and dispersion.', link: '/docs.html#scatter-deep' },
 
-    // ML Analysis
-    'scatter-ml': { title: 'Scatter + Regression', body: 'X vs Y with linear regression and correlation. Points colored by sign of Y.', link: '/docs.html#scatter-ml' },
-    'hist-ml-x': { title: 'Histogram: X', body: 'Distribution of X (bin count configurable).', link: '/docs.html#hist-ml-x' },
-    'hist-ml-y': { title: 'Histogram: Y', body: 'Distribution of Y; use Clip Outliers to trim extremes.', link: '/docs.html#hist-ml-y' },
-    'resid-ml': { title: 'Residuals', body: 'Scatter of residuals (Y - Y_hat). Random cloud ~0 indicates decent linear fit.', link: '/docs.html#resid-ml' },
-    'corr-matrix': { title: 'Correlation Matrix', body: 'Select variables and compute Pearson correlations. Green=positive, Red=negative.', link: '/docs.html#corr-matrix' },
 
     // Token Analysis
     'bar-total-profit-token': { title: 'Total Net Profit by Token', body: 'Top tokens by total net profit. Identify consistently profitable assets.', link: '/docs.html#token-bar-total-profit' },

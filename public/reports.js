@@ -12,6 +12,7 @@
     breakdown: createEmptyBreakdown(),
     timePatterns: createEmptyTimePatterns(),
     marketContext: createEmptyMarketContext(),
+    gasOps: createEmptyGasOps(),
     activeTab: 'overview',
   };
 
@@ -34,12 +35,21 @@
     };
   }
 
+  function createEmptyGasOps() {
+    return {
+      summary: { lastTotal: null, consumption24h: null, lastDeposit: null },
+      consumption: [],
+      profitWindows: []
+    };
+  }
+
   const elements = {};
   const charts = {
     balances: null,
     trade: null,
     timePnl: null,
     marketTimeline: null,
+    gasTimeline: null,
     pnlHist: null,
     returnHist: null,
   };
@@ -142,6 +152,10 @@
     elements.timeHourBody = document.getElementById('timeHourBody');
     elements.marketSummary = document.getElementById('marketSummary');
     elements.marketTokenBody = document.getElementById('marketTokenBody');
+    elements.gasTotalNow = document.getElementById('gasTotalNow');
+    elements.gasConsumptionDay = document.getElementById('gasConsumptionDay');
+    elements.gasLastDeposit = document.getElementById('gasLastDeposit');
+    elements.gasOpsBody = document.getElementById('gasOpsBody');
   }
 
   function wireEvents() {
@@ -299,12 +313,13 @@
     setStatus('Loading report…');
     try {
       const payload = state.filtersPayload;
-      const [summary, equity, breakdown, timePatterns, marketContext] = await Promise.all([
+      const [summary, equity, breakdown, timePatterns, marketContext, gasOps] = await Promise.all([
         fetchJson('/api/reports/summary', payload),
         fetchJson('/api/reports/equity', payload),
         fetchJson('/api/reports/breakdown', payload),
         fetchJson('/api/reports/time', payload),
         fetchJson('/api/reports/market', payload),
+        fetchJson('/api/reports/gas-ops', { hours: 72, limit: 50 }),
       ]);
       state.summary = summary;
       updateSummary(summary);
@@ -315,6 +330,7 @@
       updateBreakdowns(breakdown);
       updateTimePatterns(timePatterns);
       updateMarketContext(marketContext);
+      updateGasOps(gasOps);
       await loadTradesPage(1);
       setStatus(`Updated ${new Date().toLocaleString()}`);
     } catch (err) {
@@ -502,6 +518,13 @@
     updateMarketChart();
   }
 
+  function updateGasOps(data) {
+    state.gasOps = { ...createEmptyGasOps(), ...(data || {}) };
+    renderGasSummary();
+    renderGasChart();
+    renderGasTable();
+  }
+
   function renderMarketTables() {
     const tokenRows = state.marketContext?.tokens || [];
     renderBreakdownTable(elements.marketTokenBody, tokenRows, 6, (row) => [
@@ -589,6 +612,56 @@
       charts.marketTimeline.options.scales.y.grid.color = colors.grid;
       charts.marketTimeline.update('none');
     }
+  }
+
+  function renderGasSummary() {
+    if (!elements.gasTotalNow || !elements.gasConsumptionDay || !elements.gasLastDeposit) return;
+    const summary = state.gasOps?.summary || {};
+    elements.gasTotalNow.textContent = Number.isFinite(summary.lastTotal)
+      ? formatUsd(summary.lastTotal)
+      : '—';
+    elements.gasConsumptionDay.textContent = Number.isFinite(summary.consumption24h)
+      ? formatUsd(summary.consumption24h)
+      : '—';
+    if (summary.lastDeposit && summary.lastDeposit.amount) {
+      const timeText = summary.lastDeposit.timestamp ? new Date(summary.lastDeposit.timestamp).toLocaleString() : '';
+      elements.gasLastDeposit.textContent = `${formatUsd(summary.lastDeposit.amount)} @ ${timeText}`;
+    } else {
+      elements.gasLastDeposit.textContent = '—';
+    }
+  }
+
+  function renderGasChart() {
+    const data = (state.gasOps?.consumption || []).map(entry => ({
+      x: entry.timestamp ? new Date(entry.timestamp).getTime() : null,
+      y: Number(entry.latestTotal) || 0,
+    })).filter(point => Number.isFinite(point.x));
+    updateLineChart('gasTimeline', 'gasBalanceChart', data, 'Total Gas Balance');
+  }
+
+  function renderGasTable() {
+    if (!elements.gasOpsBody) return;
+    const rows = state.gasOps?.profitWindows || [];
+    elements.gasOpsBody.innerHTML = '';
+    if (!rows.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.className = 'muted';
+      td.textContent = 'No data yet.';
+      tr.appendChild(td);
+      elements.gasOpsBody.appendChild(tr);
+      return;
+    }
+    rows.forEach((row) => {
+      const tr = document.createElement('tr');
+      appendCell(tr, row.label || '—');
+      appendCell(tr, formatInteger(row.trades));
+      appendCell(tr, formatUsd(row.profit));
+      appendCell(tr, formatUsd(row.gasUsed));
+      appendCell(tr, formatUsd(row.netAfterGas));
+      elements.gasOpsBody.appendChild(tr);
+    });
   }
 
   function renderBreakdownTable(container, rows, columnCount, buildRow, emptyText) {

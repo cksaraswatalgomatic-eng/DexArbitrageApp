@@ -2727,90 +2727,7 @@ app.get('/gas-balance/consumption', (req, res) => {
     const hoursParam = parseInt(req.query.hours, 10);
     const hours = Math.max(1, Math.min(Number.isFinite(hoursParam) ? hoursParam : 48, 168));
     const db = getDbFromReq(req);
-
-    const now = Date.now();
-    const windowStart = new Date(now - hours * 60 * 60 * 1000).toISOString();
-
-    const totals = db.prepare(
-      `SELECT timestamp, gas_balance, gas_deposit, source
-       FROM gas_balance_tracking
-       WHERE contract = '__total__' AND datetime(timestamp) >= datetime(?)
-       ORDER BY datetime(timestamp)`
-    ).all(windowStart);
-
-    const prev = db.prepare(
-      `SELECT timestamp, gas_balance, gas_deposit, source
-       FROM gas_balance_tracking
-       WHERE contract = '__total__' AND datetime(timestamp) < datetime(?)
-       ORDER BY datetime(timestamp) DESC
-       LIMIT 1`
-    ).get(windowStart);
-
-    const series = [];
-    if (prev) series.push(prev);
-    series.push(...totals);
-    if (series.length <= 1) {
-      return res.json([]);
-    }
-
-    const buckets = new Map();
-    let previousAutoTotalBalance = null;
-
-    // Initialize previousAutoTotalBalance from the 'prev' entry if it's an auto-total entry
-    if (series.length > 0 && series[0].source === 'auto-total') {
-      previousAutoTotalBalance = Number(series[0].gas_balance);
-    }
-
-    for (let i = 0; i < series.length; i += 1) {
-      const currEntry = series[i];
-      const currBalance = Number(currEntry.gas_balance);
-      const currDeposit = Number(currEntry.gas_deposit);
-
-      if (!Number.isFinite(currBalance)) continue;
-
-      const entryTime = new Date(currEntry.timestamp);
-      if (Number.isNaN(entryTime.getTime())) continue;
-
-      const hourStart = new Date(entryTime);
-      hourStart.setMinutes(0, 0, 0);
-      hourStart.setSeconds(0, 0); // Ensure exact hour start
-      const bucketKey = hourStart.toISOString();
-
-      const bucket = buckets.get(bucketKey) || {
-        timestamp: bucketKey,
-        consumption: 0,
-        deposit: 0,
-        latestTotal: null, // Will be updated by the latest entry in the bucket
-        sampleTime: null
-      };
-
-      if (currEntry.source === 'auto-total') {
-        if (previousAutoTotalBalance !== null && Number.isFinite(previousAutoTotalBalance)) {
-          let consumption = previousAutoTotalBalance - currBalance;
-          if (consumption < 0) consumption = 0; // Consumption cannot be negative
-          bucket.consumption += consumption;
-        }
-        previousAutoTotalBalance = currBalance;
-      } else if (currEntry.source === 'manual') {
-        if (Number.isFinite(currDeposit) && currDeposit > 0) {
-          bucket.deposit += currDeposit;
-        }
-      }
-
-      bucket.latestTotal = currBalance;
-      bucket.sampleTime = currEntry.timestamp;
-      buckets.set(bucketKey, bucket);
-    }
-
-    const result = Array.from(buckets.values())
-      .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
-      .map((entry) => ({
-        timestamp: entry.timestamp,
-        consumption: entry.consumption,
-        deposit: entry.deposit,
-        latestTotal: entry.latestTotal
-      }));
-
+    const result = computeGasConsumptionSeries(db, hours);
     res.json(result);
   } catch (err) {
     console.error('[api:/gas-balance/consumption] error:', err.message);
@@ -5588,6 +5505,36 @@ app.post('/api/reports/market', (req, res) => {
   }
 });
 
+app.post('/api/reports/gas-ops', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const hours = Math.max(1, Math.min(parseInt(req.body?.hours, 10) || 72, 168));
+    const windowDefs = [
+      { label: '1h', hours: 1 },
+      { label: '4h', hours: 4 },
+      { label: '8h', hours: 8 },
+      { label: '12h', hours: 12 },
+      { label: '24h', hours: 24 },
+      { label: '7d', hours: 24 * 7 },
+    ];
+    const maxWindowHours = windowDefs.reduce((max, window) => Math.max(max, window.hours), 0);
+    const effectiveHours = Math.max(hours, maxWindowHours);
+    const consumptionFull = computeGasConsumptionSeries(db, effectiveHours);
+    const chartCutoff = Date.now() - (hours * 60 * 60 * 1000);
+    const consumption = consumptionFull.filter((entry) => {
+      const ts = Date.parse(entry.timestamp);
+      return Number.isFinite(ts) && ts >= chartCutoff;
+    });
+    const profitWindows = computeProfitWindows(db, windowDefs, consumptionFull);
+    const lastDeposit = fetchLastGasDepositEntry(db);
+    const summary = buildGasOpsSummary(consumptionFull, lastDeposit);
+    res.json({ summary, consumption, profitWindows });
+  } catch (err) {
+    console.error('[api:/reports/gas-ops] error:', err.message);
+    res.status(500).json({ error: 'Failed to load gas & ops data' });
+  }
+});
+
 app.post('/api/reports/trades', (req, res) => {
   try {
     const db = getDbFromReq(req);
@@ -5764,4 +5711,159 @@ function fetchReportMarketContext(db, filters) {
       tokens: tokenRows.length
     }
   };
+}
+function computeGasConsumptionSeries(db, hoursInput) {
+  const hours = Math.max(1, Math.min(Number.isFinite(hoursInput) ? hoursInput : 48, 168));
+  const now = Date.now();
+  const windowStart = new Date(now - hours * 60 * 60 * 1000).toISOString();
+
+  const totals = db.prepare(
+    `SELECT timestamp, gas_balance, gas_deposit, source
+     FROM gas_balance_tracking
+     WHERE contract = '__total__' AND datetime(timestamp) >= datetime(?)
+     ORDER BY datetime(timestamp)`
+  ).all(windowStart);
+
+  const prev = db.prepare(
+    `SELECT timestamp, gas_balance, gas_deposit, source
+     FROM gas_balance_tracking
+     WHERE contract = '__total__' AND datetime(timestamp) < datetime(?)
+     ORDER BY datetime(timestamp) DESC
+     LIMIT 1`
+  ).get(windowStart);
+
+  const series = [];
+  if (prev) series.push(prev);
+  series.push(...totals);
+  if (series.length <= 1) {
+    return [];
+  }
+
+  const buckets = new Map();
+  let previousAutoTotalBalance = null;
+  if (series[0]?.source === 'auto-total') {
+    previousAutoTotalBalance = Number(series[0].gas_balance);
+  }
+
+  for (let i = 0; i < series.length; i += 1) {
+    const currEntry = series[i];
+    const currBalance = Number(currEntry.gas_balance);
+    const currDeposit = Number(currEntry.gas_deposit);
+    if (!Number.isFinite(currBalance)) continue;
+
+    const entryTime = new Date(currEntry.timestamp);
+    if (Number.isNaN(entryTime.getTime())) continue;
+
+    const hourStart = new Date(entryTime);
+    hourStart.setMinutes(0, 0, 0);
+    hourStart.setSeconds(0, 0);
+    const bucketKey = hourStart.toISOString();
+    const bucket = buckets.get(bucketKey) || {
+      timestamp: bucketKey,
+      consumption: 0,
+      deposit: 0,
+      latestTotal: null,
+    };
+
+    if (currEntry.source === 'auto-total') {
+      if (previousAutoTotalBalance !== null && Number.isFinite(previousAutoTotalBalance)) {
+        let consumption = previousAutoTotalBalance - currBalance;
+        if (consumption < 0) consumption = 0;
+        bucket.consumption += consumption;
+      }
+      previousAutoTotalBalance = currBalance;
+    } else if (currEntry.source === 'manual') {
+      if (Number.isFinite(currDeposit) && currDeposit > 0) {
+        bucket.deposit += currDeposit;
+      }
+    }
+
+    bucket.latestTotal = currBalance;
+    buckets.set(bucketKey, bucket);
+  }
+
+  return Array.from(buckets.values())
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+    .map((entry) => ({
+      timestamp: entry.timestamp,
+      consumption: entry.consumption,
+      deposit: entry.deposit,
+      latestTotal: entry.latestTotal
+    }));
+}
+
+function fetchLastGasDepositEntry(db) {
+  return db.prepare(
+    `SELECT timestamp, contract, gas_deposit
+     FROM gas_balance_tracking
+     WHERE gas_deposit IS NOT NULL AND gas_deposit > 0
+     ORDER BY datetime(timestamp) DESC
+     LIMIT 1`
+  ).get();
+}
+
+function buildGasOpsSummary(consumption, lastDepositEntry) {
+  let lastTotal = null;
+  for (let i = consumption.length - 1; i >= 0; i -= 1) {
+    const value = Number(consumption[i].latestTotal);
+    if (Number.isFinite(value)) {
+      lastTotal = value;
+      break;
+    }
+  }
+  const cutoff = Date.now() - (24 * 60 * 60 * 1000);
+  const consumption24h = consumption.reduce((sum, entry) => {
+    const ts = Date.parse(entry.timestamp);
+    if (Number.isFinite(ts) && ts >= cutoff) {
+      return sum + (Number(entry.consumption) || 0);
+    }
+    return sum;
+  }, 0);
+  const lastDeposit = lastDepositEntry && Number(lastDepositEntry.gas_deposit) > 0
+    ? {
+      amount: Number(lastDepositEntry.gas_deposit),
+      timestamp: lastDepositEntry.timestamp,
+      contract: lastDepositEntry.contract
+    }
+    : null;
+  return {
+    lastTotal,
+    consumption24h,
+    lastDeposit
+  };
+}
+
+function sumConsumptionSince(entries, startMs) {
+  return entries.reduce((sum, entry) => {
+    const ts = Date.parse(entry.timestamp);
+    if (Number.isFinite(ts) && ts >= startMs) {
+      return sum + (Number(entry.consumption) || 0);
+    }
+    return sum;
+  }, 0);
+}
+
+function computeProfitWindows(db, windows, consumption) {
+  const now = Date.now();
+  const netExpr = reportNetPnlExpr('t');
+  const timeExpr = reportTradeTimeExpr('t');
+  return windows.map((window) => {
+    const startMs = now - (window.hours * 60 * 60 * 1000);
+    const row = db.prepare(`
+      SELECT COUNT(1) AS trades, SUM(${netExpr}) AS profit
+      FROM completed_trades t
+      WHERE ${timeExpr} >= ?
+    `).get(startMs);
+    const profit = Number(row?.profit) || 0;
+    const trades = row?.trades || 0;
+    const gasUsed = sumConsumptionSince(consumption, startMs);
+    return {
+      label: window.label,
+      hours: window.hours,
+      trades,
+      profit,
+      gasUsed,
+      netAfterGas: profit - gasUsed
+    };
+  });
 }

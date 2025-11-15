@@ -148,7 +148,7 @@
                 <button class="tab-btn" type="button" data-tab="pair">By Pair / Exchange</button>
                 <button class="tab-btn" type="button" data-tab="time">Time Patterns</button>
                 <button class="tab-btn" type="button" data-tab="market">Market Context</button>
-                <button class="tab-btn" type="button" data-tab="gas" disabled title="Coming soon">Gas &amp; Ops</button>
+                <button class="tab-btn" type="button" data-tab="gas">Gas &amp; Ops</button>
               </div>
             </div>
             <div id="reports-status" class="muted" role="status">Ready.</div>
@@ -393,6 +393,53 @@
                   </thead>
                   <tbody id="marketTokenBody">
                     <tr><td colspan="6" class="muted">No data yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="tab-panel" data-tab-panel="gas">
+            <section class="card">
+              <h2>Gas Overview</h2>
+              <div class="gas-stats">
+                <article>
+                  <span>Current Total</span>
+                  <strong id="gasTotalNow">-</strong>
+                </article>
+                <article>
+                  <span>24h Consumption</span>
+                  <strong id="gasConsumptionDay">-</strong>
+                </article>
+                <article>
+                  <span>Last Deposit</span>
+                  <strong id="gasLastDeposit">-</strong>
+                </article>
+              </div>
+            </section>
+
+            <section class="card">
+              <h3>Gas Balance Trend</h3>
+              <div class="chart-container large-chart">
+                <canvas id="gasBalanceChart" aria-label="Gas balance trend"></canvas>
+              </div>
+            </section>
+
+            <section class="card">
+              <h3>Profit vs Gas Consumption</h3>
+              <div class="table-wrap">
+                <table id="gasOpsTable">
+                  <thead>
+                    <tr>
+                      <th>Window</th>
+                      <th>Trades</th>
+                      <th>Profit (USD)</th>
+                      <th>Gas Consumption</th>
+                      <th>Net After Gas</th>
+                    </tr>
+                  </thead>
+                  <tbody id="gasOpsBody">
+                    <tr><td colspan="5" class="muted">No data yet.</td></tr>
                   </tbody>
                 </table>
               </div>

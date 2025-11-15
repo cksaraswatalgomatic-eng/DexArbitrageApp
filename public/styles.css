@@ -1035,6 +1035,26 @@ body.login-page {
   height: 360px;
 }
 
+.gas-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.gas-stats article {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gas-stats span {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 .reports-table-actions {
   display: flex;
   gap: 0.5rem;

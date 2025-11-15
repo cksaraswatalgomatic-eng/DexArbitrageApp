@@ -146,7 +146,7 @@
               <div class="reports-tabs" role="tablist">
                 <button class="tab-btn active" type="button" data-tab="overview">Overview</button>
                 <button class="tab-btn" type="button" data-tab="pair">By Pair / Exchange</button>
-                <button class="tab-btn" type="button" data-tab="time" disabled title="Coming soon">Time Patterns</button>
+                <button class="tab-btn" type="button" data-tab="time">Time Patterns</button>
                 <button class="tab-btn" type="button" data-tab="market" disabled title="Coming soon">Market Context</button>
                 <button class="tab-btn" type="button" data-tab="gas" disabled title="Coming soon">Gas &amp; Ops</button>
               </div>
@@ -302,6 +302,61 @@
                   </thead>
                   <tbody id="pairBreakdownBody">
                     <tr><td colspan="6" class="muted">No data yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div class="tab-panel" data-tab-panel="time">
+            <section class="card">
+              <div class="card-header">
+                <div>
+                  <h2>Time Patterns</h2>
+                  <p class="muted">Track when trades cluster and whether specific days deliver outsized PnL.</p>
+                </div>
+              </div>
+              <p id="timePatternsSummary" class="muted breakdown-summary">Apply filters to load time patterns.</p>
+              <div class="chart-container large-chart">
+                <canvas id="timePnlChart" aria-label="Net PnL over time"></canvas>
+              </div>
+            </section>
+
+            <section class="card">
+              <h3>Day-of-Week Performance</h3>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Day</th>
+                      <th>Trades</th>
+                      <th>Win Rate</th>
+                      <th>Net PnL</th>
+                      <th>Avg PnL</th>
+                    </tr>
+                  </thead>
+                  <tbody id="timeDayBody">
+                    <tr><td colspan="5" class="muted">No data yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="card">
+              <h3>Hour-of-Day Performance</h3>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Hour</th>
+                      <th>Trades</th>
+                      <th>Win Rate</th>
+                      <th>Net PnL</th>
+                      <th>Avg PnL</th>
+                    </tr>
+                  </thead>
+                  <tbody id="timeHourBody">
+                    <tr><td colspan="5" class="muted">No data yet.</td></tr>
                   </tbody>
                 </table>
               </div>

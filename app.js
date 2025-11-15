@@ -5052,6 +5052,86 @@ function fetchReportBreakdown(db, filters, options = {}) {
   };
 }
 
+function fetchReportTimePatterns(db, filters) {
+  const alias = 't';
+  const { clause, params } = buildReportTradeFilterClause(filters, alias);
+  const timeExpr = reportTradeTimeExpr(alias);
+  const netExpr = reportNetPnlExpr(alias);
+  const timeClause = clause ? `${clause} AND ${timeExpr} IS NOT NULL` : ` WHERE ${timeExpr} IS NOT NULL`;
+  const base = `FROM completed_trades ${alias}${timeClause}`;
+
+  const dayRows = db.prepare(`
+    SELECT
+      CAST(strftime('%w', datetime(${timeExpr} / 1000.0, 'unixepoch')) AS INTEGER) AS dow,
+      COUNT(1) AS trades,
+      SUM(CASE WHEN ${netExpr} > 0 THEN 1 ELSE 0 END) AS wins,
+      SUM(CASE WHEN ${netExpr} < 0 THEN 1 ELSE 0 END) AS losses,
+      SUM(${netExpr}) AS netPnl,
+      AVG(${netExpr}) AS avgPnl
+    ${base}
+    GROUP BY dow
+    ORDER BY dow ASC
+  `).all(params);
+
+  const hourRows = db.prepare(`
+    SELECT
+      CAST(strftime('%H', datetime(${timeExpr} / 1000.0, 'unixepoch')) AS INTEGER) AS hour,
+      COUNT(1) AS trades,
+      SUM(CASE WHEN ${netExpr} > 0 THEN 1 ELSE 0 END) AS wins,
+      SUM(CASE WHEN ${netExpr} < 0 THEN 1 ELSE 0 END) AS losses,
+      SUM(${netExpr}) AS netPnl,
+      AVG(${netExpr}) AS avgPnl
+    ${base}
+    GROUP BY hour
+    ORDER BY hour ASC
+  `).all(params);
+
+  const dailyRows = db.prepare(`
+    SELECT
+      date(datetime(${timeExpr} / 1000.0, 'unixepoch')) AS day,
+      COUNT(1) AS trades,
+      SUM(${netExpr}) AS netPnl
+    ${base}
+    GROUP BY day
+    ORDER BY day ASC
+  `).all(params);
+
+  const totalTrades = dayRows.reduce((sum, row) => sum + (row?.trades || 0), 0);
+  const normalizedDays = [];
+  for (let i = 0; i < 7; i += 1) {
+    const found = dayRows.find(row => Number(row.dow) === i);
+    normalizedDays.push({
+      dow: i,
+      trades: found?.trades || 0,
+      wins: found?.wins || 0,
+      losses: found?.losses || 0,
+      netPnl: found?.netPnl || 0,
+      avgPnl: found?.avgPnl || 0,
+    });
+  }
+  const normalizedHours = [];
+  for (let i = 0; i < 24; i += 1) {
+    const found = hourRows.find(row => Number(row.hour) === i);
+    normalizedHours.push({
+      hour: i,
+      trades: found?.trades || 0,
+      wins: found?.wins || 0,
+      losses: found?.losses || 0,
+      netPnl: found?.netPnl || 0,
+      avgPnl: found?.avgPnl || 0,
+    });
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    totalTrades,
+    totalDays: dailyRows.length,
+    dayOfWeek: normalizedDays,
+    hourOfDay: normalizedHours,
+    daily: dailyRows
+  };
+}
+
 function computeTradeNetPnl(row) {
   const qtyDst = safeNumber(row.executedQtyDst) ?? 0;
   const dstPrice = safeNumber(row.executedDstPrice) ?? 0;
@@ -5466,6 +5546,18 @@ app.post('/api/reports/breakdown', (req, res) => {
   } catch (err) {
     console.error('[api:/reports/breakdown] error:', err.message);
     res.status(500).json({ error: 'Failed to load breakdown data' });
+  }
+});
+
+app.post('/api/reports/time', (req, res) => {
+  try {
+    const db = getDbFromReq(req);
+    const filters = normalizeReportFilters(req.body || {});
+    const patterns = fetchReportTimePatterns(db, filters);
+    res.json(patterns);
+  } catch (err) {
+    console.error('[api:/reports/time] error:', err.message);
+    res.status(500).json({ error: 'Failed to load time patterns' });
   }
 });
 

@@ -1031,6 +1031,10 @@ body.login-page {
   height: 320px;
 }
 
+.chart-container.large-chart {
+  height: 360px;
+}
+
 .reports-table-actions {
   display: flex;
   gap: 0.5rem;

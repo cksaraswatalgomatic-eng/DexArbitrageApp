@@ -10,6 +10,7 @@
     options: {},
     pagination: { page: 1, pageSize: DEFAULT_PAGE_SIZE, total: 0, totalPages: 0 },
     breakdown: createEmptyBreakdown(),
+    timePatterns: createEmptyTimePatterns(),
     activeTab: 'overview',
   };
 
@@ -17,10 +18,15 @@
     return { pairs: [], totalPairs: 0, generatedAt: null };
   }
 
+  function createEmptyTimePatterns() {
+    return { dayOfWeek: [], hourOfDay: [], daily: [], totalTrades: 0, totalDays: 0, generatedAt: null };
+  }
+
   const elements = {};
   const charts = {
     balances: null,
     trade: null,
+    timePnl: null,
     pnlHist: null,
     returnHist: null,
   };
@@ -28,6 +34,7 @@
   const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
   const numberFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
   const percentFmt = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 2 });
+  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   function getCssVar(name, fallback) {
     const styles = getComputedStyle(document.documentElement);
@@ -107,6 +114,9 @@
     elements.tabPanels = document.querySelectorAll('[data-tab-panel]');
     elements.pairTableBody = document.getElementById('pairBreakdownBody');
     elements.pairSummary = document.getElementById('pairBreakdownSummary');
+    elements.timeSummary = document.getElementById('timePatternsSummary');
+    elements.timeDayBody = document.getElementById('timeDayBody');
+    elements.timeHourBody = document.getElementById('timeHourBody');
   }
 
   function wireEvents() {
@@ -264,10 +274,11 @@
     setStatus('Loading report…');
     try {
       const payload = state.filtersPayload;
-      const [summary, equity, breakdown] = await Promise.all([
+      const [summary, equity, breakdown, timePatterns] = await Promise.all([
         fetchJson('/api/reports/summary', payload),
         fetchJson('/api/reports/equity', payload),
         fetchJson('/api/reports/breakdown', payload),
+        fetchJson('/api/reports/time', payload),
       ]);
       state.summary = summary;
       updateSummary(summary);
@@ -276,6 +287,7 @@
       updateKpis(summary);
       updateEquityCharts(equity);
       updateBreakdowns(breakdown);
+      updateTimePatterns(timePatterns);
       await loadTradesPage(1);
       setStatus(`Updated ${new Date().toLocaleString()}`);
     } catch (err) {
@@ -389,6 +401,71 @@
       ];
     }, 'No pairs match the selected filters.');
     updateBreakdownSummary(elements.pairSummary, rows, state.breakdown?.totalPairs, 'pairs');
+  }
+
+  function updateTimePatterns(data) {
+    state.timePatterns = { ...createEmptyTimePatterns(), ...(data || {}) };
+    renderTimeDayPatterns();
+    renderTimeHourPatterns();
+    updateTimeSummary();
+    updateTimeChart();
+  }
+
+  function renderTimeDayPatterns() {
+    const rows = state.timePatterns?.dayOfWeek || [];
+    renderBreakdownTable(elements.timeDayBody, rows, 5, (row) => {
+      const trades = Number(row.trades) || 0;
+      const winRate = trades ? (Number(row.wins) || 0) / trades : 0;
+      const label = DAY_LABELS[row.dow] || row.label || 'n/a';
+      return [
+        label,
+        formatInteger(trades),
+        formatPercentValue(winRate),
+        formatUsd(row.netPnl),
+        formatUsd(row.avgPnl),
+      ];
+    }, 'No day-of-week data for this range.');
+  }
+
+  function renderTimeHourPatterns() {
+    const rows = state.timePatterns?.hourOfDay || [];
+    renderBreakdownTable(elements.timeHourBody, rows, 5, (row) => {
+      const trades = Number(row.trades) || 0;
+      const winRate = trades ? (Number(row.wins) || 0) / trades : 0;
+      const label = formatHourLabel(row.hour);
+      return [
+        label,
+        formatInteger(trades),
+        formatPercentValue(winRate),
+        formatUsd(row.netPnl),
+        formatUsd(row.avgPnl),
+      ];
+    }, 'No hour-of-day data for this range.');
+  }
+
+  function updateTimeSummary() {
+    if (!elements.timeSummary) return;
+    const totalTrades = Number(state.timePatterns?.totalTrades) || 0;
+    if (!totalTrades) {
+      elements.timeSummary.textContent = 'No trades match the selected filters.';
+      return;
+    }
+    const totalDays = Number(state.timePatterns?.totalDays) || (state.timePatterns?.daily?.length ?? 0);
+    const parts = [
+      `${formatInteger(totalTrades)} trades across ${formatInteger(totalDays)} days`,
+    ];
+    if (state.timePatterns?.generatedAt) {
+      parts.push(`Updated ${new Date(state.timePatterns.generatedAt).toLocaleString()}`);
+    }
+    elements.timeSummary.textContent = parts.join(' · ');
+  }
+
+  function updateTimeChart() {
+    const data = (state.timePatterns?.daily || []).map((row) => ({
+      x: row.day ? new Date(row.day).getTime() : null,
+      y: Number(row.netPnl) || 0,
+    })).filter(point => Number.isFinite(point.x));
+    updateLineChart('timePnl', 'timePnlChart', data, 'Net PnL per Day');
   }
 
   function renderBreakdownTable(container, rows, columnCount, buildRow, emptyText) {
@@ -898,6 +975,13 @@
   function formatPercentValue(value) {
     const num = Number(value);
     return percentFmt.format(Number.isFinite(num) ? num : 0);
+  }
+
+  function formatHourLabel(hour) {
+    const num = Number(hour);
+    if (!Number.isFinite(num) || num < 0) return 'n/a';
+    const wrapped = ((num % 24) + 24) % 24;
+    return `${wrapped.toString().padStart(2, '0')}:00`;
   }
 
   function formatCompactCurrency(value) {

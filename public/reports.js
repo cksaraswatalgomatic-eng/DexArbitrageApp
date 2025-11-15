@@ -1057,6 +1057,94 @@
       ['Max Drawdown', formatUsdRaw(-(state.summary.stats?.maxDrawdown || 0))],
       ['Sharpe-like', numberFmt.format(state.summary.stats?.sharpe || 0)],
     ];
+
+    const pushHeader = (title, headers) => {
+      rows.push([]);
+      rows.push([title]);
+      if (headers && headers.length) rows.push(headers);
+    };
+
+    const pairRows = state.breakdown?.pairs || [];
+    pushHeader('By Pair / Exchange', ['Pair', 'Trades', 'Win Rate', 'Net PnL', 'Avg PnL', 'Volume']);
+    if (pairRows.length) {
+      pairRows.forEach((row) => {
+        rows.push([
+          row.pair || '',
+          formatInteger(row.trades),
+          percentFmt.format(row.trades ? (row.wins / row.trades) : 0),
+          formatUsd(row.netPnl),
+          formatUsd(row.avgPnl),
+          formatUsd(row.notional),
+        ]);
+      });
+    } else {
+      rows.push(['No pair data']);
+    }
+
+    const dayRows = state.timePatterns?.dayOfWeek || [];
+    pushHeader('Time Patterns - Day', ['Day', 'Trades', 'Win Rate', 'Net PnL', 'Avg PnL']);
+    if (dayRows.length) {
+      dayRows.forEach((row) => {
+        rows.push([
+          DAY_LABELS[row.dow] || row.label || '',
+          formatInteger(row.trades),
+          percentFmt.format(row.trades ? (row.wins / row.trades) : 0),
+          formatUsd(row.netPnl),
+          formatUsd(row.avgPnl),
+        ]);
+      });
+    } else {
+      rows.push(['No day data']);
+    }
+
+    const hourRows = state.timePatterns?.hourOfDay || [];
+    pushHeader('Time Patterns - Hour', ['Hour', 'Trades', 'Win Rate', 'Net PnL', 'Avg PnL']);
+    if (hourRows.length) {
+      hourRows.forEach((row) => {
+        rows.push([
+          formatHourLabel(row.hour),
+          formatInteger(row.trades),
+          percentFmt.format(row.trades ? (row.wins / row.trades) : 0),
+          formatUsd(row.netPnl),
+          formatUsd(row.avgPnl),
+        ]);
+      });
+    } else {
+      rows.push(['No hour data']);
+    }
+
+    const tokenRows = state.marketContext?.tokens || [];
+    pushHeader('Market Context - Tokens', ['Token', 'Trades', 'Net PnL', 'Avg PnL', 'Volume']);
+    if (tokenRows.length) {
+      tokenRows.forEach((row) => {
+        rows.push([
+          row.token || '',
+          formatInteger(row.trades),
+          formatUsd(row.netPnl),
+          formatUsd(row.avgPnl),
+          formatUsd(row.notional),
+        ]);
+      });
+    } else {
+      rows.push(['No token data']);
+    }
+
+    const gasRows = state.gasOps?.profitWindows || [];
+    pushHeader('Gas & Ops - Profit vs Gas', ['Window', 'Trades', 'Profit', 'Gas', 'Net After Gas']);
+    if (gasRows.length) {
+      gasRows.forEach((row) => {
+        rows.push([
+          row.label || '',
+          formatInteger(row.trades),
+          formatUsd(row.profit),
+          formatUsd(row.gasUsed),
+          formatUsd(row.netAfterGas),
+        ]);
+      });
+    } else {
+      rows.push(['No gas data']);
+    }
+
     const csv = rows.map((row) => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     downloadBlob(csv, 'reports-summary.csv', 'text/csv');
     setStatus('Summary CSV generated.');
@@ -1075,6 +1163,52 @@
         <td>${trade.pair || ''}</td>
         <td>${formatUsd(trade.netPnl)}</td>
         <td>${percentFmt.format(trade.ret || 0)}</td>
+      </tr>
+    `).join('');
+    const pairRows = (state.breakdown?.pairs || []).slice(0, 10).map(row => `
+      <tr>
+        <td>${row.pair || ''}</td>
+        <td>${formatInteger(row.trades)}</td>
+        <td>${percentFmt.format(row.trades ? (row.wins / row.trades) : 0)}</td>
+        <td>${formatUsd(row.netPnl)}</td>
+        <td>${formatUsd(row.avgPnl)}</td>
+        <td>${formatUsd(row.notional)}</td>
+      </tr>
+    `).join('');
+    const dayRows = (state.timePatterns?.dayOfWeek || []).map(row => `
+      <tr>
+        <td>${DAY_LABELS[row.dow] || row.label || ''}</td>
+        <td>${formatInteger(row.trades)}</td>
+        <td>${percentFmt.format(row.trades ? (row.wins / row.trades) : 0)}</td>
+        <td>${formatUsd(row.netPnl)}</td>
+        <td>${formatUsd(row.avgPnl)}</td>
+      </tr>
+    `).join('');
+    const hourRows = (state.timePatterns?.hourOfDay || []).map(row => `
+      <tr>
+        <td>${formatHourLabel(row.hour)}</td>
+        <td>${formatInteger(row.trades)}</td>
+        <td>${percentFmt.format(row.trades ? (row.wins / row.trades) : 0)}</td>
+        <td>${formatUsd(row.netPnl)}</td>
+        <td>${formatUsd(row.avgPnl)}</td>
+      </tr>
+    `).join('');
+    const tokenRows = (state.marketContext?.tokens || []).slice(0, 15).map(row => `
+      <tr>
+        <td>${row.token || ''}</td>
+        <td>${formatInteger(row.trades)}</td>
+        <td>${formatUsd(row.netPnl)}</td>
+        <td>${formatUsd(row.avgPnl)}</td>
+        <td>${formatUsd(row.notional)}</td>
+      </tr>
+    `).join('');
+    const gasRows = (state.gasOps?.profitWindows || []).map(row => `
+      <tr>
+        <td>${row.label}</td>
+        <td>${formatInteger(row.trades)}</td>
+        <td>${formatUsd(row.profit)}</td>
+        <td>${formatUsd(row.gasUsed)}</td>
+        <td>${formatUsd(row.netAfterGas)}</td>
       </tr>
     `).join('');
     win.document.write(`<!doctype html>
@@ -1107,6 +1241,32 @@
           <table>
             <thead><tr><th>Time</th><th>Pair</th><th>Net PnL</th><th>Return</th></tr></thead>
             <tbody>${tradesPreview || '<tr><td colspan="4">No trades</td></tr>'}</tbody>
+          </table>
+          <h2>By Pair / Exchange</h2>
+          <table>
+            <thead><tr><th>Pair</th><th>Trades</th><th>Win Rate</th><th>Net PnL</th><th>Avg PnL</th><th>Volume</th></tr></thead>
+            <tbody>${pairRows || '<tr><td colspan="6">No pair data</td></tr>'}</tbody>
+          </table>
+          <h2>Time Patterns</h2>
+          <h3>Day of Week</h3>
+          <table>
+            <thead><tr><th>Day</th><th>Trades</th><th>Win Rate</th><th>Net PnL</th><th>Avg PnL</th></tr></thead>
+            <tbody>${dayRows || '<tr><td colspan="5">No day data</td></tr>'}</tbody>
+          </table>
+          <h3>Hour of Day</h3>
+          <table>
+            <thead><tr><th>Hour</th><th>Trades</th><th>Win Rate</th><th>Net PnL</th><th>Avg PnL</th></tr></thead>
+            <tbody>${hourRows || '<tr><td colspan="5">No hour data</td></tr>'}</tbody>
+          </table>
+          <h2>Market Context (Top Tokens)</h2>
+          <table>
+            <thead><tr><th>Token</th><th>Trades</th><th>Net PnL</th><th>Avg PnL</th><th>Volume</th></tr></thead>
+            <tbody>${tokenRows || '<tr><td colspan="5">No token data</td></tr>'}</tbody>
+          </table>
+          <h2>Gas & Ops</h2>
+          <table>
+            <thead><tr><th>Window</th><th>Trades</th><th>Profit</th><th>Gas</th><th>Net After Gas</th></tr></thead>
+            <tbody>${gasRows || '<tr><td colspan="5">No gas data</td></tr>'}</tbody>
           </table>
           <p>Generated at ${new Date().toLocaleString()}</p>
         </body>

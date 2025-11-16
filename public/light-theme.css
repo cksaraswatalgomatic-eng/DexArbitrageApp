@@ -1,14 +1,26 @@
 body.light-theme {
-    --background-primary: #F6F8FA;
-    --background-panel: #FFFFFF;
-    --border-color: #D0D7DE;
-    --text-primary: #1F2328;
-    --text-muted: #57606A;
-    --accent-cyan: #0366D6;
-    --accent-green: #1A7F37;
-    --accent-red: #D1242F;
-    --accent-orange: #D97706;
-    --accent-blue: #0969DA;
+    --color-bg: #F6F8FA;
+    --color-surface: #FFFFFF;
+    --color-surface-alt: #F2F5F9;
+    --color-border: #D0D7DE;
+    --color-border-strong: #a8b3c3;
+    --color-text: #1F2328;
+    --color-text-muted: #57606A;
+    --color-positive: #1A7F37;
+    --color-negative: #D1242F;
+    --color-warning: #D97706;
+    --color-info: #0969DA;
+
+    --background-primary: var(--color-bg);
+    --background-panel: var(--color-surface);
+    --border-color: var(--color-border);
+    --text-primary: var(--color-text);
+    --text-muted: var(--color-text-muted);
+    --accent-cyan: var(--color-info);
+    --accent-green: var(--color-positive);
+    --accent-red: var(--color-negative);
+    --accent-orange: var(--color-warning);
+    --accent-blue: #0A58CA;
 
     --bg-color: #FFFFFF;
     --text-color: #333333;

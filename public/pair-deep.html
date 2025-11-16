@@ -7,52 +7,46 @@
     <link rel="icon" href="/favicon.ico">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/design-system.css" />
     <link rel="stylesheet" href="/light-theme.css" />
     <link rel="stylesheet" href="/updated-styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
   </head>
-  <body>
-    <header>
-      <div id="brand">
+      <body data-page="pairs">
+    <header class="app-header">
+      <div class="brand-block" id="brand">
         <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
-        <h1>Pair Deep Dive</h1>
+        <div class="brand-text">
+          <span class="brand-eyebrow">Algomatic</span>
+          <span class="brand-title">DEX Arbitrage</span>
+          <span class="page-label">Pair Deep Dive</span>
+        </div>
       </div>
-      <div class="controls">
-        <button id="theme-switcher" class="icon-btn" title="Toggle Theme">??</button>
-        <label>Server:
+      <div class="primary-nav">
+        <button id="nav-dropdown-button" class="icon-btn nav-toggle" aria-haspopup="true" aria-controls="nav-dropdown" aria-expanded="false" aria-label="Toggle navigation">&#9776;</button>
+        <nav class="nav-dropdown" id="nav-dropdown" aria-label="Primary navigation">
+          <a class="nav-link" data-route="dashboard" href="/">Dashboard</a>
+          <a class="nav-link" data-route="pair-analysis" href="/pair-analysis.html">Pair Analysis</a>
+          <a class="nav-link" data-route="token-analysis" href="/token-analysis.html">Token Analysis</a>
+          <a class="nav-link" data-route="diff-analysis" href="/diff-analysis.html">Diff Analysis</a>
+          <a class="nav-link" data-route="contract-analysis" href="/contract-analysis.html">Contract Analysis</a>
+          <a class="nav-link" data-route="liquidity-monitoring" href="/liquidity-monitoring.html">Liquidity Monitoring</a>
+          <a class="nav-link" data-route="reports" href="/reports.html">Reports &amp; Analytics</a>
+          <a class="nav-link requires-admin" data-route="consolidated" href="/consolidated-tracking.html" data-requires-role="admin">Consolidated Tracking</a>
+        </nav>
+      </div>
+      <div class="header-actions">
+        <button id="theme-switcher" class="icon-btn" title="Toggle Theme" aria-label="Toggle theme">&#127769;</button>
+        <label class="field">
+          <span class="field-label">Server</span>
           <select id="serverSelect"></select>
         </label>
-        <div class="nav-links-container" id="nav-links-container">
-          <a class="nav-link" href="/">Dashboard</a>
-          <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
-          <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
-          <a class="nav-link" href="/diff-analysis.html">Diff Analysis</a>
-          <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
-          <a class="nav-link" href="/liquidity-monitoring.html">Liquidity Monitoring</a>
-          <a class="nav-link" href="/reports.html">Reports &amp; Analytics</a>
-          <a class="nav-link requires-admin" href="/consolidated-tracking.html" data-requires-role="admin">Consolidated Tracking</a>
-        </div>
-        <div class="nav-menu-wrapper">
-          <div class="dropdown-container">
-            <button id="nav-dropdown-button" class="btn">Pages</button>
-          </div>
-          <div class="nav-dropdown" id="nav-dropdown">
-            <a class="nav-link" href="/">Dashboard</a>
-            <a class="nav-link" href="/pair-analysis.html">Pair Analysis</a>
-            <a class="nav-link" href="/token-analysis.html">Token Analysis</a>
-            <a class="nav-link" href="/diff-analysis.html">Diff Analysis</a>
-            <a class="nav-link" href="/contract-analysis.html">Contract Analysis</a>
-            <a class="nav-link" href="/liquidity-monitoring.html">Liquidity Monitoring</a>
-            <a class="nav-link" href="/reports.html">Reports &amp; Analytics</a>
-            <a class="nav-link requires-admin" href="/consolidated-tracking.html" data-requires-role="admin">Consolidated Tracking</a>
-          </div>
-        </div>
-<a class="icon-btn" href="/docs.html" title="Documentation" aria-label="Documentation">&#128218;</a>
+        <a class="icon-btn" href="/docs.html" title="Documentation" aria-label="Documentation">&#128218;</a>
+        <a class="icon-btn requires-admin" href="/servers.html" data-requires-role="admin" title="Server settings" aria-label="Server settings">&#9881;</a>
         <a class="icon-btn" href="/notifications.html" title="Notifications" aria-label="Notifications">&#128276;</a>
-        <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#x1F512;</button>
-        <button id="mobile-menu-button" class="mobile-menu-button">&#9776;</button>
+        <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#128274;</button>
       </div>
     </header>
     <main>
@@ -118,3 +112,4 @@
     <script src="/mobile-menu.js"></script>
   </body>
   </html>
+

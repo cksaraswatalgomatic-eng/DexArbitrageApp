@@ -23,7 +23,6 @@
       <div class="brand-block" id="brand">
         <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
         <div class="brand-text">
-          <span class="brand-eyebrow">Algomatic</span>
           <span class="brand-title">DEX Arbitrage</span>
           <span class="page-label">Diff Analysis</span>
         </div>
@@ -53,7 +52,7 @@
         <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#128274;</button>
       </div>
     </header>
-    <main class="full-width">
+    <main class="full-screen-main">
       <section class="card">
         <h2>Arbitrage Opportunity Analysis <button class="info-btn" type="button" data-help="arbitrage-opportunity-analysis" aria-label="About arbitrage opportunity analysis">i</button></h2>
         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
@@ -87,28 +86,31 @@
             </label>
             <button id="applyFiltersBtn" class="btn-orange">Apply Filters</button>
           </div>
-          <div class="chart-container" style="height:420px">
+          <div class="chart-container" style="height:620px">
             <canvas id="diffChart"></canvas>
           </div>
         </div>
-        <div class="table-wrap" style="margin-top: 20px;">
-            <table id="diffTable">
-              <thead>
-                <tr>
-                  <th>Token</th>
-                  <th>Timestamp</th>
-                  <th>Buy Diff Bps</th>
-                  <th>Sell Diff Bps</th>
-                  <th>CEX Volume</th>
-                  <th>DEX Volume</th>
-                  <th>Server Buy</th>
-                  <th>Server Sell</th>
-                  <th>Reject Reason</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
+      </section>
+      <section class="card">
+        <h2>Opportunity Ledger</h2>
+        <div class="table-wrap">
+          <table id="diffTable">
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Timestamp</th>
+                <th>Buy Diff Bps</th>
+                <th>Sell Diff Bps</th>
+                <th>CEX Volume</th>
+                <th>DEX Volume</th>
+                <th>Server Buy</th>
+                <th>Server Sell</th>
+                <th>Reject Reason</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </section>
     </main>
     <footer>
@@ -122,4 +124,5 @@
     <script src="/mobile-menu.js"></script>
   </body>
 </html>
+
 

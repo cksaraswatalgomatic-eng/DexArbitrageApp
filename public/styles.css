@@ -34,12 +34,20 @@ body {
 
 /* 3. Layout & Card Styling */
 main {
-  padding: 1.5rem;
+  padding: 1.25rem 1rem;
   display: grid;
   grid-template-columns: 1fr; /* Default to single column for mobile-first approach */
   gap: 1rem;
   max-width: 1600px; /* Adjust as needed */
   margin: 0 auto;
+}
+
+body:not([data-page='reports']) main {
+  max-width: 100%;
+  width: 100%;
+  padding-left: clamp(0.5rem, 2vw, 1.25rem);
+  padding-right: clamp(0.5rem, 2vw, 1.25rem);
+  margin: 0;
 }
 
 .full-screen-main {
@@ -81,46 +89,34 @@ main {
   gap: 1rem; /* Maintain consistent gap */
 }
 
-/* Media query for larger screens to enable two-column layout for consolidated-main-layout */
+/* Default media query for larger screens to enable two-column layout for consolidated-main-layout (for other pages) */
 @media (min-width: 769px) {
-  .consolidated-main-layout {
-    grid-template-columns: 1fr 1fr; /* Two columns for larger screens */
-  }
-  /* Specific placement for consolidated-tracking sections if needed */
-  .consolidated-main-layout .full-width {
-    grid-column: 1 / -1;
-  }
-  main {
-    grid-template-columns: 1fr 1fr; /* Two columns for larger screens */
+  body:not([data-page='consolidated']) .consolidated-main-layout,
+  body:not([data-page='consolidated']) main {
+    grid-template-columns: 1fr 1fr; /* Two columns for larger screens on non-consolidated pages */
   }
 
-  /* Re-apply specific grid placement for larger screens if desired, or let them flow */
-  .total-balance-section {
+  /* Specific placement for non-consolidated tracking sections if needed */
+  body:not([data-page='consolidated']) .consolidated-main-layout .full-width {
     grid-column: 1 / -1;
   }
-  .server-status-section {
-    grid-column: 1;
-    grid-row: 2 / span 2;
+}
+
+/* Special media query for consolidated tracking page to use single column layout */
+@media (min-width: 769px) {
+  body[data-page='consolidated'] .consolidated-main-layout {
+    grid-template-columns: 1fr; /* Single column for vertical stacking on consolidated page */
   }
-  .daily-profit-section {
-    grid-column: 2;
-    grid-row: 2;
-  }
-  .gas-consumption-section {
-    grid-column: 2;
-    grid-row: 3;
-  }
-  .tab-section-container {
-    grid-column: 1;
-    grid-row: 4;
-  }
-  .comparison-section {
-    grid-column: 2;
-    grid-row: 4;
-  }
-  .completed-trades-section {
+  /* Specific placement for consolidated-tracking sections if needed */
+  body[data-page='consolidated'] .consolidated-main-layout .full-width {
     grid-column: 1 / -1;
   }
+  body[data-page='consolidated'] main {
+    grid-template-columns: 1fr; /* Single column for vertical stacking */
+  }
+
+  /* Layout for consolidated tracking page sections */
+  /* Section elements stack vertically, but some contain internal grids */
 }
 
 /* 4. Header & Navigation */
@@ -1015,15 +1011,61 @@ body.login-page {
   font-weight: 600;
 }
 
-.grid-2.stacked-on-mobile {
+.grid-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 
+.grid-2 {
+  align-items: stretch; /* Ensure grid items stretch to fill available space */
+}
+
+.grid-2 > .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 650px; /* Ensure grid cards have sufficient height to accommodate chart + table */
+}
+
+.grid-2 > .card .chart-container,
+#consolidatedDailyProfitChartContainer {
+  height: 500px !important; /* Fixed height for the chart */
+  flex: 0 0 auto; /* Don't grow or shrink */
+}
+
+#consolidatedDailyProfitChartContainer {
+  height: 500px !important; /* Ensure specific container keeps height */
+}
+
+.grid-2.stacked-on-mobile {
+  align-items: stretch; /* Ensure grid items stretch to fill available space */
+}
+
+.grid-2.stacked-on-mobile > .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 650px; /* Ensure grid cards have sufficient height to accommodate chart + table */
+}
+
+.grid-2.stacked-on-mobile > .card .chart-container {
+  height: 500px !important; /* Fixed height for the chart */
+  flex: 0 0 auto; /* Don't grow or shrink */
+}
+
 @media (max-width: 900px) {
+  .grid-2,
   .grid-2.stacked-on-mobile {
     grid-template-columns: 1fr;
+  }
+
+  .grid-2 > .card,
+  .grid-2.stacked-on-mobile > .card {
+    min-height: 650px; /* Maintain height even in stacked layout */
+  }
+
+  .grid-2 > .card .chart-container,
+  .grid-2.stacked-on-mobile > .card .chart-container {
+    height: 500px; /* Maintain chart height even in stacked layout */
   }
 }
 

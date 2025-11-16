@@ -21,7 +21,6 @@
       <div class="brand-block" id="brand">
         <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
         <div class="brand-text">
-          <span class="brand-eyebrow">Algomatic</span>
           <span class="brand-title">DEX Arbitrage</span>
           <span class="page-label">Consolidated Tracking</span>
         </div>
@@ -56,7 +55,6 @@
     <main class="consolidated-main-layout">
 
       <section class="card full-width">
-          <canvas id="consolidatedDailyProfitChart"></canvas>
         </div>
       </section>
 
@@ -103,7 +101,10 @@
       <div class="grid-2">
         <section class="card">
           <h2>Latest Consolidated Daily Profit</h2>
-          <div class="table-wrap">
+          <div class="chart-container" id="consolidatedDailyProfitChartContainer" style="height: 500px;">
+            <canvas id="consolidatedDailyProfitChart"></canvas>
+          </div>
+          <div class="table-wrap" style="margin-top: 1rem;">
             <table id="consolidatedDailyProfitTable">
               <thead>
                 <tr>
@@ -182,4 +183,5 @@
     <script src="/mobile-menu.js"></script>
   </body>
 </html>
+
 

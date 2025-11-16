@@ -6,23 +6,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     mainElement.classList.add('consolidated-main-layout');
   }
 
-  // Programmatically create and arrange the grid-2 layout
-  const latestDailyProfitSection = document.querySelector('section.card:has(#consolidatedDailyProfitTable)');
+  // Identify all the sections
+  const totalBalanceSection = document.querySelector('section.card:has(#consolidatedTotalBalanceChart)');
+  const consolidatedBalancesSection = document.querySelector('section.card:has(#consolidatedBalancesTable)');
   const tokenPerformanceSection = document.querySelector('section.card:has(#consolidatedTokenPerformanceChart)');
+  const latestDailyProfitSection = document.querySelector('section.card:has(#consolidatedDailyProfitTable)');
   const consolidatedGasTrackingSection = document.querySelector('section.card:has(#consolidatedGasTrackingTable)');
 
-  if (latestDailyProfitSection && tokenPerformanceSection && consolidatedGasTrackingSection && mainElement) {
-    const grid2Div = document.createElement('div');
-    grid2Div.classList.add('grid-2');
+  // Create a document fragment to hold reorganized content temporarily
+  const fragment = document.createDocumentFragment();
 
-    grid2Div.appendChild(latestDailyProfitSection);
-    grid2Div.appendChild(tokenPerformanceSection);
-
-    // Insert the new grid2Div before the consolidatedGasTrackingSection
-    mainElement.insertBefore(grid2Div, consolidatedGasTrackingSection);
+  // 1. First, place the full-width "Total USDT Balance Over Time (All Servers)" chart
+  if (totalBalanceSection) {
+    fragment.appendChild(totalBalanceSection);
   }
 
+  // 2. Place "Latest Consolidated Daily Profit" - full width in next row
+  if (latestDailyProfitSection) {
+    fragment.appendChild(latestDailyProfitSection);
+  }
+
+  // 3. Create a grid for "Latest Consolidated USDT Balances" and "Best/Worst Performing Tokens" side by side
+  if (consolidatedBalancesSection && tokenPerformanceSection) {
+    const middleGridDiv = document.createElement('div');
+    middleGridDiv.classList.add('grid-2');
+
+    // Add balances table and token performance side by side
+    middleGridDiv.appendChild(consolidatedBalancesSection);
+    middleGridDiv.appendChild(tokenPerformanceSection);
+
+    fragment.appendChild(middleGridDiv);
+  }
+
+  // 4. Place "Consolidated Gas Tracking" at the bottom
+  if (consolidatedGasTrackingSection) {
+    fragment.appendChild(consolidatedGasTrackingSection);
+  }
+
+  // Clear the main element and append the reorganized content
+  mainElement.innerHTML = '';
+  mainElement.appendChild(fragment);
+
   const consolidatedDailyProfitChartCtx = document.getElementById('consolidatedDailyProfitChart').getContext('2d');
+  const consolidatedDailyProfitChartContainer = document.getElementById('consolidatedDailyProfitChartContainer');
   const consolidatedTotalBalanceChartCtx = document.getElementById('consolidatedTotalBalanceChart').getContext('2d');
   const consolidatedBalancesTableBody = document.querySelector('#consolidatedBalancesTable tbody');
   const consolidatedDailyProfitTableBody = document.querySelector('#consolidatedDailyProfitTable tbody');
@@ -420,10 +446,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const labels = dailyProfitData.map(item => item.date);
     const profitValues = dailyProfitData.map(item => item.profit);
 
+    if (consolidatedDailyProfitChartContainer) {
+      consolidatedDailyProfitChartContainer.style.height = '500px';
+    }
+
     if (consolidatedDailyProfitChart) {
       consolidatedDailyProfitChart.destroy();
     }
 
+    // Calculate min and max values for better y-axis scaling
+    const minProfit = Math.min(0, ...profitValues); // Include 0 if all values are positive
+    const maxProfit = Math.max(...profitValues);
+
+    // Calculate a suitable max value with some padding for better visualization
+    const range = maxProfit - minProfit;
+    const paddedMax = maxProfit + (range * 0.1); // Add 10% padding at the top
+    const paddedMin = minProfit - (range * 0.1); // Add 10% padding at the bottom if needed
+
+    // Create the chart with the new configuration
     consolidatedDailyProfitChart = new Chart(consolidatedDailyProfitChartCtx, {
       type: 'bar',
       data: {
@@ -440,6 +480,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: {
+          duration: 0 // Disable animations for initial render to ensure clean setup
+        },
+        onResize: function(chart, size) {
+          // Ensure the chart fills the container after any resize
+          if (consolidatedDailyProfitChartContainer) {
+            const containerHeight = 500; // Fixed height as per our CSS
+            const containerWidth = consolidatedDailyProfitChartContainer.clientWidth;
+
+            // Adjust canvas size to match container
+            chart.canvas.style.height = `${containerHeight}px`;
+            chart.canvas.style.width = `${containerWidth}px`;
+          }
+        },
         plugins: {
           zoom: {
             pan: {
@@ -466,16 +520,50 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
           },
           y: {
-            beginAtZero: true,
+            beginAtZero: minProfit >= 0, // Only begin at zero if all values are non-negative
+            min: paddedMin,
+            max: paddedMax,
             position: 'left',
             title: {
               display: true,
               text: 'Daily Profit'
+            },
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)', // Subtle grid lines
+            },
+            ticks: {
+              maxTicksLimit: 12, // Increase the number of ticks even more
+              callback: function(value) {
+                // Format the value to show without unnecessary decimal places
+                if (Number.isInteger(value)) {
+                  return value.toLocaleString(); // Better formatting for large numbers
+                } else {
+                  return value.toFixed(2);
+                }
+              },
+              autoSkip: false, // Ensure ticks are not skipped
+              precision: 0 // Ensure no unnecessary decimals
             }
           }
         }
       }
     });
+
+    // Immediately after chart creation, ensure proper sizing
+    setTimeout(() => {
+      if (consolidatedDailyProfitChart && consolidatedDailyProfitChartContainer) {
+        // Resize the chart to match the container
+        const containerHeight = 500;
+        consolidatedDailyProfitChart.resize();
+
+        // Also ensure the canvas has proper styling
+        const canvas = document.getElementById('consolidatedDailyProfitChart');
+        if (canvas) {
+          canvas.style.height = `${containerHeight}px`;
+          canvas.style.width = '100%';
+        }
+      }
+    }, 10);
   };
 
   const renderConsolidatedTotalBalanceChart = async (force = false) => {

@@ -102,6 +102,17 @@ body:not([data-page='reports']) main {
   }
 }
 
+@media (min-width: 769px) {
+  body[data-page='dashboard'] .server-status-section {
+    grid-column: 1;
+  }
+
+  body[data-page='dashboard'] .daily-profit-section,
+  body[data-page='dashboard'] .gas-consumption-section {
+    grid-column: 2;
+  }
+}
+
 /* Special media query for consolidated tracking page to use single column layout */
 @media (min-width: 769px) {
   body[data-page='consolidated'] .consolidated-main-layout {
@@ -421,6 +432,10 @@ tbody tr:hover {
   overflow-y: hidden;
 }
 
+.daily-profit-chart {
+  height: clamp(130px, 14vw, 160px);
+}
+
 .gas-consumption-section {
   overflow: hidden;
 }
@@ -441,7 +456,7 @@ tbody tr:hover {
 }
 
 .gas-consumption-section .gas-consumption-chart {
-  height: clamp(240px, 35vw, 360px);
+  height: clamp(200px, 28vw, 300px);
   padding-bottom: 0.5rem;
 }
 
@@ -1048,6 +1063,15 @@ body[data-page='reports'] .filter-panel textarea {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.tab-container .tab-content {
+  display: none;
+  margin-top: 1rem;
+}
+
+.tab-container .tab-content.active {
+  display: block;
 }
 
 .breakdown-summary {

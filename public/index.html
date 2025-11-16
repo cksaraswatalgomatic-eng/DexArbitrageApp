@@ -114,7 +114,7 @@
             </div>
           </div>
         </div>
-        <div class="chart-container" style="height: 180px;">
+        <div class="chart-container daily-profit-chart">
           <div class="skeleton" aria-hidden="true"></div>
           <canvas id="dailyProfitChart" aria-label="Daily profit chart"></canvas>
         </div>
@@ -140,12 +140,12 @@
       </section>
 
       <div class="tab-container tab-section-container">
-        <div class="tab-header">
-          <button class="tab-btn active" data-tab="dex-balances">DEX Exchange Balances</button>
-          <button class="tab-btn" data-tab="cex-balances">BinanceF (CEX) Balances</button>
-        </div>
-        <div id="dex-balances" class="tab-content active">
-          <section class="card">
+        <section class="card tabbed-balances-card">
+          <div class="tab-header">
+            <button class="tab-btn active" data-tab="dex-balances">DEX Exchange Balances</button>
+            <button class="tab-btn" data-tab="cex-balances">BinanceF (CEX) Balances</button>
+          </div>
+          <div id="dex-balances" class="tab-content active">
             <div class="card-header">
               <h2>DEX Exchange Balances <button class="info-btn" data-help="dex-table">i</button></h2>
             </div>
@@ -165,10 +165,8 @@
                 <tbody></tbody>
               </table>
             </div>
-          </section>
-        </div>
-        <div id="cex-balances" class="tab-content">
-          <section class="card">
+          </div>
+          <div id="cex-balances" class="tab-content">
             <div class="card-header">
               <h2>BinanceF (CEX) Balances <button class="info-btn" data-help="cex-table">i</button></h2>
             </div>
@@ -187,8 +185,8 @@
                 <tbody></tbody>
               </table>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
 
       <section class="card comparison-section">

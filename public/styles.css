@@ -102,14 +102,41 @@ body:not([data-page='reports']) main {
   }
 }
 
-@media (min-width: 769px) {
-  body[data-page='dashboard'] .server-status-section {
-    grid-column: 1;
+body[data-page='dashboard'] .dashboard-balanced-row {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  width: 100%;
+  grid-column: 1 / -1;
+  align-items: stretch;
+}
+
+body[data-page='dashboard'] .dashboard-balanced-row > * {
+  height: 100%;
+}
+
+body[data-page='dashboard'] .dashboard-right-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100%;
+}
+
+body[data-page='dashboard'] .dashboard-right-stack > .card {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  body[data-page='dashboard'] .dashboard-balanced-row {
+    grid-template-columns: 1fr;
   }
 
-  body[data-page='dashboard'] .daily-profit-section,
-  body[data-page='dashboard'] .gas-consumption-section {
-    grid-column: 2;
+  body[data-page='dashboard'] .dashboard-balanced-row > * {
+    height: auto;
+  }
+
+  body[data-page='dashboard'] .dashboard-right-stack {
+    height: auto;
   }
 }
 
@@ -433,7 +460,7 @@ tbody tr:hover {
 }
 
 .daily-profit-chart {
-  height: clamp(130px, 14vw, 160px);
+  height: clamp(180px, 18vw, 240px);
 }
 
 .gas-consumption-section {

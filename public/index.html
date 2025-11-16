@@ -128,11 +128,11 @@
         </div>
         <div id="gasTrackingFormContainer">
         </div>
-        <div style="display: flex; justify-content: center; align-items: center; margin-top: 1rem;">
-          <h4 style="margin-right: 0.5rem;">Hourly Consumption</h4>
+        <div class="gas-chart-toolbar">
+          <h4>Hourly Consumption</h4>
           <button id="loadMoreGasBtn" class="btn btn-green" type="button">Load More</button>
         </div>
-        <div class="grid-2">
+        <div class="chart-container gas-consumption-chart" aria-live="polite">
           <div class="skeleton" aria-hidden="true"></div>
           <canvas id="gasConsumptionChart" aria-label="Hourly gas consumption chart"></canvas>
         </div>

@@ -421,6 +421,36 @@ tbody tr:hover {
   overflow-y: hidden;
 }
 
+.gas-consumption-section {
+  overflow: hidden;
+}
+
+.gas-consumption-section .gas-chart-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.gas-consumption-section .gas-chart-toolbar h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.gas-consumption-section .gas-consumption-chart {
+  height: clamp(240px, 35vw, 360px);
+  padding-bottom: 0.5rem;
+}
+
+.gas-consumption-section .gas-consumption-chart canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
 #lastUpdated {
   font-size: 12px;
   color: var(--text-muted);
@@ -862,9 +892,75 @@ body.login-page {
   align-items: flex-start;
 }
 
+/* Enhanced reports content area to make cards expand and fill space */
+body[data-page='reports'] .reports-content {
+  width: 100%;
+}
+
+/* Alternative approach using flexbox for reports to ensure cards expand */
+body[data-page='reports'] .reports-content .tab-panel section.card .grid-2 {
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 1.5rem !important;
+  justify-content: space-between !important;
+
+  /* Reset any conflicting properties */
+  grid-template-columns: unset !important;
+}
+
+body[data-page='reports'] .reports-content .tab-panel section.card .grid-2 > div {
+  flex: 1 !important; /* Each div gets equal space */
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  box-sizing: border-box !important; /* Include padding in width calculation */
+  overflow: visible !important;
+}
+
+body[data-page='reports'] .reports-content .tab-panel section.card .grid-2 .chart-container {
+  flex: 1 !important; /* Allow chart container to grow and fill available space */
+  width: 100% !important;
+  min-width: 0 !important;
+  align-self: stretch !important;
+  display: flex !important;
+  box-sizing: border-box !important;
+
+  /* Reset any specific width constraints */
+  max-width: unset !important;
+  min-width: 0 !important;
+}
+
+body[data-page='reports'] .reports-content .tab-panel section.card .grid-2 .chart-container canvas {
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100% !important;
+  flex: 1 !important;
+  object-fit: contain !important; /* Make canvas fit its container */
+  align-self: stretch !important;
+
+  /* Override any explicit width/height set by Chart.js */
+  min-width: unset !important;
+  min-height: unset !important;
+}
+
+/* Ensure the sections containing grid-2 also flex properly */
+body[data-page='reports'] .reports-content .tab-panel section.card {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
 @media (max-width: 1100px) {
   .reports-layout {
     grid-template-columns: 1fr;
+  }
+
+  /* On mobile, make grid stacks take full width */
+  body[data-page='reports'] .reports-content .grid-2 {
+    grid-template-columns: 1fr; /* Single column on mobile */
+    gap: 1rem;
   }
 }
 
@@ -1021,13 +1117,13 @@ body.login-page {
   align-items: stretch; /* Ensure grid items stretch to fill available space */
 }
 
-.grid-2 > .card {
+body[data-page='consolidated'] .grid-2 > .card {
   display: flex;
   flex-direction: column;
   min-height: 650px; /* Ensure grid cards have sufficient height to accommodate chart + table */
 }
 
-.grid-2 > .card .chart-container,
+body[data-page='consolidated'] .grid-2 > .card .chart-container,
 #consolidatedDailyProfitChartContainer {
   height: 500px !important; /* Fixed height for the chart */
   flex: 0 0 auto; /* Don't grow or shrink */
@@ -1041,40 +1137,38 @@ body.login-page {
   align-items: stretch; /* Ensure grid items stretch to fill available space */
 }
 
-.grid-2.stacked-on-mobile > .card {
+body[data-page='consolidated'] .grid-2.stacked-on-mobile > .card {
   display: flex;
   flex-direction: column;
   min-height: 650px; /* Ensure grid cards have sufficient height to accommodate chart + table */
 }
 
-.grid-2.stacked-on-mobile > .card .chart-container {
+body[data-page='consolidated'] .grid-2.stacked-on-mobile > .card .chart-container {
   height: 500px !important; /* Fixed height for the chart */
   flex: 0 0 auto; /* Don't grow or shrink */
 }
 
 @media (max-width: 900px) {
-  .grid-2,
-  .grid-2.stacked-on-mobile {
+  body[data-page='consolidated'] .grid-2,
+  body[data-page='consolidated'] .grid-2.stacked-on-mobile {
     grid-template-columns: 1fr;
   }
 
-  .grid-2 > .card,
-  .grid-2.stacked-on-mobile > .card {
+  body[data-page='consolidated'] .grid-2 > .card,
+  body[data-page='consolidated'] .grid-2.stacked-on-mobile > .card {
     min-height: 650px; /* Maintain height even in stacked layout */
   }
 
-  .grid-2 > .card .chart-container,
-  .grid-2.stacked-on-mobile > .card .chart-container {
+  body[data-page='consolidated'] .grid-2 > .card .chart-container,
+  body[data-page='consolidated'] .grid-2.stacked-on-mobile > .card .chart-container {
     height: 500px; /* Maintain chart height even in stacked layout */
   }
 }
 
 .chart-container.medium-chart {
-  height: 320px;
 }
 
 .chart-container.large-chart {
-  height: 360px;
 }
 
 .gas-stats {
@@ -1156,4 +1250,9 @@ body.login-page {
   overflow: auto;
   background: var(--background-primary);
   color: var(--text-primary);
+}
+
+#hourly-gas-consumption-chart {
+  max-width: 100%;
+  height: auto;
 }

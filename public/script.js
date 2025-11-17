@@ -1333,6 +1333,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                   ? (lhDeltaNum < -1 ? 'text-pos' : lhDeltaNum > 1 ? 'text-neg-soft' : '')
                   : '';
                 const lhDeltaDisplay = lhDeltaNum != null && isFinite(lhDeltaNum) ? fmtNum(lhDeltaNum, 4) : '';
+                const dexVal = props.Dex ?? '';
+                const dexClass = dexVal === 'BUY' ? 'text-pos' : dexVal === 'SELL' ? 'text-neg' : '';
                 tr.innerHTML = `
                   <td>${t.pair ?? ''}</td>
                   <td>${tokenLabel ? `<a href="${tokenLink}">${tokenLabel}</a>` : ''}</td>
@@ -1340,7 +1342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <td style="${netProfitStyle}">${fmtNum(netProfit, 2)}</td>
                   <td>${qty != null ? fmtNum(qty, 2) : ''}</td>
                   <td>${t.lastUpdateTime ? fmtTime(t.lastUpdateTime) : ''}</td>
-                  <td>${props.Dex ?? ''}</td>
+                  <td class="${dexClass}">${dexVal}</td>
                   <td>${props.Diff ?? ''}</td>
                   <td class="${lhDeltaClass}">${lhDeltaDisplay}</td>
                   <td class="${dexSlipClass}">${props.DexSlip ?? ''}</td>

@@ -447,6 +447,11 @@ tbody tr:hover {
   font-weight: 500;
 }
 
+.text-neg-soft {
+  color: #ff9f9f !important;
+  font-weight: 500;
+}
+
 .text-warn {
   color: var(--accent-orange) !important;
   font-weight: 500;

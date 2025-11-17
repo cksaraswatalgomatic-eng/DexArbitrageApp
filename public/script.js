@@ -312,6 +312,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (k === 'Exec') {
             out.Exec = String(v);
           }
+          if (k === 'LHdelta' || k === 'LHDelta') {
+            out.LHdelta = Number(v);
+          }
         }
 
         return out;
@@ -1291,7 +1294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(tradesTableBody) tradesTableBody.innerHTML = '';
             
             if (rows.length === 0) {
-              if(tradesTableBody) tradesTableBody.innerHTML = '<tr><td colspan="12">No trades data available</td></tr>';
+              if(tradesTableBody) tradesTableBody.innerHTML = '<tr><td colspan="13">No trades data available</td></tr>';
               return;
             }
             
@@ -1323,6 +1326,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const cexSlipNum = Number(props.CexSlip);
                 const dexSlipClass = isFinite(dexSlipNum) ? (dexSlipNum > 0 ? 'text-neg' : dexSlipNum < 0 ? 'text-pos' : '') : '';
                 const cexSlipClass = isFinite(cexSlipNum) ? (cexSlipNum > 0 ? 'text-neg' : cexSlipNum < 0 ? 'text-pos' : '') : '';
+                const lhDeltaRaw = props.LHdelta ?? props.LHDelta ?? '';
+                const hasLHDelta = lhDeltaRaw !== '' && lhDeltaRaw != null;
+                const lhDeltaNum = hasLHDelta ? Number(lhDeltaRaw) : null;
+                const lhDeltaClass = lhDeltaNum != null && isFinite(lhDeltaNum)
+                  ? (lhDeltaNum < -1 ? 'text-pos' : lhDeltaNum > 1 ? 'text-neg-soft' : '')
+                  : '';
+                const lhDeltaDisplay = lhDeltaNum != null && isFinite(lhDeltaNum) ? fmtNum(lhDeltaNum, 4) : '';
                 tr.innerHTML = `
                   <td>${t.pair ?? ''}</td>
                   <td>${tokenLabel ? `<a href="${tokenLink}">${tokenLabel}</a>` : ''}</td>
@@ -1332,6 +1342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <td>${t.lastUpdateTime ? fmtTime(t.lastUpdateTime) : ''}</td>
                   <td>${props.Dex ?? ''}</td>
                   <td>${props.Diff ?? ''}</td>
+                  <td class="${lhDeltaClass}">${lhDeltaDisplay}</td>
                   <td class="${dexSlipClass}">${props.DexSlip ?? ''}</td>
                   <td class="${cexSlipClass}">${props.CexSlip ?? ''}</td>
                   <td>${props.Exec ?? ''}</td>
@@ -1339,13 +1350,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 `;
               } catch (rowError) {
                 console.error('Error processing trade row:', rowError, t);
-                tr.innerHTML = `<td colspan="12">Error processing trade data</td>`;
+                tr.innerHTML = `<td colspan="13">Error processing trade data</td>`;
               }
               if(tradesTableBody) tradesTableBody.appendChild(tr);
             }
           } catch (error) {
             console.error('Error loading trades:', error);
-            if(tradesTableBody) tradesTableBody.innerHTML = '<tr><td colspan="12">Error loading trades data: ' + error.message + '</td></tr>';
+            if(tradesTableBody) tradesTableBody.innerHTML = '<tr><td colspan="13">Error loading trades data: ' + error.message + '</td></tr>';
           }
         }
 

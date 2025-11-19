@@ -167,6 +167,9 @@ class Notifier {
       return { skipped: 'no_channels' };
     }
 
+    // Record immediately to prevent duplicate sends when multiple callers race
+    this.recordState(stateKey, now);
+
     const results = [];
     for (const channel of channels) {
       try {
@@ -197,8 +200,6 @@ class Notifier {
         results.push({ channel, status: 'failed', error: errorMessage });
       }
     }
-
-    this.recordState(stateKey, now);
     return { results };
   }
 

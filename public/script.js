@@ -1344,7 +1344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <td>${t.lastUpdateTime ? fmtTime(t.lastUpdateTime) : ''}</td>
                   <td class="${dexClass}">${dexVal}</td>
                   <td>${props.Diff ?? ''}</td>
-                  <td class="${lhDeltaClass}">${lhDeltaDisplay}</td>
+                  <td class="${lhDeltaClass}" data-export="${lhDeltaNum != null && isFinite(lhDeltaNum) ? lhDeltaNum : ''}">${lhDeltaDisplay}</td>
                   <td class="${dexSlipClass}">${props.DexSlip ?? ''}</td>
                   <td class="${cexSlipClass}">${props.CexSlip ?? ''}</td>
                   <td>${props.Exec ?? ''}</td>
@@ -1399,7 +1399,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (rows[i].style.display === 'none') continue;
             const row = [], cols = rows[i].querySelectorAll('td');
             for (let j = 0; j < cols.length - 1; j++) { // -1 to exclude the delete button column
-                row.push(`"${cols[j].innerText}"`);
+                const exportVal = cols[j].dataset.export ?? cols[j].innerText;
+                row.push(`"${exportVal}"`);
             }
             csvContent += row.join(',') + "\r\n";
           }

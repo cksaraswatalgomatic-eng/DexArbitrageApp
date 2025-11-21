@@ -54,6 +54,7 @@
       </div>
     </header>
     <main>
+      <div class="token-analysis-content">
       <section class="card">
         <h2>Overview</h2>
         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap">
@@ -90,7 +91,7 @@
           </div>
         </section>
       </div>
-      <div class="grid-2">
+      <div class="token-top-sections">
         <section class="card">
           <h2>Top Profitable Tokens</h2>
           <input id="winnersSearch" placeholder="Search winners..." style="margin-bottom:8px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--background-panel);color:var(--text-primary);width:220px" />
@@ -129,9 +130,9 @@
               <div class="chart-header">
                 <h3>Profit by Hour of Day</h3>
                 <div class="chart-nav">
-                  <button id="prevDayBtn" class="btn btn-small">‹</button>
+                  <button id="prevDayBtn" class="btn btn-small">ï¿½</button>
                   <span id="dayDisplay"></span>
-                  <button id="nextDayBtn" class="btn btn-small">›</button>
+                  <button id="nextDayBtn" class="btn btn-small">ï¿½</button>
                 </div>
               </div>
               <div class="chart-container" style="height:360px"><canvas id="profitByHourChart"></canvas></div>
@@ -140,9 +141,9 @@
               <div class="chart-header">
                 <h3>Profit by Day of Week</h3>
                 <div class="chart-nav">
-                  <button id="prevWeekBtn" class="btn btn-small">‹</button>
+                  <button id="prevWeekBtn" class="btn btn-small">ï¿½</button>
                   <span id="weekDisplay"></span>
-                  <button id="nextWeekBtn" class="btn btn-small">›</button>
+                  <button id="nextWeekBtn" class="btn btn-small">ï¿½</button>
                 </div>
               </div>
               <div class="chart-container" style="height:360px"><canvas id="profitByDayChart"></canvas></div>
@@ -150,6 +151,7 @@
           </div>
         </div>
       </section>
+      </div>
     </main>
     <footer>
       <small>Aggregated from completed trades.</small>

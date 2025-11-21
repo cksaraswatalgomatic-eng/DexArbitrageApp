@@ -91,8 +91,8 @@ body:not([data-page='reports']) main {
 
 /* Default media query for larger screens to enable two-column layout for consolidated-main-layout (for other pages) */
 @media (min-width: 769px) {
-  body:not([data-page='consolidated']):not([data-page='docs']) .consolidated-main-layout,
-  body:not([data-page='consolidated']):not([data-page='docs']) main {
+  body:not([data-page='consolidated']):not([data-page='docs']):not([data-page='tokens']) .consolidated-main-layout,
+  body:not([data-page='consolidated']):not([data-page='docs']):not([data-page='tokens']) main {
     grid-template-columns: 1fr 1fr; /* Two columns for larger screens on non-consolidated pages */
   }
 
@@ -1287,3 +1287,20 @@ body[data-page='consolidated'] .grid-2.stacked-on-mobile > .card .chart-containe
   max-width: 100%;
   height: auto;
 }
+
+body[data-page='diff'] main {
+  grid-template-columns: 1fr;
+}
+
+.token-top-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.token-analysis-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+

@@ -1,0 +1,1731 @@
+:root {
+  --color-bg: #050b13;
+  --color-surface: #111a29;
+  --color-surface-alt: #172133;
+  --color-border: #273245;
+  --color-border-strong: #3a4863;
+  --color-text: #f3f6ff;
+  --color-text-muted: #93a1bc;
+  --color-heading: #ffffff;
+  --color-positive: #37dba5;
+  --color-negative: #ff6b81;
+  --color-warning: #f6b445;
+  --color-info: #42a5ff;
+  --shadow-soft: 0 20px 60px rgba(3, 6, 12, 0.55);
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --header-height: 72px;
+  --font-size-base: 0.95rem;
+  --font-size-sm: 0.85rem;
+  --font-size-lg: 1.05rem;
+  --transition-base: 160ms ease;
+
+  /* Legacy variables still used across the codebase */
+  --background-primary: var(--color-bg);
+  --background-panel: var(--color-surface);
+  --border-color: var(--color-border);
+  --text-primary: var(--color-text);
+  --text-muted: var(--color-text-muted);
+  --accent-cyan: var(--color-info);
+  --accent-green: var(--color-positive);
+  --accent-red: var(--color-negative);
+  --accent-orange: var(--color-warning);
+  --accent-blue: #60a5fa;
+  --font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-weight: 600;
+  color: var(--color-heading);
+  margin: 0;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0 1.75rem;
+  min-height: var(--header-height);
+  background: rgba(10, 15, 25, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 30px rgba(2, 4, 9, 0.55);
+  backdrop-filter: blur(16px);
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.brand-img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.brand-eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--color-info);
+}
+
+.brand-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.page-label {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.primary-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  position: relative;
+}
+
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.nav-toggle:hover {
+  border-color: var(--color-info);
+  color: var(--color-info);
+}
+
+.nav-dropdown {
+  display: none;
+  flex-direction: column;
+  gap: 0.2rem;
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  background: rgba(8, 13, 22, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  box-shadow: 0 18px 40px rgba(2, 4, 9, 0.55);
+  padding: 0.45rem 0.6rem;
+  min-width: 9rem;
+  width: max-content;
+  max-width: 16rem;
+  z-index: 300;
+}
+
+.nav-link {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  padding: 0.3rem 0.9rem;
+  border-radius: 999px;
+  font-weight: 500;
+  transition: var(--transition-base);
+}
+
+.nav-link:hover,
+.nav-link:focus-visible {
+  color: var(--color-heading);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.nav-toggle:hover + .nav-dropdown,
+.nav-toggle:focus-visible + .nav-dropdown,
+.primary-nav:focus-within .nav-dropdown,
+.nav-dropdown.open {
+  display: flex;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.field select,
+.field input {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.icon-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  border-color: var(--color-info);
+  color: var(--color-info);
+}
+
+.btn,
+.btn-orange,
+.btn-primary,
+.btn-ghost {
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.btn-ghost {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  padding: 0.45rem 0.9rem;
+}
+
+.btn-ghost:hover {
+  border-color: var(--color-info);
+  color: var(--color-info);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+}
+
+.chip-muted {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-muted);
+}
+
+.chip-success {
+  background: rgba(55, 219, 165, 0.15);
+  color: var(--color-positive);
+}
+
+.chip-alert {
+  background: rgba(255, 107, 129, 0.15);
+  color: var(--color-negative);
+}
+
+.card {
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(150deg, var(--color-surface) 0%, var(--color-surface-alt) 100%);
+  box-shadow: var(--shadow-soft);
+  padding: 1.5rem;
+}
+
+.text-positive {
+  color: var(--color-positive);
+}
+
+.text-negative {
+  color: var(--color-negative);
+}
+
+body[data-page='dashboard'] .nav-link[data-route='dashboard'],
+body[data-page='pairs'] .nav-link[data-route='pair-analysis'],
+body[data-page='tokens'] .nav-link[data-route='token-analysis'],
+body[data-page='diff'] .nav-link[data-route='diff-analysis'],
+body[data-page='contracts'] .nav-link[data-route='contract-analysis'],
+body[data-page='liquidity'] .nav-link[data-route='liquidity-monitoring'],
+body[data-page='reports'] .nav-link[data-route='reports'],
+body[data-page='consolidated'] .nav-link[data-route='consolidated'] {
+  background: rgba(66, 165, 255, 0.18);
+  color: var(--color-heading);
+}
+
+@media (max-width: 1100px) {
+  .primary-nav {
+    justify-content: flex-end;
+    position: static;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .nav-dropdown {
+    display: none;
+    position: fixed;
+    inset: 0;
+    padding: 5rem 2rem;
+    background: rgba(5, 11, 19, 0.94);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    z-index: 999;
+  }
+
+  .nav-dropdown.open {
+    display: flex;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+body.light-theme {
+    --color-bg: #F6F8FA;
+    --color-surface: #FFFFFF;
+    --color-surface-alt: #F2F5F9;
+    --color-border: #D0D7DE;
+    --color-border-strong: #a8b3c3;
+    --color-text: #1F2328;
+    --color-text-muted: #57606A;
+    --color-positive: #1A7F37;
+    --color-negative: #D1242F;
+    --color-warning: #D97706;
+    --color-info: #0969DA;
+
+    --background-primary: var(--color-bg);
+    --background-panel: var(--color-surface);
+    --border-color: var(--color-border);
+    --text-primary: var(--color-text);
+    --text-muted: var(--color-text-muted);
+    --accent-cyan: var(--color-info);
+    --accent-green: var(--color-positive);
+    --accent-red: var(--color-negative);
+    --accent-orange: var(--color-warning);
+    --accent-blue: #0A58CA;
+
+    --bg-color: #FFFFFF;
+    --text-color: #333333;
+    --card-bg: #F5F5F5;
+    --border: #DDDDDD;
+    --link-color: #007BFF;
+    --header-bg: #F8F9FA;
+}
+
+.light-theme .chart-container {
+    background-color: #FFFFFF;
+}
+
+.light-theme #diffChart {
+    background-color: #FFFFFF;
+}
+
+.light-theme .card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+}
+
+.light-theme h1, .light-theme h2, .light-theme h3, .light-theme h4, .light-theme h5, .light-theme h6 {
+    color: var(--text-color);
+}
+
+.light-theme p, .light-theme td, .light-theme th, .light-theme li, .light-theme label, .light-theme select, .light-theme input {
+    color: var(--text-color);
+}
+
+.light-theme a {
+    color: var(--link-color);
+}
+
+.light-theme header {
+    background-color: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+}
+
+.light-theme #brand h1 {
+    color: var(--text-color);
+}
+
+.light-theme .nav-link {
+    color: var(--link-color);
+}
+
+.light-theme .nav-link:hover {
+    color: #0056b3;
+}
+
+.light-theme #serverSelect {
+    background: #FFFFFF;
+    border: 1px solid var(--border);
+    color: var(--text-color);
+}
+
+.light-theme input[type='search'],
+.light-theme input[type='text'],
+.light-theme input[type='number'],
+.light-theme input[type='password'],
+.light-theme select,
+.light-theme .controls input[type='search'],
+.light-theme .controls input[type='text'],
+.light-theme .controls input[type='number'],
+.light-theme .controls input[type='password'],
+.light-theme .controls select,
+.light-theme .card input[type='search'],
+.light-theme .card input[type='text'],
+.light-theme .card input[type='number'],
+.light-theme .card input[type='password'],
+.light-theme .card select {
+    background-color: #FFFFFF;
+    border: 1px solid var(--border);
+    color: var(--text-color);
+}
+
+.light-theme footer {
+    color: #6c757d;
+}
+/* --- FUTURISTIC DARK THEME --- */
+
+/* 1. Root Variables */
+
+:root {
+  --background-primary: #0D1117;
+  --background-panel: #161B22;
+  --border-color: #30363D;
+  --text-primary: #C9D1D9;
+  --text-muted: #8B949E;
+  --accent-cyan: #00E5FF;
+  --accent-green: #39FF14;
+  --accent-red: #FF00FF; /* Magenta/Hot Pink for negative */
+  --accent-orange: #FF8C00;
+  --accent-blue: #1F6FEB;
+
+  --font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* 2. Base & Body Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--background-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* 3. Layout & Card Styling */
+main {
+  padding: 1.25rem 1rem;
+  display: grid;
+  grid-template-columns: 1fr; /* Default to single column for mobile-first approach */
+  gap: 1rem;
+  max-width: 1600px; /* Adjust as needed */
+  margin: 0 auto;
+}
+
+body:not([data-page='reports']) main {
+  max-width: 100%;
+  width: 100%;
+  padding-left: clamp(0.5rem, 2vw, 1.25rem);
+  padding-right: clamp(0.5rem, 2vw, 1.25rem);
+  margin: 0;
+}
+
+.full-screen-main {
+  max-width: none; /* Remove max-width constraint */
+  grid-template-columns: 1fr; /* Single column layout */
+  padding: 0; /* Remove padding */
+}
+
+.card {
+  background-color: var(--background-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+/* Remove explicit grid placement for individual sections, let them flow naturally */
+.total-balance-section,
+.server-status-section,
+.daily-profit-section,
+.gas-consumption-section,
+.tab-section-container,
+.comparison-section,
+.completed-trades-section {
+  grid-column: auto;
+  grid-row: auto;
+}
+
+.full-width {
+  width: 100%;
+  grid-column: 1 / -1; /* Span across all columns in a grid */
+  max-width: none; /* Remove max-width constraint */
+  /* grid-template-columns: 1fr; This is already handled by main's default */
+  padding: 0; /* Remove padding */
+}
+
+.consolidated-main-layout {
+  display: grid; /* Change to grid to benefit from responsive grid changes */
+  grid-template-columns: 1fr; /* Default to single column */
+  gap: 1rem; /* Maintain consistent gap */
+}
+
+/* Default media query for larger screens to enable two-column layout for consolidated-main-layout (for other pages) */
+@media (min-width: 769px) {
+  body:not([data-page='consolidated']):not([data-page='docs']):not([data-page='tokens']) .consolidated-main-layout,
+  body:not([data-page='consolidated']):not([data-page='docs']):not([data-page='tokens']) main {
+    grid-template-columns: 1fr 1fr; /* Two columns for larger screens on non-consolidated pages */
+  }
+
+  /* Specific placement for non-consolidated tracking sections if needed */
+  body:not([data-page='consolidated']) .consolidated-main-layout .full-width {
+    grid-column: 1 / -1;
+  }
+}
+
+body[data-page='dashboard'] .dashboard-balanced-row {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  width: 100%;
+  grid-column: 1 / -1;
+  align-items: stretch;
+}
+
+body[data-page='dashboard'] .dashboard-balanced-row > * {
+  height: 100%;
+}
+
+body[data-page='dashboard'] .dashboard-right-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100%;
+}
+
+body[data-page='dashboard'] .dashboard-right-stack > .card {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  body[data-page='dashboard'] .dashboard-balanced-row {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page='dashboard'] .dashboard-balanced-row > * {
+    height: auto;
+  }
+
+  body[data-page='dashboard'] .dashboard-right-stack {
+    height: auto;
+  }
+}
+
+/* Special media query for consolidated tracking page to use single column layout */
+@media (min-width: 769px) {
+  body[data-page='consolidated'] .consolidated-main-layout {
+    grid-template-columns: 1fr; /* Single column for vertical stacking on consolidated page */
+  }
+  /* Specific placement for consolidated-tracking sections if needed */
+  body[data-page='consolidated'] .consolidated-main-layout .full-width {
+    grid-column: 1 / -1;
+  }
+  body[data-page='consolidated'] main {
+    grid-template-columns: 1fr; /* Single column for vertical stacking */
+  }
+
+  /* Layout for consolidated tracking page sections */
+  /* Section elements stack vertically, but some contain internal grids */
+}
+
+/* 4. Header & Navigation */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background-color: rgba(22, 27, 34, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-wrap: wrap; /* Allow header content to wrap */
+}
+
+#brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-img {
+  height: 32px;
+  width: auto;
+  max-width: 100%; /* Ensure image scales down */
+}
+
+h1, h2, h3, h4 {
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+}
+
+h1 { font-size: 1.5rem; margin-bottom: 0; }
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap; /* Allow controls to wrap to prevent overflow */
+  justify-content: flex-end;
+  position: relative; /* Needed for absolute positioning of dropdown */
+}
+
+.header-icons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem; /* Smaller gap for icons */
+}
+
+.controls .logout-btn {
+  margin-left: auto;
+}
+
+.controls .requires-admin {
+  margin-left: 0.5rem;
+}
+
+.nav-links-container {
+  display: flex;
+  gap: 0.5rem;
+  white-space: nowrap; /* Prevent nav links from wrapping */
+}
+
+.nav-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.nav-link:hover, .nav-link.active {
+  color: var(--accent-cyan);
+  background-color: rgba(0, 229, 255, 0.1);
+}
+
+/* Dropdown specific styles */
+.nav-menu-wrapper {
+  position: relative;
+  display: inline-block; /* Allow it to sit next to other controls */
+}
+
+.dropdown-container {
+  position: relative;
+  display: inline-block; /* Allow it to sit next to other controls */
+}
+
+.nav-dropdown {
+  display: none; /* Hidden by default for desktop */
+  position: absolute;
+  top: 100%; /* Position below the trigger button */
+  right: 0; /* Align to the right of the trigger button */
+  background: var(--background-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.5rem;
+  flex-direction: column; /* Stack links vertically */
+  gap: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 200;
+  min-width: 200px; /* Ensure dropdown has a reasonable width */
+}
+
+/* Show dropdown on hover of the nav-menu-wrapper (for desktop) */
+.nav-menu-wrapper:hover .nav-dropdown,
+.nav-menu-wrapper:focus-within .nav-dropdown {
+  display: flex;
+}
+
+/* Show dropdown when it has the 'open' class (for mobile menu and desktop programmatic open) */
+.nav-dropdown.open {
+  display: flex !important;
+  z-index: 1001 !important; /* Bring to front when open */
+  opacity: 1 !important; /* Make visible when open */
+  visibility: visible !important; /* Make visible when open */
+}
+
+/* Mobile-specific overrides */
+@media (max-width: 1024px) {
+  .dropdown-container {
+    display: none;
+  }
+  
+  .nav-dropdown {
+    /* Override desktop positioning for mobile */
+    position: fixed !important; /* Use fixed positioning for full-screen overlay */
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background-color: rgba(13, 17, 23, 0.9) !important; /* Semi-transparent dark background */
+    padding-top: 60px !important; /* Add padding to account for the header */
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    overflow-y: auto !important; /* Allow scrolling if content overflows */
+    z-index: -1 !important; /* Start hidden behind other content */
+    opacity: 0 !important; /* Start invisible */
+    visibility: hidden !important; /* Actually hide the element */
+    transition: all 0.3s ease !important; /* Smooth transition for opening/closing */
+    backdrop-filter: blur(5px) !important; /* Add blur effect for better visual */
+  }
+  
+  .nav-dropdown.open {
+    display: flex !important;
+    z-index: 1001 !important; /* Bring to front when open */
+    opacity: 1 !important; /* Make visible when open */
+    visibility: visible !important; /* Make visible when open */
+  }
+}
+
+.nav-dropdown .nav-link {
+  display: block; /* Ensure links are block level inside the dropdown */
+  width: 100%;
+}
+
+.nav-dropdown .nav-link:hover {
+  background-color: rgba(31, 111, 235, 0.2);
+  color: var(--accent-cyan);
+}
+
+@media (min-width: 1025px) {
+  /* On larger screens, hide the mobile menu button */
+  .mobile-menu-button {
+    display: none;
+  }
+  /* Ensure the nav-menu-wrapper is visible on larger screens */
+  .nav-menu-wrapper {
+    display: inline-block !important; /* Ensure it's always visible */
+  }
+  /* The nav-dropdown is controlled by hover on nav-menu-wrapper */
+  .nav-dropdown {
+    /* No specific display: none !important here, it's handled by default display: none and hover */
+  }
+
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 1.5rem;
+  padding: 0.5rem;
+}
+
+.icon-btn:hover {
+  color: var(--link-hover);
+}
+
+/* 5. Forms & Buttons */
+.btn, button, select, input {
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-panel);
+  color: var(--text-primary);
+  padding: 0.5rem 1rem;
+  font-family: var(--font-family);
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.btn:hover, button:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  cursor: pointer;
+}
+
+.btn-orange {
+  background: linear-gradient(45deg, var(--accent-orange), #FF4500);
+  color: white;
+  border: none;
+  font-weight: 700;
+}
+
+.btn-orange:hover {
+  color: white;
+  box-shadow: 0 0 15px rgba(255, 140, 0, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-green {
+  background: var(--accent-green);
+  color: white;
+  border: none;
+  font-weight: 700;
+}
+
+.btn-green:hover {
+  color: var(--background-primary);
+  box-shadow: 0 0 15px rgba(57, 255, 20, 0.5);
+  transform: translateY(-1px);
+}
+
+select, input {
+  padding: 0.5rem;
+}
+
+select:focus, input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 10px rgba(31, 111, 235, 0.5);
+}
+
+/* 6. Tables */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead {
+  background-color: rgba(31, 111, 235, 0.1);
+}
+
+th, td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+th {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+tbody tr:hover {
+  background-color: rgba(31, 111, 235, 0.05);
+}
+
+/* 7. Utilities & Text Classes */
+.muted {
+  color: var(--text-muted);
+}
+
+.text-pos {
+  color: var(--accent-green) !important;
+  font-weight: 500;
+}
+
+.text-neg {
+  color: var(--accent-red) !important;
+  font-weight: 500;
+}
+
+.text-neg-soft {
+  color: #ff9f9f !important;
+  font-weight: 500;
+}
+
+.text-warn {
+  color: var(--accent-orange) !important;
+  font-weight: 500;
+}
+
+/* 8. Charts & Specific Components */
+.chart-container {
+  position: relative;
+  width: 100%;
+  overflow-y: hidden;
+}
+
+.daily-profit-chart {
+  height: clamp(180px, 18vw, 240px);
+}
+
+.gas-consumption-section {
+  overflow: hidden;
+}
+
+.gas-consumption-section .gas-chart-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.gas-consumption-section .gas-chart-toolbar h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.gas-consumption-section .gas-consumption-chart {
+  height: clamp(200px, 28vw, 300px);
+  padding-bottom: 0.5rem;
+}
+
+.gas-consumption-section .gas-consumption-chart canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+#lastUpdated {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.chart-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inline-control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.inline-control {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.inline-control input {
+  width: 6rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-primary);
+  min-width: 80px;
+  flex: 0 0 auto;
+}
+
+#outlierPercentage {
+  display: block;
+  visibility: visible;
+  min-width: 70px;
+}
+
+.btn-small {
+  padding: 0.25rem 0.75rem;
+}
+
+.info-btn:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+
+.popover {
+  position: absolute;
+  z-index: 1000;
+  max-width: 360px;
+  background: var(--background-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 14px 12px 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.popover .close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+}
+.popover .close:hover { color: var(--accent-cyan); }
+
+/* 11. Login Page Styles */
+body.login-page {
+  background: linear-gradient(-45deg, #0D1117, #161B22, #0D1117);
+  background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: calc(100vh - 61px); /* 61px is the header height */
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 2.5rem;
+}
+
+.login-card .form-group {
+  margin-bottom: 1.5rem;
+}
+
+.login-card label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.login-card input {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1.1rem;
+  margin-top: 1rem;
+}
+
+.forgot-password {
+  text-align: right;
+  margin-top: 1rem;
+}
+
+.forgot-password a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.forgot-password a:hover {
+  color: var(--accent-cyan);
+}
+
+/* Notification specific styles */
+.notification-unread {
+  font-weight: bold;
+  background-color: rgba(0, 229, 255, 0.05);
+}
+
+/* 9. Responsive Design */
+.mobile-menu-button {
+  display: none; /* Hidden by default */
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  z-index: 1002; /* Higher z-index to ensure it's above the dropdown when open */
+}
+
+@media (max-width: 1024px) {
+  .nav-links-container {
+    display: none; /* Hide the inline nav links container */
+  }
+
+  .mobile-menu-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 860px) {
+  .controls {
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  main {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  header {
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+  }
+
+  .controls {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* 10. Info Button & Popover */
+.info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--background-panel);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.info-btn:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+
+.popover {
+  position: absolute;
+  z-index: 1000;
+  max-width: 360px;
+  background: var(--background-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 14px 12px 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.popover .close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+}
+.popover .close:hover { color: var(--accent-cyan); }
+
+
+
+
+/* NEW RESPONSIVE STYLES */
+
+/* Style for total row in tables */
+.total-row {
+  background-color: rgba(31, 111, 235, 0.2) !important; /* Slightly highlighted background */
+  font-weight: bold;
+  border-top: 2px solid var(--accent-blue);
+}
+
+/* Pagination styles for tables */
+.table-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pagination-controls select {
+  width: auto;
+  min-width: 70px;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-primary);
+}
+
+.pagination-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pagination-nav button {
+  padding: 0.25rem 0.75rem;
+}
+
+#currentPageInfo {
+  min-width: 100px;
+  text-align: center;
+}
+
+/* For tablets and smaller desktops */
+@media (max-width: 1024px) {
+  .table-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .pagination-nav {
+    justify-content: center;
+  }
+}
+
+/* For mobile devices */
+@media (max-width: 768px) {
+  body {
+    font-size: 13px;
+  }
+
+  main {
+    padding: 1rem;
+    grid-template-columns: 1fr; /* Ensure single column on smaller screens */
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  h1 {
+    font-size: 1.2rem;
+  }
+
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1rem;
+  }
+
+  #brand {
+    margin-bottom: 1rem;
+    width: 100%; /* Ensure brand takes full width */
+    justify-content: center; /* Center brand content */
+  }
+
+  .controls {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 0.5rem;
+    justify-content: center; /* Center controls on small screens */
+  }
+
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chart-nav {
+    margin-top: 0.5rem;
+    flex-wrap: wrap; /* Allow chart nav items to wrap */
+    justify-content: center;
+  }
+
+  .inline-control-group {
+    flex-direction: column; /* Stack inline controls vertically */
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .inline-control {
+    width: 100%;
+    justify-content: space-between; /* Distribute label and input */
+  }
+
+  .inline-control input {
+    width: auto; /* Allow input to take necessary width */
+    flex-grow: 1; /* Allow input to grow */
+  }
+
+  .table-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .pagination-nav {
+    justify-content: center;
+  }
+
+  /* Adjust specific elements that might still overflow */
+  .login-card {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 12px;
+  }
+  
+  .controls {
+    font-size: 11px;
+  }
+
+  .btn, button, select, input {
+    padding: 0.4rem 0.8rem;
+    font-size: 12px;
+  }
+
+  /* Further adjustments for very small screens */
+  .header-icons {
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .icon-btn {
+    font-size: 1.2rem;
+    padding: 0.3rem;
+  }
+
+  .popover {
+    max-width: 90%;
+    left: 5% !important; /* Center popover */
+    right: 5% !important;
+  }
+}
+
+/* Reports layout */
+.reports-main {
+  max-width: 100%;
+  width: 100%;
+  padding: clamp(1rem, 2vw, 2.5rem);
+  grid-template-columns: 1fr;
+  display: block;
+}
+
+.reports-layout {
+  display: grid;
+  width: 100%;
+  grid-template-columns: clamp(320px, 24vw, 420px) minmax(0, 1fr);
+  gap: clamp(1rem, 2vw, 2.5rem);
+  align-items: flex-start;
+}
+
+/* Enhanced reports content area to make cards expand and fill space */
+body[data-page='reports'] .reports-content {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+body[data-page='reports'] .reports-content > * {
+  width: 100%;
+}
+
+body[data-page='reports'] .reports-content .grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: clamp(1rem, 2vw, 2rem);
+  align-items: stretch;
+}
+
+body[data-page='reports'] .reports-content .grid-2 > * {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .reports-layout {
+    grid-template-columns: 1fr;
+  }
+
+  /* On mobile, make grid stacks take full width */
+  body[data-page='reports'] .reports-content .grid-2 {
+    grid-template-columns: 1fr; /* Single column on mobile */
+    gap: 1rem;
+  }
+}
+
+.filter-panel {
+  position: sticky;
+  top: 88px;
+  max-height: calc(100vh - 130px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+body[data-page='reports'] .filter-panel select,
+body[data-page='reports'] .filter-panel input,
+body[data-page='reports'] .filter-panel textarea {
+  width: 100%;
+}
+
+.filter-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.filter-group select,
+.filter-group input {
+  border: 1px solid var(--border-color);
+  background: var(--background-primary);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+}
+
+.filter-group select[multiple] {
+  min-height: 110px;
+}
+
+.time-custom {
+  display: none;
+  gap: 0.4rem;
+}
+
+.time-custom input {
+  width: 100%;
+}
+
+.filter-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-range .range-inputs {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.filter-range .range-inputs input {
+  flex: 1;
+}
+
+.reports-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.reports-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  border: 1px solid var(--border-color);
+  background: var(--background-panel);
+  color: var(--text-muted);
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.tab-btn.active {
+  color: var(--text-primary);
+  border-color: var(--accent-cyan);
+}
+
+.tab-btn[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tab-panel {
+  display: none;
+  margin-top: 1.5rem;
+}
+
+.tab-panel.active {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.tab-container .tab-content {
+  display: none;
+  margin-top: 1rem;
+}
+
+.tab-container .tab-content.active {
+  display: block;
+}
+
+.breakdown-summary {
+  margin: 0.5rem 0 0;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.kpi-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.kpi-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.kpi-card strong {
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.grid-2 {
+  align-items: stretch; /* Ensure grid items stretch to fill available space */
+}
+
+body[data-page='consolidated'] .grid-2 > .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 650px; /* Ensure grid cards have sufficient height to accommodate chart + table */
+}
+
+body[data-page='consolidated'] .grid-2 > .card .chart-container,
+#consolidatedDailyProfitChartContainer {
+  height: 500px !important; /* Fixed height for the chart */
+  flex: 0 0 auto; /* Don't grow or shrink */
+}
+
+#consolidatedDailyProfitChartContainer {
+  height: 500px !important; /* Ensure specific container keeps height */
+}
+
+.grid-2.stacked-on-mobile {
+  align-items: stretch; /* Ensure grid items stretch to fill available space */
+}
+
+body[data-page='consolidated'] .grid-2.stacked-on-mobile > .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 650px; /* Ensure grid cards have sufficient height to accommodate chart + table */
+}
+
+body[data-page='consolidated'] .grid-2.stacked-on-mobile > .card .chart-container {
+  height: 500px !important; /* Fixed height for the chart */
+  flex: 0 0 auto; /* Don't grow or shrink */
+}
+
+@media (max-width: 900px) {
+  body[data-page='consolidated'] .grid-2,
+  body[data-page='consolidated'] .grid-2.stacked-on-mobile {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page='consolidated'] .grid-2 > .card,
+  body[data-page='consolidated'] .grid-2.stacked-on-mobile > .card {
+    min-height: 650px; /* Maintain height even in stacked layout */
+  }
+
+  body[data-page='consolidated'] .grid-2 > .card .chart-container,
+  body[data-page='consolidated'] .grid-2.stacked-on-mobile > .card .chart-container {
+    height: 500px; /* Maintain chart height even in stacked layout */
+  }
+}
+
+.chart-container.medium-chart {
+}
+
+.chart-container.large-chart {
+}
+
+.gas-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.gas-stats article {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gas-stats span {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.reports-table-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.table-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.mini-btn {
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.mini-btn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.raw-dialog {
+  border: none;
+  border-radius: 10px;
+  padding: 0;
+  max-width: 700px;
+  width: 90%;
+  color: var(--text-primary);
+  background: var(--background-panel);
+}
+
+.raw-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.raw-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.raw-dialog pre {
+  margin: 0;
+  padding: 1rem;
+  max-height: 60vh;
+  overflow: auto;
+  background: var(--background-primary);
+  color: var(--text-primary);
+}
+
+#hourly-gas-consumption-chart {
+  max-width: 100%;
+  height: auto;
+}
+
+body[data-page='diff'] main {
+  grid-template-columns: 1fr;
+}
+
+.token-top-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.token-analysis-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}

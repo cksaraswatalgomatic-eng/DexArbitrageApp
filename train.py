@@ -169,6 +169,12 @@ def main():
     if config.task == 'classification':
         config.model_params = dict(config.model_params)
         config.model_params.setdefault('class_weight', 'balanced')
+        
+        # Add regularization defaults to prevent overfitting
+        config.model_params.setdefault('max_depth', 10)
+        config.model_params.setdefault('min_samples_leaf', 40)
+        config.model_params.setdefault('n_estimators', 200)
+        
         if config.model_type.lower() == 'gradient_boosting':
             LOGGER.info('Switching default classifier to random_forest with balanced class weights.')
             config.model_type = 'random_forest'

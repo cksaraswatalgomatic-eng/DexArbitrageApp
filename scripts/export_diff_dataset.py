@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Export aligned trade/diff datasets per server and token.
 
 This script enumerates configured servers, optionally triggers a fresh
@@ -25,6 +25,7 @@ TABLES_TO_EXPORT = (
     "server_tokens",
     "gas_balances",
     "contract_transactions",
+    "liquidity_data",
 )
 DEFAULT_TOLERANCE_MINUTES = 2
 
@@ -271,6 +272,16 @@ def enrich_contracts(df: pd.DataFrame) -> pd.DataFrame:
     return contracts
 
 
+def enrich_liquidity(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+    liq = df.copy()
+    # liquidity_data has 'timestamp' string ISO format or similar
+    liq["liq_ts"] = pd.to_datetime(liq["timestamp"], utc=True, errors="coerce")
+    liq["token"] = liq["symbol"].astype(str).str.lower().str.strip()
+    return liq
+
+
 def write_dataframe(df: pd.DataFrame, base_path: Path, formats: Iterable[str], manifest_entry: Dict) -> None:
     if df is None or df.empty:
         manifest_entry["rows"] = 0
@@ -313,12 +324,13 @@ def build_quality_rows(merged: pd.DataFrame, server_id: str) -> List[Dict]:
 
 def create_exports_for_server(
     server_id: str,
-    conn: sqlite3.Connection,
+    server_conn: sqlite3.Connection,
     formats: List[str],
     tolerance_minutes: float,
     direction: str,
     output_dir: Path,
     row_limit: Optional[int] = None,
+    global_conn: Optional[sqlite3.Connection] = None, # New parameter
 ) -> Dict:
     server_dir = output_dir / server_id
     server_dir.mkdir(parents=True, exist_ok=True)
@@ -327,7 +339,11 @@ def create_exports_for_server(
 
     raw_tables: Dict[str, pd.DataFrame] = {}
     for table in TABLES_TO_EXPORT:
-        df = read_table(conn, table, limit=row_limit)
+        # Read liquidity_data from global_conn if available, otherwise from server_conn
+        if table == "liquidity_data" and global_conn:
+            df = read_table(global_conn, table, limit=row_limit)
+        else:
+            df = read_table(server_conn, table, limit=row_limit)
         raw_tables[table] = df
         summary["tables"][table] = {"rows": int(len(df)) if not df.empty else 0}
 
@@ -337,6 +353,7 @@ def create_exports_for_server(
     server_tokens = raw_tables["server_tokens"].copy()
     gas = enrich_gas(raw_tables["gas_balances"])
     contracts = enrich_contracts(raw_tables["contract_transactions"])
+    liquidity = enrich_liquidity(raw_tables.get("liquidity_data", pd.DataFrame()))
 
     merged = pd.DataFrame()
     if not trades.empty and not diff.empty:
@@ -367,6 +384,7 @@ def create_exports_for_server(
     write_dataframe(server_tokens, server_dir / "server_tokens", formats, summary["tables"]["server_tokens"])
     write_dataframe(gas, server_dir / "gas_balances", formats, summary["tables"]["gas_balances"])
     write_dataframe(contracts, server_dir / "contract_transactions", formats, summary["tables"]["contract_transactions"])
+    write_dataframe(liquidity, server_dir / "liquidity_data", formats, summary["tables"]["liquidity_data"])
 
     if not merged.empty:
         write_dataframe(merged, server_dir / "trades_with_diff", formats, summary.setdefault("merged", {}))
@@ -423,6 +441,14 @@ def main() -> None:
     if selected_servers:
         manifest["filters"] = {"servers": sorted(selected_servers)}
 
+    # Open global DB connection once
+    default_db_path = Path("data.sqlite")
+    if not default_db_path.exists():
+        logging.warning("Default database %s not found. Skipping global data export.", default_db_path)
+        global_conn = None
+    else:
+        global_conn = sqlite3.connect(default_db_path)
+
     for server in config.get("servers", []):
         server_id = server.get("id")
         if not server_id:
@@ -441,19 +467,23 @@ def main() -> None:
             manifest["servers"].append(server_entry)
             continue
 
-        with sqlite3.connect(db_path) as conn:
+        with sqlite3.connect(db_path) as server_conn:
             summary = create_exports_for_server(
                 server_id=server_id,
-                conn=conn,
+                server_conn=server_conn,
                 formats=formats,
                 tolerance_minutes=args.tolerance_minutes,
                 direction=args.direction,
                 output_dir=output_dir,
                 row_limit=args.row_limit,
+                global_conn=global_conn, # Pass global connection
             )
             server_entry.update(summary)
 
         manifest["servers"].append(server_entry)
+    
+    if global_conn:
+        global_conn.close() # Close global connection
 
     manifest_path = output_dir / "manifest.json"
     with manifest_path.open("w", encoding="utf-8") as f:

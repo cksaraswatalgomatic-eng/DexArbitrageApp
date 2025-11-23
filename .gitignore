@@ -29,3 +29,10 @@ data.sqlite-wal
 *.sqlite-shm
 .eslintrc.json
 eslint.config.js
+
+# Large Data Files
+data_exports/**/*.parquet
+
+# Python Cache
+__pycache__/
+*.pyc

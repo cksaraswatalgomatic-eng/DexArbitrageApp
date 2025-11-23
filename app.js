@@ -2466,6 +2466,151 @@ app.post('/admin/fetch-all', async (req, res) => {
 });
 
 
+// ML Dashboard Routes
+app.get('/ml-dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'ml-dashboard.html'));
+});
+
+app.post('/api/ml/train', (req, res) => {
+  const { modelType, task } = req.body;
+  // Security check: ensure modelType is alphanumeric
+  if (!/^[a-zA-Z0-9_]+$/.test(modelType)) {
+    return res.status(400).json({ error: 'Invalid model type' });
+  }
+
+  console.log(`[api:ml:train] Starting training for ${modelType} (Task: ${task || 'classification'})...`);
+  
+  // Spawn python process detached
+  const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+  const args = ['train.py', '--task', task || 'classification', '--model-type', modelType, '--refresh-data'];
+  
+  try {
+    const child = spawn(pythonCmd, args, {
+      cwd: __dirname,
+      detached: true,
+      stdio: 'ignore'
+    });
+    child.unref();
+    res.json({ status: 'started', pid: child.pid });
+  } catch (err) {
+    console.error('Failed to spawn training process:', err);
+    res.status(500).json({ error: 'Failed to start training' });
+  }
+});
+
+app.get('/api/ml/model-info', async (req, res) => {
+  try {
+    const baseUrl = getMlServiceBaseUrl();
+    const resp = await axios.get(`${baseUrl}/metadata`, { timeout: 5000 });
+    res.json(resp.data);
+  } catch (err) {
+    // Fallback to checking local file if service is down
+    try {
+      const metaPath = path.join(__dirname, 'models', 'latest', 'metadata.json');
+      if (fs.existsSync(metaPath)) {
+        const data = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+        res.json(data);
+      } else {
+        res.status(404).json({ error: 'No model metadata found' });
+      }
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to retrieve model info' });
+    }
+  }
+});
+
+app.post('/api/ml/predict', async (req, res) => {
+  try {
+    const { payloads } = req.body;
+    if (!Array.isArray(payloads)) return res.status(400).json({ error: 'Payloads array required' });
+    
+    const baseUrl = getMlServiceBaseUrl();
+    const result = await proxyMlServicePredict(baseUrl, payloads, true);
+    res.json(result);
+  } catch (err) {
+    console.error('[api:ml:predict] error:', err.message);
+    res.status(500).json({ error: 'Prediction failed' });
+  }
+});
+
+app.get('/api/ml/analysis', (req, res) => {
+  const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, 'scripts', 'market_analysis.py');
+  // We can pass server filter if needed
+  const args = [scriptPath];
+  if (req.query.servers) {
+    args.push('--servers', req.query.servers);
+  }
+  if (req.query.limit) {
+    args.push('--limit', req.query.limit);
+  }
+
+  console.log(`[api:ml:analysis] Running analysis...`);
+  const child = spawn(pythonCmd, args);
+
+  let stdout = '';
+  let stderr = '';
+
+  child.stdout.on('data', (data) => { stdout += data.toString(); });
+  child.stderr.on('data', (data) => { stderr += data.toString(); });
+
+  child.on('close', (code) => {
+    if (code !== 0) {
+      console.error(`[api:ml:analysis] Script failed (code ${code}): ${stderr}`);
+      return res.status(500).json({ error: 'Analysis script failed', details: stderr });
+    }
+    try {
+      // Find the JSON output between delimiters
+      const startMarker = '__JSON_START__';
+      const endMarker = '__JSON_END__';
+      
+      const startIndex = stdout.indexOf(startMarker);
+      const endIndex = stdout.indexOf(endMarker);
+      
+      let jsonStr = '';
+      
+      if (startIndex !== -1 && endIndex !== -1) {
+         jsonStr = stdout.substring(startIndex + startMarker.length, endIndex).trim();
+      } else {
+         // Fallback to finding array
+         const jsonStart = stdout.indexOf('[');
+         const jsonEnd = stdout.lastIndexOf(']');
+         if (jsonStart === -1 || jsonEnd === -1) {
+             throw new Error('No JSON output found');
+         }
+         jsonStr = stdout.substring(jsonStart, jsonEnd + 1);
+      }
+
+      const data = JSON.parse(jsonStr);
+      res.json(data);
+    } catch (err) {
+      console.error('[api:ml:analysis] Parse error:', err.message, stdout);
+      res.status(500).json({ error: 'Failed to parse analysis results', details: stderr });
+    }
+  });
+});
+
+app.get('/api/liquidity/latest', (req, res) => {
+  try {
+    const symbol = req.query.symbol;
+    if (!symbol) return res.status(400).json({ error: 'Symbol required' });
+    
+    const db = getDbFromReq(req); // Uses 'default' DB for liquidity usually
+    // Try exact match first, then like match
+    let row = db.prepare('SELECT * FROM liquidity_data WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1').get(symbol.toLowerCase());
+    
+    if (!row) {
+       // Try generic match
+       row = db.prepare('SELECT * FROM liquidity_data WHERE symbol LIKE ? ORDER BY timestamp DESC LIMIT 1').get(`%${symbol.toLowerCase()}%`);
+    }
+
+    res.json(row || {});
+  } catch (err) {
+    console.error('[api:liquidity] error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // API Endpoints
 function getDbFromReq(req) {
   const serverId = req.query.serverId || loadServers().activeId;

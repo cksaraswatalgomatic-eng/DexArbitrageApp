@@ -90,7 +90,7 @@ def load_server_dataset(config: TrainingConfig, server_id: str) -> Tuple[pd.Data
         trades["serverId"] = server_id
 
     context_tables: Dict[str, pd.DataFrame] = {}
-    for name in ("balances_history", "gas_balances", "contract_transactions", "server_tokens"):
+    for name in ("balances_history", "gas_balances", "contract_transactions", "server_tokens", "liquidity_data"):
         frame = _read_frame(server_dir / name, config.row_limit)
         if frame.empty:
             continue
@@ -100,6 +100,8 @@ def load_server_dataset(config: TrainingConfig, server_id: str) -> Tuple[pd.Data
             frame = _ensure_datetime(frame, ["gas_ts", "timestamp"])
         elif name == "contract_transactions":
             frame = _ensure_datetime(frame, ["tx_ts", "timestamp"])
+        elif name == "liquidity_data":
+            frame = _ensure_datetime(frame, ["liq_ts", "timestamp"])
         context_tables[name] = frame
 
     return trades, context_tables
@@ -130,7 +132,11 @@ def load_datasets(config: TrainingConfig) -> Tuple[pd.DataFrame, Dict[str, Dict[
         else:
             LOGGER.warning("Token filter specified but '%s' column not found.", config.token_column)
 
-    label_series = pd.to_numeric(combined.get(config.regression_target), errors='coerce')
+    if config.regression_target in combined.columns:
+        label_series = pd.to_numeric(combined[config.regression_target], errors='coerce')
+    else:
+        label_series = pd.Series(np.nan, index=combined.index)
+
     if label_series.isna().all():
         fallback_cols = ['netProfit', 'executedProfit', 'executedGrossProfit']
         for col in fallback_cols:

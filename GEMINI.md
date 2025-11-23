@@ -16,9 +16,9 @@ The application consists of three main components:
 
 ### Backend (Node.js)
 
--   **Framework:** Express.js
--   **Database:** `better-sqlite3` for local SQLite storage.
--   **Scheduling:** `node-cron` for periodic data fetching.
+-   **Framework:** Express.js (ES Modules)
+-   **Database:** `better-sqlite3` for local SQLite storage (`data.sqlite`).
+-   **Scheduling:** `node-cron` for periodic data fetching (every 2 minutes).
 -   **Key Files:**
     -   `app.js`: Main application file containing the Express server, API endpoints, cron jobs, and database logic.
     -   `package.json`: Defines Node.js dependencies and scripts.
@@ -26,11 +26,12 @@ The application consists of three main components:
 
 ### Frontend (Vanilla JS)
 
--   **Libraries:** Chart.js for charting.
+-   **Libraries:** Chart.js (via CDN/local), plain HTML/CSS.
 -   **Key Files:**
     -   `public/index.html`: The main HTML file for the dashboard.
     -   `public/script.js`: The main JavaScript file for frontend logic, data fetching, and chart rendering.
     -   `public/styles.css`: CSS for styling the application.
+    -   `public/reports.html` & `public/reports.js`: Reporting and analytics interface.
 
 ### Machine Learning (Python)
 
@@ -78,7 +79,7 @@ The application consists of three main components:
 
 ### Training a New Model
 
-To train a new machine learning model, run the `train.py` script with the desired arguments. For example:
+To train a new machine learning model, run the `train.py` script. Check the script for available arguments.
 
 ```bash
 python train.py --task classification --model-type random_forest --refresh-data
@@ -86,7 +87,17 @@ python train.py --task classification --model-type random_forest --refresh-data
 
 ## Development Conventions
 
--   **Configuration:** The application is configured through environment variables (e.g., `PORT`, `DB_PATH`) and the `servers.json` file.
--   **Database Schema:** The database schema is defined in `app.js` within the `ensureDb` function. It includes tables for `balances_history`, `completed_trades`, `server_tokens`, `gas_balances`, and more.
--   **API Endpoints:** The main API endpoints are defined in `app.js`. See the `README.md` for a detailed list.
+-   **Configuration:** The application is configured through environment variables (e.g., `PORT`, `DB_PATH`, `BALANCES_URL`, `TRADES_URL`) and `servers.json`.
+-   **Database Schema:** The database schema is defined in `app.js` within the `ensureDb` function. It includes tables for `balances_history`, `completed_trades`, `server_tokens`, `gas_balances`, etc.
+-   **API Endpoints:** The main API endpoints are defined in `app.js`. Refer to `README.md` for a detailed list.
 -   **Modularity:** The project is divided into a Node.js backend, a frontend, and a Python ML service, each with its own set of responsibilities.
+-   **Code Style:**
+    -   **JS:** Uses ES Modules (`import`/`export`).
+    -   **Python:** Uses Type Hints and Pydantic models.
+
+## Scripts
+
+-   `npm start`: Runs `node app.js`.
+-   `npm run ml:service`: Runs the FastAPI ML service.
+-   `npm run lint`: Runs ESLint.
+-   `npm run db:inspect`: Runs `scripts/inspect-db.js` to inspect the database.

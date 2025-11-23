@@ -1,203 +1,2447 @@
 {
-  "generatedAt": "2025-10-03T18:25:36.848770+00:00",
+  "generatedAt": "2025-11-22T17:31:03.896494+00:00",
   "toleranceMinutes": 2.0,
   "direction": "backward",
   "formats": [
-    "csv"
+    "parquet"
   ],
   "serversConfig": "servers.json",
   "servers": [
+    {
+      "serverId": "bnb",
+      "dbPath": "data-bnb.sqlite",
+      "exists": true,
+      "tables": {
+        "completed_trades": {
+          "rows": 41850,
+          "artifacts": [
+            "data_exports\\bnb\\completed_trades.parquet"
+          ]
+        },
+        "diff_history": {
+          "rows": 3526293,
+          "artifacts": [
+            "data_exports\\bnb\\diff_history.parquet"
+          ]
+        },
+        "balances_history": {
+          "rows": 21545,
+          "artifacts": [
+            "data_exports\\bnb\\balances_history.parquet"
+          ]
+        },
+        "server_tokens": {
+          "rows": 87489,
+          "artifacts": [
+            "data_exports\\bnb\\server_tokens.parquet"
+          ]
+        },
+        "gas_balances": {
+          "rows": 118548,
+          "artifacts": [
+            "data_exports\\bnb\\gas_balances.parquet"
+          ]
+        },
+        "contract_transactions": {
+          "rows": 0
+        },
+        "liquidity_data": {
+          "rows": 421309,
+          "artifacts": [
+            "data_exports\\bnb\\liquidity_data.parquet"
+          ]
+        }
+      },
+      "tokens": {
+        "0g": {
+          "tradeRows": 1716,
+          "trades": {
+            "rows": 1716,
+            "artifacts": [
+              "data_exports\\bnb\\0g\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 100472,
+            "artifacts": [
+              "data_exports\\bnb\\0g\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1716,
+            "artifacts": [
+              "data_exports\\bnb\\0g\\merged.parquet"
+            ]
+          }
+        },
+        "1inch": {
+          "tradeRows": 1,
+          "trades": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\1inch\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\1inch\\merged.parquet"
+            ]
+          }
+        },
+        "aave": {
+          "tradeRows": 2526,
+          "trades": {
+            "rows": 2526,
+            "artifacts": [
+              "data_exports\\bnb\\aave\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 183654,
+            "artifacts": [
+              "data_exports\\bnb\\aave\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2526,
+            "artifacts": [
+              "data_exports\\bnb\\aave\\merged.parquet"
+            ]
+          }
+        },
+        "aitech": {
+          "tradeRows": 28,
+          "trades": {
+            "rows": 28,
+            "artifacts": [
+              "data_exports\\bnb\\aitech\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 28,
+            "artifacts": [
+              "data_exports\\bnb\\aitech\\merged.parquet"
+            ]
+          }
+        },
+        "allo": {
+          "tradeRows": 281,
+          "trades": {
+            "rows": 281,
+            "artifacts": [
+              "data_exports\\bnb\\allo\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 228270,
+            "artifacts": [
+              "data_exports\\bnb\\allo\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 281,
+            "artifacts": [
+              "data_exports\\bnb\\allo\\merged.parquet"
+            ]
+          }
+        },
+        "aster": {
+          "tradeRows": 1183,
+          "trades": {
+            "rows": 1183,
+            "artifacts": [
+              "data_exports\\bnb\\aster\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 160596,
+            "artifacts": [
+              "data_exports\\bnb\\aster\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1183,
+            "artifacts": [
+              "data_exports\\bnb\\aster\\merged.parquet"
+            ]
+          }
+        },
+        "b2": {
+          "tradeRows": 16,
+          "trades": {
+            "rows": 16,
+            "artifacts": [
+              "data_exports\\bnb\\b2\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 16,
+            "artifacts": [
+              "data_exports\\bnb\\b2\\merged.parquet"
+            ]
+          }
+        },
+        "bank": {
+          "tradeRows": 310,
+          "trades": {
+            "rows": 310,
+            "artifacts": [
+              "data_exports\\bnb\\bank\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 97832,
+            "artifacts": [
+              "data_exports\\bnb\\bank\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 310,
+            "artifacts": [
+              "data_exports\\bnb\\bank\\merged.parquet"
+            ]
+          }
+        },
+        "bard": {
+          "tradeRows": 50,
+          "trades": {
+            "rows": 50,
+            "artifacts": [
+              "data_exports\\bnb\\bard\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 50,
+            "artifacts": [
+              "data_exports\\bnb\\bard\\merged.parquet"
+            ]
+          }
+        },
+        "bgsc": {
+          "tradeRows": 25,
+          "trades": {
+            "rows": 25,
+            "artifacts": [
+              "data_exports\\bnb\\bgsc\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 25,
+            "artifacts": [
+              "data_exports\\bnb\\bgsc\\merged.parquet"
+            ]
+          }
+        },
+        "bmt": {
+          "tradeRows": 114,
+          "trades": {
+            "rows": 114,
+            "artifacts": [
+              "data_exports\\bnb\\bmt\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 41939,
+            "artifacts": [
+              "data_exports\\bnb\\bmt\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 114,
+            "artifacts": [
+              "data_exports\\bnb\\bmt\\merged.parquet"
+            ]
+          }
+        },
+        "bnb": {
+          "tradeRows": 7811,
+          "trades": {
+            "rows": 7811,
+            "artifacts": [
+              "data_exports\\bnb\\bnb\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 125980,
+            "artifacts": [
+              "data_exports\\bnb\\bnb\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 7811,
+            "artifacts": [
+              "data_exports\\bnb\\bnb\\merged.parquet"
+            ]
+          }
+        },
+        "br": {
+          "tradeRows": 15,
+          "trades": {
+            "rows": 15,
+            "artifacts": [
+              "data_exports\\bnb\\br\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 15,
+            "artifacts": [
+              "data_exports\\bnb\\br\\merged.parquet"
+            ]
+          }
+        },
+        "broccoli714": {
+          "tradeRows": 24,
+          "trades": {
+            "rows": 24,
+            "artifacts": [
+              "data_exports\\bnb\\broccoli714\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 52341,
+            "artifacts": [
+              "data_exports\\bnb\\broccoli714\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 24,
+            "artifacts": [
+              "data_exports\\bnb\\broccoli714\\merged.parquet"
+            ]
+          }
+        },
+        "btc": {
+          "tradeRows": 1203,
+          "trades": {
+            "rows": 1203,
+            "artifacts": [
+              "data_exports\\bnb\\btc\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 124220,
+            "artifacts": [
+              "data_exports\\bnb\\btc\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1203,
+            "artifacts": [
+              "data_exports\\bnb\\btc\\merged.parquet"
+            ]
+          }
+        },
+        "bubb": {
+          "tradeRows": 1,
+          "trades": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\bubb\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\bubb\\merged.parquet"
+            ]
+          }
+        },
+        "busd": {
+          "tradeRows": 11,
+          "trades": {
+            "rows": 11,
+            "artifacts": [
+              "data_exports\\bnb\\busd\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 11,
+            "artifacts": [
+              "data_exports\\bnb\\busd\\merged.parquet"
+            ]
+          }
+        },
+        "cake": {
+          "tradeRows": 1601,
+          "trades": {
+            "rows": 1601,
+            "artifacts": [
+              "data_exports\\bnb\\cake\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 106376,
+            "artifacts": [
+              "data_exports\\bnb\\cake\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1601,
+            "artifacts": [
+              "data_exports\\bnb\\cake\\merged.parquet"
+            ]
+          }
+        },
+        "cgpt": {
+          "tradeRows": 408,
+          "trades": {
+            "rows": 408,
+            "artifacts": [
+              "data_exports\\bnb\\cgpt\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 32563,
+            "artifacts": [
+              "data_exports\\bnb\\cgpt\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 408,
+            "artifacts": [
+              "data_exports\\bnb\\cgpt\\merged.parquet"
+            ]
+          }
+        },
+        "cheems": {
+          "tradeRows": 2,
+          "trades": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\bnb\\cheems\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\bnb\\cheems\\merged.parquet"
+            ]
+          }
+        },
+        "coa": {
+          "tradeRows": 1,
+          "trades": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\coa\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\coa\\merged.parquet"
+            ]
+          }
+        },
+        "coai": {
+          "tradeRows": 1,
+          "trades": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\coai\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\coai\\merged.parquet"
+            ]
+          }
+        },
+        "doge": {
+          "tradeRows": 48,
+          "trades": {
+            "rows": 48,
+            "artifacts": [
+              "data_exports\\bnb\\doge\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 48,
+            "artifacts": [
+              "data_exports\\bnb\\doge\\merged.parquet"
+            ]
+          }
+        },
+        "eden": {
+          "tradeRows": 1052,
+          "trades": {
+            "rows": 1052,
+            "artifacts": [
+              "data_exports\\bnb\\eden\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 18824,
+            "artifacts": [
+              "data_exports\\bnb\\eden\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1052,
+            "artifacts": [
+              "data_exports\\bnb\\eden\\merged.parquet"
+            ]
+          }
+        },
+        "egl1": {
+          "tradeRows": 5,
+          "trades": {
+            "rows": 5,
+            "artifacts": [
+              "data_exports\\bnb\\egl1\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 5,
+            "artifacts": [
+              "data_exports\\bnb\\egl1\\merged.parquet"
+            ]
+          }
+        },
+        "era": {
+          "tradeRows": 784,
+          "trades": {
+            "rows": 784,
+            "artifacts": [
+              "data_exports\\bnb\\era\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 117053,
+            "artifacts": [
+              "data_exports\\bnb\\era\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 784,
+            "artifacts": [
+              "data_exports\\bnb\\era\\merged.parquet"
+            ]
+          }
+        },
+        "eth": {
+          "tradeRows": 2565,
+          "trades": {
+            "rows": 2565,
+            "artifacts": [
+              "data_exports\\bnb\\eth\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 183153,
+            "artifacts": [
+              "data_exports\\bnb\\eth\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2565,
+            "artifacts": [
+              "data_exports\\bnb\\eth\\merged.parquet"
+            ]
+          }
+        },
+        "fair3": {
+          "tradeRows": 308,
+          "trades": {
+            "rows": 308,
+            "artifacts": [
+              "data_exports\\bnb\\fair3\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 308,
+            "artifacts": [
+              "data_exports\\bnb\\fair3\\merged.parquet"
+            ]
+          }
+        },
+        "fdusd": {
+          "tradeRows": 53,
+          "trades": {
+            "rows": 53,
+            "artifacts": [
+              "data_exports\\bnb\\fdusd\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 53,
+            "artifacts": [
+              "data_exports\\bnb\\fdusd\\merged.parquet"
+            ]
+          }
+        },
+        "ff": {
+          "tradeRows": 867,
+          "trades": {
+            "rows": 867,
+            "artifacts": [
+              "data_exports\\bnb\\ff\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 158334,
+            "artifacts": [
+              "data_exports\\bnb\\ff\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 867,
+            "artifacts": [
+              "data_exports\\bnb\\ff\\merged.parquet"
+            ]
+          }
+        },
+        "form": {
+          "tradeRows": 1268,
+          "trades": {
+            "rows": 1268,
+            "artifacts": [
+              "data_exports\\bnb\\form\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 107880,
+            "artifacts": [
+              "data_exports\\bnb\\form\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1268,
+            "artifacts": [
+              "data_exports\\bnb\\form\\merged.parquet"
+            ]
+          }
+        },
+        "froggie": {
+          "tradeRows": 20,
+          "trades": {
+            "rows": 20,
+            "artifacts": [
+              "data_exports\\bnb\\froggie\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 20,
+            "artifacts": [
+              "data_exports\\bnb\\froggie\\merged.parquet"
+            ]
+          }
+        },
+        "giggle": {
+          "tradeRows": 2579,
+          "trades": {
+            "rows": 2579,
+            "artifacts": [
+              "data_exports\\bnb\\giggle\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 198061,
+            "artifacts": [
+              "data_exports\\bnb\\giggle\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2579,
+            "artifacts": [
+              "data_exports\\bnb\\giggle\\merged.parquet"
+            ]
+          }
+        },
+        "hemi": {
+          "tradeRows": 163,
+          "trades": {
+            "rows": 163,
+            "artifacts": [
+              "data_exports\\bnb\\hemi\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 47049,
+            "artifacts": [
+              "data_exports\\bnb\\hemi\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 163,
+            "artifacts": [
+              "data_exports\\bnb\\hemi\\merged.parquet"
+            ]
+          }
+        },
+        "in": {
+          "tradeRows": 42,
+          "trades": {
+            "rows": 42,
+            "artifacts": [
+              "data_exports\\bnb\\in\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 42,
+            "artifacts": [
+              "data_exports\\bnb\\in\\merged.parquet"
+            ]
+          }
+        },
+        "koge": {
+          "tradeRows": 78,
+          "trades": {
+            "rows": 78,
+            "artifacts": [
+              "data_exports\\bnb\\koge\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 78,
+            "artifacts": [
+              "data_exports\\bnb\\koge\\merged.parquet"
+            ]
+          }
+        },
+        "lab": {
+          "tradeRows": 3,
+          "trades": {
+            "rows": 3,
+            "artifacts": [
+              "data_exports\\bnb\\lab\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 3,
+            "artifacts": [
+              "data_exports\\bnb\\lab\\merged.parquet"
+            ]
+          }
+        },
+        "link": {
+          "tradeRows": 1153,
+          "trades": {
+            "rows": 1153,
+            "artifacts": [
+              "data_exports\\bnb\\link\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 96969,
+            "artifacts": [
+              "data_exports\\bnb\\link\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1153,
+            "artifacts": [
+              "data_exports\\bnb\\link\\merged.parquet"
+            ]
+          }
+        },
+        "lista": {
+          "tradeRows": 147,
+          "trades": {
+            "rows": 147,
+            "artifacts": [
+              "data_exports\\bnb\\lista\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 55299,
+            "artifacts": [
+              "data_exports\\bnb\\lista\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 147,
+            "artifacts": [
+              "data_exports\\bnb\\lista\\merged.parquet"
+            ]
+          }
+        },
+        "milk": {
+          "tradeRows": 5,
+          "trades": {
+            "rows": 5,
+            "artifacts": [
+              "data_exports\\bnb\\milk\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 5,
+            "artifacts": [
+              "data_exports\\bnb\\milk\\merged.parquet"
+            ]
+          }
+        },
+        "mira": {
+          "tradeRows": 349,
+          "trades": {
+            "rows": 349,
+            "artifacts": [
+              "data_exports\\bnb\\mira\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 68062,
+            "artifacts": [
+              "data_exports\\bnb\\mira\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 349,
+            "artifacts": [
+              "data_exports\\bnb\\mira\\merged.parquet"
+            ]
+          }
+        },
+        "mubarak": {
+          "tradeRows": 12,
+          "trades": {
+            "rows": 12,
+            "artifacts": [
+              "data_exports\\bnb\\mubarak\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 12,
+            "artifacts": [
+              "data_exports\\bnb\\mubarak\\merged.parquet"
+            ]
+          }
+        },
+        "myx": {
+          "tradeRows": 10,
+          "trades": {
+            "rows": 10,
+            "artifacts": [
+              "data_exports\\bnb\\myx\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 10,
+            "artifacts": [
+              "data_exports\\bnb\\myx\\merged.parquet"
+            ]
+          }
+        },
+        "native": {
+          "tradeRows": 11,
+          "trades": {
+            "rows": 11,
+            "artifacts": [
+              "data_exports\\bnb\\native\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 11,
+            "artifacts": [
+              "data_exports\\bnb\\native\\merged.parquet"
+            ]
+          }
+        },
+        "planck": {
+          "tradeRows": 2,
+          "trades": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\bnb\\planck\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\bnb\\planck\\merged.parquet"
+            ]
+          }
+        },
+        "quq": {
+          "tradeRows": 20,
+          "trades": {
+            "rows": 20,
+            "artifacts": [
+              "data_exports\\bnb\\quq\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 20,
+            "artifacts": [
+              "data_exports\\bnb\\quq\\merged.parquet"
+            ]
+          }
+        },
+        "rex": {
+          "tradeRows": 1,
+          "trades": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\rex\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\rex\\merged.parquet"
+            ]
+          }
+        },
+        "rwa": {
+          "tradeRows": 2,
+          "trades": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\bnb\\rwa\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\bnb\\rwa\\merged.parquet"
+            ]
+          }
+        },
+        "sfp": {
+          "tradeRows": 2,
+          "trades": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\bnb\\sfp\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\bnb\\sfp\\merged.parquet"
+            ]
+          }
+        },
+        "sign": {
+          "tradeRows": 862,
+          "trades": {
+            "rows": 862,
+            "artifacts": [
+              "data_exports\\bnb\\sign\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 103420,
+            "artifacts": [
+              "data_exports\\bnb\\sign\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 862,
+            "artifacts": [
+              "data_exports\\bnb\\sign\\merged.parquet"
+            ]
+          }
+        },
+        "siren": {
+          "tradeRows": 10,
+          "trades": {
+            "rows": 10,
+            "artifacts": [
+              "data_exports\\bnb\\siren\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 10,
+            "artifacts": [
+              "data_exports\\bnb\\siren\\merged.parquet"
+            ]
+          }
+        },
+        "skyai": {
+          "tradeRows": 2,
+          "trades": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\bnb\\skyai\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\bnb\\skyai\\merged.parquet"
+            ]
+          }
+        },
+        "sol": {
+          "tradeRows": 1142,
+          "trades": {
+            "rows": 1142,
+            "artifacts": [
+              "data_exports\\bnb\\sol\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 204300,
+            "artifacts": [
+              "data_exports\\bnb\\sol\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1142,
+            "artifacts": [
+              "data_exports\\bnb\\sol\\merged.parquet"
+            ]
+          }
+        },
+        "solv": {
+          "tradeRows": 7,
+          "trades": {
+            "rows": 7,
+            "artifacts": [
+              "data_exports\\bnb\\solv\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 7,
+            "artifacts": [
+              "data_exports\\bnb\\solv\\merged.parquet"
+            ]
+          }
+        },
+        "soon": {
+          "tradeRows": 8,
+          "trades": {
+            "rows": 8,
+            "artifacts": [
+              "data_exports\\bnb\\soon\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 8,
+            "artifacts": [
+              "data_exports\\bnb\\soon\\merged.parquet"
+            ]
+          }
+        },
+        "sps": {
+          "tradeRows": 3,
+          "trades": {
+            "rows": 3,
+            "artifacts": [
+              "data_exports\\bnb\\sps\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 3,
+            "artifacts": [
+              "data_exports\\bnb\\sps\\merged.parquet"
+            ]
+          }
+        },
+        "sto": {
+          "tradeRows": 54,
+          "trades": {
+            "rows": 54,
+            "artifacts": [
+              "data_exports\\bnb\\sto\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 54,
+            "artifacts": [
+              "data_exports\\bnb\\sto\\merged.parquet"
+            ]
+          }
+        },
+        "tag": {
+          "tradeRows": 143,
+          "trades": {
+            "rows": 143,
+            "artifacts": [
+              "data_exports\\bnb\\tag\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 143,
+            "artifacts": [
+              "data_exports\\bnb\\tag\\merged.parquet"
+            ]
+          }
+        },
+        "towns": {
+          "tradeRows": 223,
+          "trades": {
+            "rows": 223,
+            "artifacts": [
+              "data_exports\\bnb\\towns\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 41096,
+            "artifacts": [
+              "data_exports\\bnb\\towns\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 223,
+            "artifacts": [
+              "data_exports\\bnb\\towns\\merged.parquet"
+            ]
+          }
+        },
+        "tradoor": {
+          "tradeRows": 37,
+          "trades": {
+            "rows": 37,
+            "artifacts": [
+              "data_exports\\bnb\\tradoor\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 37,
+            "artifacts": [
+              "data_exports\\bnb\\tradoor\\merged.parquet"
+            ]
+          }
+        },
+        "tree": {
+          "tradeRows": 523,
+          "trades": {
+            "rows": 523,
+            "artifacts": [
+              "data_exports\\bnb\\tree\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 37522,
+            "artifacts": [
+              "data_exports\\bnb\\tree\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 523,
+            "artifacts": [
+              "data_exports\\bnb\\tree\\merged.parquet"
+            ]
+          }
+        },
+        "twt": {
+          "tradeRows": 235,
+          "trades": {
+            "rows": 235,
+            "artifacts": [
+              "data_exports\\bnb\\twt\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 77538,
+            "artifacts": [
+              "data_exports\\bnb\\twt\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 235,
+            "artifacts": [
+              "data_exports\\bnb\\twt\\merged.parquet"
+            ]
+          }
+        },
+        "uni": {
+          "tradeRows": 2048,
+          "trades": {
+            "rows": 2048,
+            "artifacts": [
+              "data_exports\\bnb\\uni\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 270566,
+            "artifacts": [
+              "data_exports\\bnb\\uni\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2048,
+            "artifacts": [
+              "data_exports\\bnb\\uni\\merged.parquet"
+            ]
+          }
+        },
+        "usd1": {
+          "tradeRows": 1,
+          "trades": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\usd1\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\bnb\\usd1\\merged.parquet"
+            ]
+          }
+        },
+        "usdc": {
+          "tradeRows": 1997,
+          "trades": {
+            "rows": 1997,
+            "artifacts": [
+              "data_exports\\bnb\\usdc\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1997,
+            "artifacts": [
+              "data_exports\\bnb\\usdc\\merged.parquet"
+            ]
+          }
+        },
+        "velo": {
+          "tradeRows": 21,
+          "trades": {
+            "rows": 21,
+            "artifacts": [
+              "data_exports\\bnb\\velo\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 21,
+            "artifacts": [
+              "data_exports\\bnb\\velo\\merged.parquet"
+            ]
+          }
+        },
+        "xpl": {
+          "tradeRows": 919,
+          "trades": {
+            "rows": 919,
+            "artifacts": [
+              "data_exports\\bnb\\xpl\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 151946,
+            "artifacts": [
+              "data_exports\\bnb\\xpl\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 919,
+            "artifacts": [
+              "data_exports\\bnb\\xpl\\merged.parquet"
+            ]
+          }
+        },
+        "xrp": {
+          "tradeRows": 2029,
+          "trades": {
+            "rows": 2029,
+            "artifacts": [
+              "data_exports\\bnb\\xrp\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 145702,
+            "artifacts": [
+              "data_exports\\bnb\\xrp\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2029,
+            "artifacts": [
+              "data_exports\\bnb\\xrp\\merged.parquet"
+            ]
+          }
+        },
+        "yb": {
+          "tradeRows": 1821,
+          "trades": {
+            "rows": 1821,
+            "artifacts": [
+              "data_exports\\bnb\\yb\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 87313,
+            "artifacts": [
+              "data_exports\\bnb\\yb\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1821,
+            "artifacts": [
+              "data_exports\\bnb\\yb\\merged.parquet"
+            ]
+          }
+        },
+        "zbt": {
+          "tradeRows": 238,
+          "trades": {
+            "rows": 238,
+            "artifacts": [
+              "data_exports\\bnb\\zbt\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 20977,
+            "artifacts": [
+              "data_exports\\bnb\\zbt\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 238,
+            "artifacts": [
+              "data_exports\\bnb\\zbt\\merged.parquet"
+            ]
+          }
+        },
+        "zkc": {
+          "tradeRows": 621,
+          "trades": {
+            "rows": 621,
+            "artifacts": [
+              "data_exports\\bnb\\zkc\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 80986,
+            "artifacts": [
+              "data_exports\\bnb\\zkc\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 621,
+            "artifacts": [
+              "data_exports\\bnb\\zkc\\merged.parquet"
+            ]
+          }
+        },
+        "zkj": {
+          "tradeRows": 29,
+          "trades": {
+            "rows": 29,
+            "artifacts": [
+              "data_exports\\bnb\\zkj\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 29,
+            "artifacts": [
+              "data_exports\\bnb\\zkj\\merged.parquet"
+            ]
+          }
+        }
+      },
+      "quality": {
+        "rows": 72
+      },
+      "merged": {
+        "rows": 41850,
+        "artifacts": [
+          "data_exports\\bnb\\trades_with_diff.parquet"
+        ]
+      }
+    },
+    {
+      "serverId": "arbitrum",
+      "dbPath": "data-arbitrum.sqlite",
+      "exists": true,
+      "tables": {
+        "completed_trades": {
+          "rows": 20055,
+          "artifacts": [
+            "data_exports\\arbitrum\\completed_trades.parquet"
+          ]
+        },
+        "diff_history": {
+          "rows": 1475926,
+          "artifacts": [
+            "data_exports\\arbitrum\\diff_history.parquet"
+          ]
+        },
+        "balances_history": {
+          "rows": 21183,
+          "artifacts": [
+            "data_exports\\arbitrum\\balances_history.parquet"
+          ]
+        },
+        "server_tokens": {
+          "rows": 177471,
+          "artifacts": [
+            "data_exports\\arbitrum\\server_tokens.parquet"
+          ]
+        },
+        "gas_balances": {
+          "rows": 114324,
+          "artifacts": [
+            "data_exports\\arbitrum\\gas_balances.parquet"
+          ]
+        },
+        "contract_transactions": {
+          "rows": 0
+        },
+        "liquidity_data": {
+          "rows": 421309,
+          "artifacts": [
+            "data_exports\\arbitrum\\liquidity_data.parquet"
+          ]
+        }
+      },
+      "tokens": {
+        "aave": {
+          "tradeRows": 3777,
+          "trades": {
+            "rows": 3777,
+            "artifacts": [
+              "data_exports\\arbitrum\\aave\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 196354,
+            "artifacts": [
+              "data_exports\\arbitrum\\aave\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 3777,
+            "artifacts": [
+              "data_exports\\arbitrum\\aave\\merged.parquet"
+            ]
+          }
+        },
+        "arb": {
+          "tradeRows": 1194,
+          "trades": {
+            "rows": 1194,
+            "artifacts": [
+              "data_exports\\arbitrum\\arb\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 114548,
+            "artifacts": [
+              "data_exports\\arbitrum\\arb\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1194,
+            "artifacts": [
+              "data_exports\\arbitrum\\arb\\merged.parquet"
+            ]
+          }
+        },
+        "btc": {
+          "tradeRows": 1571,
+          "trades": {
+            "rows": 1571,
+            "artifacts": [
+              "data_exports\\arbitrum\\btc\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 120767,
+            "artifacts": [
+              "data_exports\\arbitrum\\btc\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1571,
+            "artifacts": [
+              "data_exports\\arbitrum\\btc\\merged.parquet"
+            ]
+          }
+        },
+        "crv": {
+          "tradeRows": 476,
+          "trades": {
+            "rows": 476,
+            "artifacts": [
+              "data_exports\\arbitrum\\crv\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 147729,
+            "artifacts": [
+              "data_exports\\arbitrum\\crv\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 476,
+            "artifacts": [
+              "data_exports\\arbitrum\\crv\\merged.parquet"
+            ]
+          }
+        },
+        "dai": {
+          "tradeRows": 168,
+          "trades": {
+            "rows": 168,
+            "artifacts": [
+              "data_exports\\arbitrum\\dai\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 168,
+            "artifacts": [
+              "data_exports\\arbitrum\\dai\\merged.parquet"
+            ]
+          }
+        },
+        "eth": {
+          "tradeRows": 5090,
+          "trades": {
+            "rows": 5090,
+            "artifacts": [
+              "data_exports\\arbitrum\\eth\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 172624,
+            "artifacts": [
+              "data_exports\\arbitrum\\eth\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 5090,
+            "artifacts": [
+              "data_exports\\arbitrum\\eth\\merged.parquet"
+            ]
+          }
+        },
+        "gmx": {
+          "tradeRows": 123,
+          "trades": {
+            "rows": 123,
+            "artifacts": [
+              "data_exports\\arbitrum\\gmx\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 44182,
+            "artifacts": [
+              "data_exports\\arbitrum\\gmx\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 123,
+            "artifacts": [
+              "data_exports\\arbitrum\\gmx\\merged.parquet"
+            ]
+          }
+        },
+        "link": {
+          "tradeRows": 3286,
+          "trades": {
+            "rows": 3286,
+            "artifacts": [
+              "data_exports\\arbitrum\\link\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 110340,
+            "artifacts": [
+              "data_exports\\arbitrum\\link\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 3286,
+            "artifacts": [
+              "data_exports\\arbitrum\\link\\merged.parquet"
+            ]
+          }
+        },
+        "lpt": {
+          "tradeRows": 9,
+          "trades": {
+            "rows": 9,
+            "artifacts": [
+              "data_exports\\arbitrum\\lpt\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 98323,
+            "artifacts": [
+              "data_exports\\arbitrum\\lpt\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 9,
+            "artifacts": [
+              "data_exports\\arbitrum\\lpt\\merged.parquet"
+            ]
+          }
+        },
+        "pendle": {
+          "tradeRows": 501,
+          "trades": {
+            "rows": 501,
+            "artifacts": [
+              "data_exports\\arbitrum\\pendle\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 116847,
+            "artifacts": [
+              "data_exports\\arbitrum\\pendle\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 501,
+            "artifacts": [
+              "data_exports\\arbitrum\\pendle\\merged.parquet"
+            ]
+          }
+        },
+        "uni": {
+          "tradeRows": 3771,
+          "trades": {
+            "rows": 3771,
+            "artifacts": [
+              "data_exports\\arbitrum\\uni\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 268738,
+            "artifacts": [
+              "data_exports\\arbitrum\\uni\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 3771,
+            "artifacts": [
+              "data_exports\\arbitrum\\uni\\merged.parquet"
+            ]
+          }
+        },
+        "zro": {
+          "tradeRows": 89,
+          "trades": {
+            "rows": 89,
+            "artifacts": [
+              "data_exports\\arbitrum\\zro\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 85474,
+            "artifacts": [
+              "data_exports\\arbitrum\\zro\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 89,
+            "artifacts": [
+              "data_exports\\arbitrum\\zro\\merged.parquet"
+            ]
+          }
+        }
+      },
+      "quality": {
+        "rows": 12
+      },
+      "merged": {
+        "rows": 20055,
+        "artifacts": [
+          "data_exports\\arbitrum\\trades_with_diff.parquet"
+        ]
+      }
+    },
     {
       "serverId": "base",
       "dbPath": "data-base.sqlite",
       "exists": true,
       "tables": {
         "completed_trades": {
-          "rows": 500,
+          "rows": 30249,
           "artifacts": [
-            "data_exports\\base\\completed_trades.csv"
+            "data_exports\\base\\completed_trades.parquet"
           ]
         },
         "diff_history": {
-          "rows": 500,
+          "rows": 1667912,
           "artifacts": [
-            "data_exports\\base\\diff_history.csv"
+            "data_exports\\base\\diff_history.parquet"
           ]
         },
         "balances_history": {
-          "rows": 500,
+          "rows": 21681,
           "artifacts": [
-            "data_exports\\base\\balances_history.csv"
+            "data_exports\\base\\balances_history.parquet"
           ]
         },
         "server_tokens": {
-          "rows": 500,
+          "rows": 43692,
           "artifacts": [
-            "data_exports\\base\\server_tokens.csv"
+            "data_exports\\base\\server_tokens.parquet"
           ]
         },
         "gas_balances": {
-          "rows": 500,
+          "rows": 119928,
           "artifacts": [
-            "data_exports\\base\\gas_balances.csv"
+            "data_exports\\base\\gas_balances.parquet"
           ]
         },
         "contract_transactions": {
           "rows": 0
+        },
+        "liquidity_data": {
+          "rows": 421309,
+          "artifacts": [
+            "data_exports\\base\\liquidity_data.parquet"
+          ]
         }
       },
       "tokens": {
         "aave": {
-          "tradeRows": 195,
+          "tradeRows": 4995,
           "trades": {
-            "rows": 195,
+            "rows": 4995,
             "artifacts": [
-              "data_exports\\base\\aave\\trades.csv"
+              "data_exports\\base\\aave\\trades.parquet"
             ]
           },
           "diff": {
-            "rows": 26,
+            "rows": 182981,
             "artifacts": [
-              "data_exports\\base\\aave\\diff_history.csv"
+              "data_exports\\base\\aave\\diff_history.parquet"
             ]
           },
           "merged": {
-            "rows": 195,
+            "rows": 4995,
             "artifacts": [
-              "data_exports\\base\\aave\\merged.csv"
+              "data_exports\\base\\aave\\merged.parquet"
             ]
           }
         },
         "aero": {
-          "tradeRows": 3,
+          "tradeRows": 71,
           "trades": {
-            "rows": 3,
+            "rows": 71,
             "artifacts": [
-              "data_exports\\base\\aero\\trades.csv"
+              "data_exports\\base\\aero\\trades.parquet"
             ]
           },
           "merged": {
-            "rows": 3,
+            "rows": 71,
             "artifacts": [
-              "data_exports\\base\\aero\\merged.csv"
+              "data_exports\\base\\aero\\merged.parquet"
+            ]
+          }
+        },
+        "aixbt": {
+          "tradeRows": 102,
+          "trades": {
+            "rows": 102,
+            "artifacts": [
+              "data_exports\\base\\aixbt\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 51868,
+            "artifacts": [
+              "data_exports\\base\\aixbt\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 102,
+            "artifacts": [
+              "data_exports\\base\\aixbt\\merged.parquet"
+            ]
+          }
+        },
+        "avnt": {
+          "tradeRows": 3003,
+          "trades": {
+            "rows": 3003,
+            "artifacts": [
+              "data_exports\\base\\avnt\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 132927,
+            "artifacts": [
+              "data_exports\\base\\avnt\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 3003,
+            "artifacts": [
+              "data_exports\\base\\avnt\\merged.parquet"
             ]
           }
         },
         "bio": {
-          "tradeRows": 72,
+          "tradeRows": 3114,
           "trades": {
-            "rows": 72,
+            "rows": 3114,
             "artifacts": [
-              "data_exports\\base\\bio\\trades.csv"
+              "data_exports\\base\\bio\\trades.parquet"
             ]
           },
           "diff": {
-            "rows": 13,
+            "rows": 49938,
             "artifacts": [
-              "data_exports\\base\\bio\\diff_history.csv"
+              "data_exports\\base\\bio\\diff_history.parquet"
             ]
           },
           "merged": {
-            "rows": 72,
+            "rows": 3114,
             "artifacts": [
-              "data_exports\\base\\bio\\merged.csv"
+              "data_exports\\base\\bio\\merged.parquet"
             ]
           }
         },
         "btc": {
-          "tradeRows": 15,
+          "tradeRows": 503,
           "trades": {
-            "rows": 15,
+            "rows": 503,
             "artifacts": [
-              "data_exports\\base\\btc\\trades.csv"
+              "data_exports\\base\\btc\\trades.parquet"
             ]
           },
           "diff": {
-            "rows": 12,
+            "rows": 113509,
             "artifacts": [
-              "data_exports\\base\\btc\\diff_history.csv"
+              "data_exports\\base\\btc\\diff_history.parquet"
             ]
           },
           "merged": {
-            "rows": 15,
+            "rows": 503,
             "artifacts": [
-              "data_exports\\base\\btc\\merged.csv"
+              "data_exports\\base\\btc\\merged.parquet"
             ]
           }
         },
         "cake": {
-          "tradeRows": 69,
+          "tradeRows": 5135,
           "trades": {
-            "rows": 69,
+            "rows": 5135,
             "artifacts": [
-              "data_exports\\base\\cake\\trades.csv"
+              "data_exports\\base\\cake\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 71947,
+            "artifacts": [
+              "data_exports\\base\\cake\\diff_history.parquet"
             ]
           },
           "merged": {
-            "rows": 69,
+            "rows": 5135,
             "artifacts": [
-              "data_exports\\base\\cake\\merged.csv"
+              "data_exports\\base\\cake\\merged.parquet"
             ]
           }
         },
         "eth": {
-          "tradeRows": 143,
+          "tradeRows": 7391,
           "trades": {
-            "rows": 143,
+            "rows": 7391,
             "artifacts": [
-              "data_exports\\base\\eth\\trades.csv"
+              "data_exports\\base\\eth\\trades.parquet"
             ]
           },
           "diff": {
-            "rows": 31,
+            "rows": 157882,
             "artifacts": [
-              "data_exports\\base\\eth\\diff_history.csv"
+              "data_exports\\base\\eth\\diff_history.parquet"
             ]
           },
           "merged": {
-            "rows": 143,
+            "rows": 7391,
             "artifacts": [
-              "data_exports\\base\\eth\\merged.csv"
+              "data_exports\\base\\eth\\merged.parquet"
             ]
           }
         },
-        "virtual": {
+        "fdusd": {
+          "tradeRows": 17,
+          "trades": {
+            "rows": 17,
+            "artifacts": [
+              "data_exports\\base\\fdusd\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 17,
+            "artifacts": [
+              "data_exports\\base\\fdusd\\merged.parquet"
+            ]
+          }
+        },
+        "kaito": {
+          "tradeRows": 215,
+          "trades": {
+            "rows": 215,
+            "artifacts": [
+              "data_exports\\base\\kaito\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 110376,
+            "artifacts": [
+              "data_exports\\base\\kaito\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 215,
+            "artifacts": [
+              "data_exports\\base\\kaito\\merged.parquet"
+            ]
+          }
+        },
+        "lyra": {
           "tradeRows": 3,
           "trades": {
             "rows": 3,
             "artifacts": [
-              "data_exports\\base\\virtual\\trades.csv"
-            ]
-          },
-          "diff": {
-            "rows": 27,
-            "artifacts": [
-              "data_exports\\base\\virtual\\diff_history.csv"
+              "data_exports\\base\\lyra\\trades.parquet"
             ]
           },
           "merged": {
             "rows": 3,
             "artifacts": [
-              "data_exports\\base\\virtual\\merged.csv"
+              "data_exports\\base\\lyra\\merged.parquet"
+            ]
+          }
+        },
+        "mira": {
+          "tradeRows": 732,
+          "trades": {
+            "rows": 732,
+            "artifacts": [
+              "data_exports\\base\\mira\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 41980,
+            "artifacts": [
+              "data_exports\\base\\mira\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 732,
+            "artifacts": [
+              "data_exports\\base\\mira\\merged.parquet"
+            ]
+          }
+        },
+        "morpho": {
+          "tradeRows": 311,
+          "trades": {
+            "rows": 311,
+            "artifacts": [
+              "data_exports\\base\\morpho\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 67490,
+            "artifacts": [
+              "data_exports\\base\\morpho\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 311,
+            "artifacts": [
+              "data_exports\\base\\morpho\\merged.parquet"
+            ]
+          }
+        },
+        "native": {
+          "tradeRows": 17,
+          "trades": {
+            "rows": 17,
+            "artifacts": [
+              "data_exports\\base\\native\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 17,
+            "artifacts": [
+              "data_exports\\base\\native\\merged.parquet"
+            ]
+          }
+        },
+        "recall": {
+          "tradeRows": 36,
+          "trades": {
+            "rows": 36,
+            "artifacts": [
+              "data_exports\\base\\recall\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 36,
+            "artifacts": [
+              "data_exports\\base\\recall\\merged.parquet"
+            ]
+          }
+        },
+        "sapien": {
+          "tradeRows": 1680,
+          "trades": {
+            "rows": 1680,
+            "artifacts": [
+              "data_exports\\base\\sapien\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 71729,
+            "artifacts": [
+              "data_exports\\base\\sapien\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1680,
+            "artifacts": [
+              "data_exports\\base\\sapien\\merged.parquet"
+            ]
+          }
+        },
+        "syrup": {
+          "tradeRows": 2,
+          "trades": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\base\\syrup\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\base\\syrup\\merged.parquet"
+            ]
+          }
+        },
+        "towns": {
+          "tradeRows": 616,
+          "trades": {
+            "rows": 616,
+            "artifacts": [
+              "data_exports\\base\\towns\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 55507,
+            "artifacts": [
+              "data_exports\\base\\towns\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 616,
+            "artifacts": [
+              "data_exports\\base\\towns\\merged.parquet"
+            ]
+          }
+        },
+        "virtual": {
+          "tradeRows": 156,
+          "trades": {
+            "rows": 156,
+            "artifacts": [
+              "data_exports\\base\\virtual\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 199072,
+            "artifacts": [
+              "data_exports\\base\\virtual\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 156,
+            "artifacts": [
+              "data_exports\\base\\virtual\\merged.parquet"
+            ]
+          }
+        },
+        "wct": {
+          "tradeRows": 15,
+          "trades": {
+            "rows": 15,
+            "artifacts": [
+              "data_exports\\base\\wct\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 15,
+            "artifacts": [
+              "data_exports\\base\\wct\\merged.parquet"
+            ]
+          }
+        },
+        "zbu": {
+          "tradeRows": 2,
+          "trades": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\base\\zbu\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\base\\zbu\\merged.parquet"
+            ]
+          }
+        },
+        "zen": {
+          "tradeRows": 1865,
+          "trades": {
+            "rows": 1865,
+            "artifacts": [
+              "data_exports\\base\\zen\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 293242,
+            "artifacts": [
+              "data_exports\\base\\zen\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1865,
+            "artifacts": [
+              "data_exports\\base\\zen\\merged.parquet"
+            ]
+          }
+        },
+        "zora": {
+          "tradeRows": 24,
+          "trades": {
+            "rows": 24,
+            "artifacts": [
+              "data_exports\\base\\zora\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 24,
+            "artifacts": [
+              "data_exports\\base\\zora\\merged.parquet"
+            ]
+          }
+        },
+        "zro": {
+          "tradeRows": 244,
+          "trades": {
+            "rows": 244,
+            "artifacts": [
+              "data_exports\\base\\zro\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 67464,
+            "artifacts": [
+              "data_exports\\base\\zro\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 244,
+            "artifacts": [
+              "data_exports\\base\\zro\\merged.parquet"
             ]
           }
         }
       },
       "quality": {
-        "rows": 7
+        "rows": 24
       },
       "merged": {
-        "rows": 500,
+        "rows": 30249,
         "artifacts": [
-          "data_exports\\base\\trades_with_diff.csv"
+          "data_exports\\base\\trades_with_diff.parquet"
+        ]
+      }
+    },
+    {
+      "serverId": "polygonhttp-116-202-118-60-3001--mfxq1p4y",
+      "dbPath": "data-polygonhttp-116-202-118-60-3001--mfxq1p4y.sqlite",
+      "exists": true,
+      "tables": {
+        "completed_trades": {
+          "rows": 33248,
+          "artifacts": [
+            "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\completed_trades.parquet"
+          ]
+        },
+        "diff_history": {
+          "rows": 1177724,
+          "artifacts": [
+            "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\diff_history.parquet"
+          ]
+        },
+        "balances_history": {
+          "rows": 17453,
+          "artifacts": [
+            "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\balances_history.parquet"
+          ]
+        },
+        "server_tokens": {
+          "rows": 171896,
+          "artifacts": [
+            "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\server_tokens.parquet"
+          ]
+        },
+        "gas_balances": {
+          "rows": 117888,
+          "artifacts": [
+            "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\gas_balances.parquet"
+          ]
+        },
+        "contract_transactions": {
+          "rows": 0
+        },
+        "liquidity_data": {
+          "rows": 421328,
+          "artifacts": [
+            "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\liquidity_data.parquet"
+          ]
+        }
+      },
+      "tokens": {
+        "aave": {
+          "tradeRows": 2341,
+          "trades": {
+            "rows": 2341,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\aave\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 156278,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\aave\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2341,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\aave\\merged.parquet"
+            ]
+          }
+        },
+        "btc": {
+          "tradeRows": 4446,
+          "trades": {
+            "rows": 4446,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\btc\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 92419,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\btc\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 4446,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\btc\\merged.parquet"
+            ]
+          }
+        },
+        "crv": {
+          "tradeRows": 252,
+          "trades": {
+            "rows": 252,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\crv\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 107067,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\crv\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 252,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\crv\\merged.parquet"
+            ]
+          }
+        },
+        "eth": {
+          "tradeRows": 7068,
+          "trades": {
+            "rows": 7068,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\eth\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 132574,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\eth\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 7068,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\eth\\merged.parquet"
+            ]
+          }
+        },
+        "knc": {
+          "tradeRows": 2,
+          "trades": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\knc\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\knc\\merged.parquet"
+            ]
+          }
+        },
+        "ldo": {
+          "tradeRows": 437,
+          "trades": {
+            "rows": 437,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\ldo\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 150921,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\ldo\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 437,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\ldo\\merged.parquet"
+            ]
+          }
+        },
+        "link": {
+          "tradeRows": 2882,
+          "trades": {
+            "rows": 2882,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\link\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 72978,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\link\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2882,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\link\\merged.parquet"
+            ]
+          }
+        },
+        "pol": {
+          "tradeRows": 8716,
+          "trades": {
+            "rows": 8716,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\pol\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 61267,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\pol\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 8716,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\pol\\merged.parquet"
+            ]
+          }
+        },
+        "sol": {
+          "tradeRows": 2858,
+          "trades": {
+            "rows": 2858,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\sol\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 170760,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\sol\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2858,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\sol\\merged.parquet"
+            ]
+          }
+        },
+        "tel": {
+          "tradeRows": 1,
+          "trades": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\tel\\trades.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 1,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\tel\\merged.parquet"
+            ]
+          }
+        },
+        "uni": {
+          "tradeRows": 2083,
+          "trades": {
+            "rows": 2083,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\uni\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 220381,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\uni\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2083,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\uni\\merged.parquet"
+            ]
+          }
+        },
+        "voxel": {
+          "tradeRows": 2162,
+          "trades": {
+            "rows": 2162,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\voxel\\trades.parquet"
+            ]
+          },
+          "diff": {
+            "rows": 13079,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\voxel\\diff_history.parquet"
+            ]
+          },
+          "merged": {
+            "rows": 2162,
+            "artifacts": [
+              "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\voxel\\merged.parquet"
+            ]
+          }
+        }
+      },
+      "quality": {
+        "rows": 12
+      },
+      "merged": {
+        "rows": 33248,
+        "artifacts": [
+          "data_exports\\polygonhttp-116-202-118-60-3001--mfxq1p4y\\trades_with_diff.parquet"
         ]
       }
     }
-  ],
-  "rowLimit": 500,
-  "filters": {
-    "servers": [
-      "base"
-    ]
-  }
+  ]
 }

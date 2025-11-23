@@ -13,7 +13,7 @@ class TrainingConfig:
     tokens: Optional[List[str]] = None
     task: str = "classification"  # or "regression"
     target_column: str = "label_class"
-    regression_target: str = "label_regression"
+    regression_target: str = "tradePnLRatio"
     classification_threshold: float = 0.0
     tolerance_minutes: float = 2.0
     row_limit: Optional[int] = None

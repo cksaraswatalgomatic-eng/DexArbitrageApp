@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ML Analytics & Prediction - Dex Arbitrage</title>
+
+    <script src="/auth-check.js"></script>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/design-system.css" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" as="style" onload="this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"></noscript>
+    <link rel="stylesheet" href="/light-theme.css" />
+    <style>
+        /* Specific styles for ML Dashboard */
+        .ml-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 1.5rem;
+            align-items: start;
+        }
+        
+        @media (max-width: 1000px) {
+            .ml-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .control-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            position: sticky;
+            top: 1rem;
+        }
+
+        .control-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+        }
+        
+        .range-value {
+            float: right;
+            font-family: monospace;
+            color: var(--text-color);
+        }
+
+        .prediction-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .probability-gauge {
+            position: relative;
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .prob-value {
+            font-size: 3rem;
+            font-weight: 700;
+        }
+
+        .prob-label {
+            font-size: 1rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .feature-importance-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .feature-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            background: var(--bg-color);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .feature-bar-bg {
+            flex-grow: 1;
+            background: #333;
+            height: 6px;
+            border-radius: 3px;
+            margin: auto 1rem;
+            overflow: hidden;
+        }
+        
+        .feature-bar-fill {
+            height: 100%;
+            background: var(--primary);
+        }
+
+        .liquidity-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(0, 229, 255, 0.1);
+            color: #00E5FF;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .training-status {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 4px;
+            background: var(--bg-color);
+            font-size: 0.9rem;
+            display: none;
+        }
+        .training-status.active { display: block; }
+        .training-status.success { border-left: 3px solid var(--success); }
+        .training-status.error { border-left: 3px solid var(--error); }
+    </style>
+  </head>
+  <body data-page="ml-dashboard">
+    <header class="app-header">
+      <div class="brand-block" id="brand">
+        <img class="brand-img" src="/color_logo.png" onerror="this.src='/color_logo.svg'" alt="Logo" />
+        <div class="brand-text">
+          <span class="brand-title">DEX Arbitrage</span>
+          <span class="page-label">ML Analytics</span>
+        </div>
+      </div>
+      <div class="primary-nav">
+        <button id="nav-dropdown-button" class="icon-btn nav-toggle" aria-haspopup="true" aria-controls="nav-dropdown" aria-expanded="false" aria-label="Toggle navigation">&#9776;</button>
+        <nav class="nav-dropdown" id="nav-dropdown" aria-label="Primary navigation">
+          <a class="nav-link" data-route="dashboard" href="/">Dashboard</a>
+          <a class="nav-link" data-route="pair-analysis" href="/pair-analysis.html">Pair Analysis</a>
+          <a class="nav-link" data-route="token-analysis" href="/token-analysis.html">Token Analysis</a>
+          <a class="nav-link" data-route="diff-analysis" href="/diff-analysis.html">Diff Analysis</a>
+          <a class="nav-link active" data-route="ml-dashboard" href="/ml-dashboard.html">ML Analytics</a>
+          <a class="nav-link" data-route="contract-analysis" href="/contract-analysis.html">Contract Analysis</a>
+          <a class="nav-link" data-route="liquidity-monitoring" href="/liquidity-monitoring.html">Liquidity Monitoring</a>
+          <a class="nav-link" data-route="reports" href="/reports.html">Reports &amp; Analytics</a>
+          <a class="nav-link requires-admin" data-route="consolidated" href="/consolidated-tracking.html" data-requires-role="admin">Consolidated Tracking</a>
+        </nav>
+      </div>
+      <div class="header-actions">
+        <button id="theme-switcher" class="icon-btn" title="Toggle Theme" aria-label="Toggle theme">&#127769;</button>
+        <label class="field">
+          <span class="field-label">Server</span>
+          <select id="serverSelect"></select>
+        </label>
+        <a class="icon-btn" href="/docs.html" title="Documentation" aria-label="Documentation">&#128218;</a>
+        <button id="refreshBtn" class="btn-ghost" title="Refresh now" type="button">Refresh</button>
+        <span id="lastUpdated" class="chip chip-muted">?</span>
+        <a class="icon-btn requires-admin" href="/servers.html" data-requires-role="admin" title="Server settings" aria-label="Server settings">&#9881;</a>
+        <a class="icon-btn" href="/notifications.html" title="Notifications" aria-label="Notifications">&#128276;</a>
+        <button class="icon-btn logout-btn" data-action="logout" title="Log out" aria-label="Log out">&#128274;</button>
+      </div>
+    </header>
+
+    <main>
+        <div class="ml-grid">
+            <!-- Sidebar: Controls -->
+            <aside>
+                <div class="control-panel">
+                    <h3>Simulation Controls</h3>
+                    <div class="control-group">
+                        <label>Token</label>
+                        <select id="tokenSelector" class="full-width">
+                            <option value="">Select a token...</option>
+                        </select>
+                        <div id="liquidityDisplay" class="liquidity-badge" style="display:none;">
+                            <span>💧 Liquidity (2m):</span>
+                            <span id="liquidityValue">--</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Price Difference (Diff) <span class="range-value" id="val-diff">0.5</span>%</label>
+                        <input type="range" id="input-diff" min="-2" max="5" step="0.1" value="0.5">
+                    </div>
+
+                    <div class="control-group">
+                        <label>DEX Slippage <span class="range-value" id="val-dexslip">0.1</span>%</label>
+                        <input type="range" id="input-dexslip" min="0" max="5" step="0.1" value="0.1">
+                    </div>
+
+                    <div class="control-group">
+                        <label>CEX Slippage <span class="range-value" id="val-cexslip">0.1</span>%</label>
+                        <input type="range" id="input-cexslip" min="0" max="5" step="0.1" value="0.1">
+                    </div>
+
+                    <div class="control-group">
+                        <label>Buy/Sell Spread (Bps) <span class="range-value" id="val-spread">10</span></label>
+                        <input type="range" id="input-spread" min="0" max="100" step="1" value="10">
+                    </div>
+
+                    <button id="btnAnalyze" class="btn btn-primary full-width">Analyze Scenario</button>
+                </div>
+
+                <div class="control-panel" style="margin-top: 1.5rem;">
+                    <h3>Model Training</h3>
+                    <p class="text-muted small">Train a new model on the latest data.</p>
+                    <div class="control-group">
+                        <label>Model Type</label>
+                        <select id="modelTypeSelector">
+                            <option value="random_forest">Random Forest (Recommended)</option>
+                            <option value="gradient_boosting">Gradient Boosting</option>
+                            <option value="logistic_regression">Logistic Regression</option>
+                        </select>
+                    </div>
+                    <button id="btnTrain" class="btn btn-orange full-width">Train New Model</button>
+                    <div id="trainingStatus" class="training-status"></div>
+                </div>
+            </aside>
+
+            <!-- Main Content: Visualizations -->
+            <div class="viz-container">
+                
+                <!-- Prediction Score -->
+                <section class="prediction-card">
+                    <h2 style="text-align: center; margin-bottom: 1rem;">Trade Success Probability</h2>
+                    <div class="probability-gauge">
+                        <div class="prob-value" id="predictionScore">--%</div>
+                        <div class="prob-label" id="predictionLabel">Awaiting Analysis</div>
+                        <div class="text-muted small" style="margin-top: 0.5rem;">Based on model: <span id="activeModelName">Loading...</span></div>
+                    </div>
+                </section>
+
+                <!-- Sensitivity Analysis -->
+                <section class="card">
+                    <div class="card-header chart-header">
+                        <h2>Sensitivity Analysis</h2>
+                        <select id="sensitivityMetric" style="width: auto; padding: 2px 8px;">
+                            <option value="diff">vs Price Diff</option>
+                            <option value="dexslip">vs DEX Slippage</option>
+                            <option value="cexslip">vs CEX Slippage</option>
+                        </select>
+                    </div>
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="sensitivityChart"></canvas>
+                    </div>
+                    <p class="text-muted small" style="text-align: center; margin-top: 0.5rem;">
+                        Shows how probability changes as the selected metric varies, keeping others constant.
+                    </p>
+                </section>
+
+                <!-- Feature Importance -->
+                <section class="card">
+                    <h2>Feature Importance (Model Explainability)</h2>
+                    <div id="featureImportanceChart" style="margin-top: 1rem;">
+                        <div class="text-muted">Run analysis to see feature contributions.</div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+    </main>
+
+    <script src="/chart-loader.js"></script>
+    <script src="/ml-dashboard.js"></script>
+    <script src="/auth-check.js"></script>
+    <script src="/help.js"></script>
+    <script src="/servers-client.js"></script>
+    <script src="/theme-switcher.js"></script>
+    <script src="/logout.js"></script>
+    <script src="/mobile-menu.js"></script>
+  </body>
+</html>

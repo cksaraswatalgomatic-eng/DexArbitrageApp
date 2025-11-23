@@ -11,6 +11,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor, RandomForestClassifier, RandomForestRegressor
 from sklearn.impute import SimpleImputer
@@ -130,6 +131,12 @@ def build_pipeline(features: pd.DataFrame, categorical_columns: Sequence[str], c
     )
 
     estimator = _build_estimator(config)
+    
+    if config.task == "classification":
+        # Wrap with calibration to ensure probabilities are meaningful
+        # cv=5 is a good default for internal cross-validation calibration
+        estimator = CalibratedClassifierCV(estimator, method='isotonic', cv=5)
+
     pipeline = Pipeline(steps=[("preprocess", preprocessor), ("model", estimator)])
     return pipeline, numeric_columns, list(categorical_columns)
 

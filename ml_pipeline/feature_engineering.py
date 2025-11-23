@@ -149,6 +149,31 @@ def _prepare_contract_features(df: pd.DataFrame, config: TrainingConfig) -> Opti
     return contracts[keep_cols].drop_duplicates(subset="feature_ts")
 
 
+def _prepare_liquidity_features(df: pd.DataFrame, config: TrainingConfig) -> Optional[pd.DataFrame]:
+    if df is None or df.empty:
+        return None
+    liq = df.copy()
+    time_col = "liq_ts" if "liq_ts" in liq.columns else "timestamp"
+    liq[time_col] = pd.to_datetime(liq[time_col], utc=True, errors="coerce")
+    liq = liq.sort_values(time_col)
+    
+    # Ensure token column exists
+    if "token" not in liq.columns and "symbol" in liq.columns:
+        liq["token"] = liq["symbol"].astype(str).str.lower().str.strip()
+    
+    if "token" not in liq.columns:
+        return None
+
+    liq.rename(columns={time_col: "feature_ts", "price": "tokenPrice", "liquidity": "tokenLiquidity"}, inplace=True)
+    
+    # Rolling features per token
+    liq["price_change"] = liq.groupby("token")["tokenPrice"].pct_change()
+    liq["liquidity_change"] = liq.groupby("token")["tokenLiquidity"].pct_change()
+
+    keep_cols = ["feature_ts", "token", "tokenPrice", "tokenLiquidity", "price_change", "liquidity_change"]
+    return liq[keep_cols].dropna(subset=["feature_ts"]).sort_values("feature_ts")
+
+
 def _merge_context_features(
     trades: pd.DataFrame,
     context_by_server: Dict[str, Dict[str, pd.DataFrame]],
@@ -197,6 +222,18 @@ def _merge_context_features(
                 direction="backward",
                 suffixes=("", "_contract"),
             )
+            
+        liquidity = _prepare_liquidity_features(context.get("liquidity_data"), config)
+        if liquidity is not None and not liquidity.empty:
+             working = pd.merge_asof(
+                working.sort_values(config.time_column),
+                liquidity.sort_values("feature_ts"),
+                left_on=config.time_column,
+                right_on="feature_ts",
+                by=config.token_column,
+                direction="backward",
+                suffixes=("", "_liq"),
+            )
 
         enriched_frames.append(working)
 
@@ -217,6 +254,8 @@ def build_feature_matrix(
     enriched = _apply_rolling_features(enriched, config)
     enriched = _merge_context_features(enriched, context_by_server, config)
 
+    enriched = enriched.replace([np.inf, -np.inf], np.nan)
+
     target_col = config.target
     if target_col not in enriched.columns:
         raise KeyError(f"Target column {target_col} missing from dataset")
@@ -232,6 +271,7 @@ def build_feature_matrix(
 
     drop_columns = set(
         [
+            "id",
             "id_x",
             "id_y",
             "props",
@@ -240,6 +280,15 @@ def build_feature_matrix(
             "openTime",
             "lastUpdateTime",
             "feature_ts",
+            "netProfit",
+            "executedQtyDst",
+            "executedDstPrice",
+            "executedQtySrc",
+            "executedSrcPrice",
+            "grossNotionalDst",
+            "grossNotionalSrc",
+            "isProfitable",
+            "tradePnLRatio", # Derived from netProfit
         ]
     )
     drop_columns.add(target_col)

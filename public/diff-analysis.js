@@ -190,6 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderDiffTable(diffData) {
     diffTableBody.innerHTML = '';
+    const fragment = document.createDocumentFragment();
     for (const d of diffData) {
         const tr = document.createElement('tr');
         const parts = typeof d.curId === 'string' ? d.curId.split('_').filter(Boolean) : [];
@@ -206,8 +207,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <td>${formatValue(d.serverSell, 4)}</td>
             <td>${d.rejectReason ? d.rejectReason : '--'}</td>
         `;
-        diffTableBody.appendChild(tr);
+        fragment.appendChild(tr);
     }
+    diffTableBody.appendChild(fragment);
   }
 
   async function loadChart() {
@@ -376,13 +378,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const ctx = document.getElementById('diffChart').getContext('2d');
         if (diffChart) {
-            diffChart.destroy();
+            diffChart.data = chartData;
+            diffChart.update();
+        } else {
+            diffChart = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: getChartBaseOptions()
+            });
         }
-        diffChart = new Chart(ctx, {
-            type: 'line',
-            data: chartData,
-            options: getChartBaseOptions()
-        });
 
         currentOffset += diffData.length;
 

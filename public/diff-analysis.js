@@ -270,13 +270,24 @@ document.addEventListener('DOMContentLoaded', () => {
           return { x: new Date(t.lastUpdateTime), y: t.netProfit, dex: dex, backgroundColor: color };
         });
 
-        const labels = chartDataPoints.map(d => (d.ts ? new Date(d.ts) : null));
-        const buySeries = chartDataPoints.map(d => (d.buyDiffBps != null ? d.buyDiffBps / 100 : null));
-        const sellSeries = chartDataPoints.map(d => (d.sellDiffBps != null ? d.sellDiffBps / 100 : null));
-        const cexSeries = chartDataPoints.map(d => (d.cexVol != null ? d.cexVol : null));
-        const dexSeries = chartDataPoints.map(d => (d.dexVolume != null ? d.dexVolume : null));
-        const serverBuySeries = chartDataPoints.map(d => (d.serverBuy != null ? d.serverBuy : null));
-        const serverSellSeries = chartDataPoints.map(d => (d.serverSell != null ? d.serverSell : null));
+        // Optimized data processing: single loop
+        const labels = [];
+        const buySeries = [];
+        const sellSeries = [];
+        const cexSeries = [];
+        const dexSeries = [];
+        const serverBuySeries = [];
+        const serverSellSeries = [];
+
+        chartDataPoints.forEach(d => {
+            labels.push(d.ts ? new Date(d.ts) : null);
+            buySeries.push(d.buyDiffBps != null ? d.buyDiffBps / 100 : null);
+            sellSeries.push(d.sellDiffBps != null ? d.sellDiffBps / 100 : null);
+            cexSeries.push(d.cexVol != null ? d.cexVol : null);
+            dexSeries.push(d.dexVolume != null ? d.dexVolume : null);
+            serverBuySeries.push(d.serverBuy != null ? d.serverBuy : null);
+            serverSellSeries.push(d.serverSell != null ? d.serverSell : null);
+        });
 
         const chartData = {
             labels,

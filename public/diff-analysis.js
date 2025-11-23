@@ -1,4 +1,4 @@
-﻿const zoomPlugin =
+const zoomPlugin =
   window.ChartZoom ||
   (window['chartjs-plugin-zoom'] && (window['chartjs-plugin-zoom'].default || window['chartjs-plugin-zoom'])) ||
   null;
@@ -430,6 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('theme-switcher').addEventListener('click', () => {
     if (diffChart) {
         diffChart.destroy();
+        diffChart = null;
         loadChart();
     }
   });

@@ -232,12 +232,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentOffset === 0) {
             allDiffData = diffData;
         } else {
+            // Simply append the new data. The API returns newest first, so we maintain that order.
             allDiffData = allDiffData.concat(diffData);
-            allDiffData.sort((a, b) => a.ts - b.ts); // Sort by timestamp
         }
 
-        const startTime = allDiffData.length > 0 ? allDiffData[0].ts : null;
-        const endTime = allDiffData.length > 0 ? allDiffData[allDiffData.length - 1].ts : null;
+        // For the table, we want to show the newest data first, which is the natural order from the API.
+        renderDiffTable(allDiffData);
+
+        // For the chart, we need the data sorted chronologically (oldest first) to draw lines correctly.
+        const chartDataPoints = [...allDiffData].sort((a, b) => a.ts - b.ts);
+
+        const startTime = chartDataPoints.length > 0 ? chartDataPoints[0].ts : null;
+        const endTime = chartDataPoints.length > 0 ? chartDataPoints[chartDataPoints.length - 1].ts : null;
 
         const tradeParams = new URLSearchParams();
         if (tokenName) tradeParams.set('token', tokenName);
@@ -264,15 +270,13 @@ document.addEventListener('DOMContentLoaded', () => {
           return { x: new Date(t.lastUpdateTime), y: t.netProfit, dex: dex, backgroundColor: color };
         });
 
-        renderDiffTable(allDiffData);
-
-        const labels = allDiffData.map(d => (d.ts ? new Date(d.ts) : null));
-        const buySeries = allDiffData.map(d => (d.buyDiffBps != null ? d.buyDiffBps / 100 : null));
-        const sellSeries = allDiffData.map(d => (d.sellDiffBps != null ? d.sellDiffBps / 100 : null));
-        const cexSeries = allDiffData.map(d => (d.cexVol != null ? d.cexVol : null));
-        const dexSeries = allDiffData.map(d => (d.dexVolume != null ? d.dexVolume : null));
-        const serverBuySeries = allDiffData.map(d => (d.serverBuy != null ? d.serverBuy : null));
-        const serverSellSeries = allDiffData.map(d => (d.serverSell != null ? d.serverSell : null));
+        const labels = chartDataPoints.map(d => (d.ts ? new Date(d.ts) : null));
+        const buySeries = chartDataPoints.map(d => (d.buyDiffBps != null ? d.buyDiffBps / 100 : null));
+        const sellSeries = chartDataPoints.map(d => (d.sellDiffBps != null ? d.sellDiffBps / 100 : null));
+        const cexSeries = chartDataPoints.map(d => (d.cexVol != null ? d.cexVol : null));
+        const dexSeries = chartDataPoints.map(d => (d.dexVolume != null ? d.dexVolume : null));
+        const serverBuySeries = chartDataPoints.map(d => (d.serverBuy != null ? d.serverBuy : null));
+        const serverSellSeries = chartDataPoints.map(d => (d.serverSell != null ? d.serverSell : null));
 
         const chartData = {
             labels,

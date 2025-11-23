@@ -7,7 +7,6 @@
   "scripts": {
     "start": "node app.js",
     "db:inspect": "node scripts/inspect-db.js",
-    "ml:service": "python -m uvicorn ml_service.main:app --host 0.0.0.0 --port 8100",
     "lint": "eslint --fix"
   },
   "dependencies": {

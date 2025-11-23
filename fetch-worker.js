@@ -1,11 +1,15 @@
-const { parentPort, workerData } = require('worker_threads');
-const axios = require('axios');
-const cron = require('node-cron');
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
-const { Notifier } = require('./notifier');
-const { spawn } = require('child_process');
+import { parentPort, workerData } from 'worker_threads';
+import axios from 'axios';
+import cron from 'node-cron';
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { Notifier } from './notifier.js';
+import { spawn } from 'child_process';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let ethPrice = null;
 async function getEthPrice() {
@@ -68,8 +72,10 @@ function loadServers() {
       ],
       notificationRules: {
         "profit-trade": { "cooldownMinutes": 60 },
+        "high-profit-trade": { "cooldownMinutes": 60, "threshold": 100, "channels": [] },
         "lowGas": { "cooldownMinutes": 60 },
         "pollFailed": { "cooldownMinutes": 60 },
+        "lowCexVolume": { "threshold": 10, "cooldownMinutes": 5 },
         "hourlyDigest": { "cooldownMinutes": 60 },
         "dailyDigest": { "cooldownMinutes": 1440 }
       },
@@ -113,6 +119,7 @@ function dbPathFor(serverId) {
   if (serverId === 'default' && fs.existsSync(process.env.DB_PATH || path.join(__dirname, 'data.sqlite'))) return process.env.DB_PATH || path.join(__dirname, 'data.sqlite');
   return path.join(__dirname, `data-${serverId}.sqlite`);
 }
+
 function ensureDb(serverId) {
   if (dbCache.has(serverId)) return dbCache.get(serverId);
   const file = dbPathFor(serverId);
@@ -186,6 +193,17 @@ function ensureDb(serverId) {
     );
   `);
   _db.exec(`
+    CREATE TABLE IF NOT EXISTS gas_balance_tracking (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL,
+      contract TEXT NOT NULL,
+      gas_balance REAL,
+      gas_deposit REAL DEFAULT 0,
+      source TEXT NOT NULL DEFAULT 'auto',
+      note TEXT
+    );
+  `);
+  _db.exec(`
     CREATE TABLE IF NOT EXISTS diff_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       curId TEXT NOT NULL,
@@ -200,6 +218,7 @@ function ensureDb(serverId) {
       UNIQUE(curId, ts)
     );
   `);
+  _db.exec(`CREATE INDEX IF NOT EXISTS idx_diff_history_curId_ts ON diff_history (curId, ts DESC);`);
   _db.exec(`
     CREATE TABLE IF NOT EXISTS contract_transactions (
       hash TEXT NOT NULL,
@@ -214,6 +233,7 @@ function ensureDb(serverId) {
       PRIMARY KEY (serverId, hash)
     );
   `);
+
   ensureDiffHistoryColumns(_db);
   ensureNotificationsLogColumns(_db);
   dbCache.set(serverId, _db);
@@ -248,6 +268,345 @@ function ensureNotificationsLogColumns(db) {
       console.error('[db] notifications_log migration failed:', err.message);
     }
   }
+}
+
+function resolveProfitRule(notifier) {
+  const fallback = {
+    threshold: -5,
+    cooldownMinutes: 30,
+    channels: [],
+  };
+  if (!notifier || typeof notifier.getRuleConfig !== 'function') return fallback;
+  const thresholdCfg = notifier.getRuleConfig('profit') || {};
+  const dispatchCfg = notifier.getRuleConfig('profit-trade') || {};
+  const thresholdRaw = dispatchCfg.thresholdAbsolute != null
+    ? dispatchCfg.thresholdAbsolute
+    : (thresholdCfg.thresholdAbsolute != null
+      ? thresholdCfg.thresholdAbsolute
+      : (thresholdCfg.thresholdPercent != null ? thresholdCfg.thresholdPercent : thresholdCfg.threshold));
+  const thresholdNum = Number(thresholdRaw);
+  const cooldownRaw = dispatchCfg.cooldownMinutes != null
+    ? dispatchCfg.cooldownMinutes
+    : (thresholdCfg.cooldownMinutes != null ? thresholdCfg.cooldownMinutes : thresholdCfg.cooldown);
+  const cooldownNum = Number(cooldownRaw);
+  const channelSource = Array.isArray(dispatchCfg.channels) && dispatchCfg.channels.length
+    ? dispatchCfg.channels
+    : (Array.isArray(thresholdCfg.channels) ? thresholdCfg.channels : []);
+  const channels = channelSource.filter((ch) => typeof ch === 'string' && ch.trim());
+  return {
+    threshold: Number.isFinite(thresholdNum) ? thresholdNum : fallback.threshold,
+    cooldownMinutes: Number.isFinite(cooldownNum) && cooldownNum > 0 ? cooldownNum : fallback.cooldownMinutes,
+    channels,
+  };
+}
+
+function resolveHighProfitRule(notifier) {
+  const fallback = {
+    threshold: 100,
+    cooldownMinutes: 60,
+    channels: [],
+  };
+  if (!notifier || typeof notifier.getRuleConfig !== 'function') return fallback;
+  const thresholdCfg = notifier.getRuleConfig('high-profit') || {};
+  const dispatchCfg = notifier.getRuleConfig('high-profit-trade') || {};
+  const thresholdRaw = dispatchCfg.thresholdAbsolute != null
+    ? dispatchCfg.thresholdAbsolute
+    : (thresholdCfg.thresholdAbsolute != null
+      ? thresholdCfg.thresholdAbsolute
+      : (thresholdCfg.thresholdPercent != null ? thresholdCfg.thresholdPercent : thresholdCfg.threshold));
+  const thresholdNum = Number(thresholdRaw);
+  const cooldownRaw = dispatchCfg.cooldownMinutes != null
+    ? dispatchCfg.cooldownMinutes
+    : (thresholdCfg.cooldownMinutes != null ? thresholdCfg.cooldownMinutes : thresholdCfg.cooldown);
+  const cooldownNum = Number(cooldownRaw);
+  const channelSource = Array.isArray(dispatchCfg.channels) && dispatchCfg.channels.length
+    ? dispatchCfg.channels
+    : (Array.isArray(thresholdCfg.channels) ? thresholdCfg.channels : []);
+  const channels = channelSource.filter((ch) => typeof ch === 'string' && ch.trim());
+  return {
+    threshold: Number.isFinite(thresholdNum) ? thresholdNum : fallback.threshold,
+    cooldownMinutes: Number.isFinite(cooldownNum) && cooldownNum > 0 ? cooldownNum : fallback.cooldownMinutes,
+    channels,
+  };
+}
+
+function resolveLowCexVolumeRule(notifier) {
+  const fallback = {
+    threshold: 10,
+    cooldownMinutes: 5,
+    channels: [],
+  };
+  if (!notifier || typeof notifier.getRuleConfig !== 'function') return fallback;
+  const cfg = notifier.getRuleConfig('lowCexVolume') || {};
+  const thresholdNum = Number(cfg.threshold);
+  const cooldownRaw = cfg.cooldownMinutes != null ? cfg.cooldownMinutes : cfg.cooldown;
+  const cooldownNum = Number(cooldownRaw);
+  const channels = Array.isArray(cfg.channels)
+    ? cfg.channels.filter((ch) => typeof ch === 'string' && ch.trim())
+    : [];
+  return {
+    threshold: Number.isFinite(thresholdNum) ? thresholdNum : fallback.threshold,
+    cooldownMinutes: Number.isFinite(cooldownNum) && cooldownNum > 0 ? cooldownNum : fallback.cooldownMinutes,
+    channels,
+  };
+}
+
+function safeNumber(val) {
+  const n = Number(val);
+  return Number.isFinite(n) ? n : null;
+}
+
+function safeJsonParse(value, fallback = null) {
+  if (value == null) return fallback;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizePropsRaw(input) {
+  try {
+    const p = typeof input === 'string' ? JSON.parse(input) : (input || {});
+    const out = {};
+    if (p && (p.Diff != null || p.DexSlip != null || p.CexSlip != null || p.Dex != null || p.Exec != null)) {
+      if (p.Diff != null) out.Diff = Number(p.Diff);
+      if (p.DexSlip != null) out.DexSlip = Number(p.DexSlip);
+      if (p.CexSlip != null) out.CexSlip = Number(p.CexSlip);
+      if (p.Dex != null) out.Dex = String(p.Dex);
+      if (p.Exec != null) out.Exec = String(p.Exec);
+    } else {
+      const execKey = ['Market','Limit','PostOnly','IOC','FOK'].find(k => Object.prototype.hasOwnProperty.call(p, k));
+      if (execKey) { out.Exec = execKey; const v = Number(p[execKey]); if (Number.isFinite(v)) out.CexSlip = v; }
+      for (const [k, v] of Object.entries(p)) {
+        if (v === 'BUY' || v === 'SELL') {
+          out.Dex = String(v);
+          break;
+        }
+      }
+      for (const [k, v] of Object.entries(p)) {
+        const nk = Number(k); const nv = Number(v);
+        if (Number.isFinite(nk) && Number.isFinite(nv)) { out.Diff = nk; out.DexSlip = nv; break; }
+      }
+    }
+    return out;
+  } catch (e) {
+    return {};
+  }
+}
+
+async function maybeNotifyLowProfitTrade({ server, notifier, trade, origin = 'store', ruleOverride }) {
+  if (!notifier || !trade) {
+    return { triggered: false, reason: 'missing_context' };
+  }
+  const serverId = server?.id || 'unknown';
+  const serverLabel = server?.label || serverId;
+  const rule = ruleOverride || resolveProfitRule(notifier);
+  const executedProfit = safeNumber(trade.executedProfit);
+  const profitValue = Number.isFinite(executedProfit) ? executedProfit : safeNumber(trade.estimatedProfit);
+  
+  if (!Number.isFinite(profitValue)) {
+    return { triggered: false, reason: 'no_profit_value' };
+  }
+  if (profitValue >= rule.threshold) {
+    return { triggered: false, reason: 'above_threshold' };
+  }
+
+  const pair = trade.pair || trade.token || 'unknown';
+  const delta = profitValue - rule.threshold;
+  const props = normalizePropsRaw(trade.props);
+  const dexValue = props ? props.Dex : 'N/A';
+  
+  const title = profitValue < -30 ? `⚠️ Low profit trade: ${pair}` : `Low profit trade: ${pair}`;
+  const message = `Server: ${serverLabel} | Profit: ${profitValue.toFixed(2)} | Dex: ${dexValue}`;
+
+  const payload = {
+    title,
+    message,
+    cooldownMinutes: rule.cooldownMinutes,
+    uniqueKey: trade.id != null ? `low-profit-${trade.id}` : undefined,
+    details: {
+      tradeId: trade.id ?? null,
+      pair,
+      profit: profitValue,
+      server: serverLabel,
+      origin,
+      threshold: rule.threshold,
+      delta,
+      dex: dexValue,
+    },
+  };
+  if (rule.channels.length) {
+    payload.channels = rule.channels;
+  }
+
+  try {
+    const result = await notifier.notify('profit-trade', payload);
+    if (result?.skipped === 'cooldown') {
+      return { triggered: false, reason: 'cooldown', result };
+    }
+    return { triggered: true, result };
+  } catch (err) {
+    console.error(`[notify:profit:${origin}] notify error trade=${trade.id ?? 'unknown'} server=${serverLabel}:`, err?.message || err);
+    return { triggered: false, error: err };
+  }
+}
+
+async function maybeNotifyHighProfitTrade({ server, notifier, trade, origin = 'store', ruleOverride }) {
+  if (!notifier || !trade) {
+    return { triggered: false, reason: 'missing_context' };
+  }
+  const serverId = server?.id || 'unknown';
+  const serverLabel = server?.label || serverId;
+  const rule = ruleOverride || resolveHighProfitRule(notifier);
+  const executedProfit = safeNumber(trade.executedProfit);
+  const profitValue = Number.isFinite(executedProfit) ? executedProfit : safeNumber(trade.estimatedProfit);
+  
+  if (!Number.isFinite(profitValue)) {
+    return { triggered: false, reason: 'no_profit_value' };
+  }
+  if (profitValue < rule.threshold) {
+    return { triggered: false, reason: 'below_threshold' };
+  }
+
+  const pair = trade.pair || trade.token || 'unknown';
+  const delta = profitValue - rule.threshold;
+  const props = normalizePropsRaw(trade.props);
+  const dexValue = props ? props.Dex : 'N/A';
+  
+  const title = profitValue > 30 ? `💸 High profit trade: ${pair}` : `High profit trade: ${pair}`;
+  const message = `Server: ${serverLabel} | Profit: ${profitValue.toFixed(2)} | Dex: ${dexValue}`;
+
+  const payload = {
+    title,
+    message,
+    cooldownMinutes: rule.cooldownMinutes,
+    uniqueKey: trade.id != null ? `high-profit-${trade.id}` : undefined,
+    details: {
+      tradeId: trade.id ?? null,
+      pair,
+      profit: profitValue,
+      server: serverLabel,
+      origin,
+      threshold: rule.threshold,
+      delta,
+      dex: dexValue,
+    },
+  };
+  if (rule.channels.length) {
+    payload.channels = rule.channels;
+  }
+  try {
+    const result = await notifier.notify('high-profit-trade', payload);
+    if (result?.skipped === 'cooldown') {
+      return { triggered: false, reason: 'cooldown', result };
+    }
+    return { triggered: true, result };
+  } catch (err) {
+    console.error(`[notify:high-profit:${origin}] notify error trade=${trade.id ?? 'unknown'} server=${serverLabel}:`, err?.message || err);
+    return { triggered: false, error: err };
+  }
+}
+
+function tokenNameFromCurId(curId) {
+  if (typeof curId !== 'string') return null;
+  const parts = curId.split('_').filter(Boolean);
+  if (parts.length >= 2) return parts[1];
+  return parts[0] || curId || null;
+}
+
+async function maybeNotifyLowCexVolume({ server, notifier, curId, volume, timestamp, origin = 'api', ruleOverride }) {
+  if (!notifier) {
+    return { triggered: false, reason: 'no_notifier' };
+  }
+  const serverId = server?.id || 'unknown';
+  const serverLabel = server?.label || serverId;
+  const rule = ruleOverride || resolveLowCexVolumeRule(notifier);
+  const numericVolume = Number(volume);
+  const hasVolume = Number.isFinite(numericVolume);
+  
+  if (!hasVolume || !Number.isFinite(rule.threshold) || numericVolume >= rule.threshold) {
+    return { triggered: false, reason: hasVolume ? 'above_threshold' : 'invalid_volume' };
+  }
+
+  const tokenLabel = tokenNameFromCurId(curId) || curId;
+  const delta = numericVolume - rule.threshold;
+  const messageLines = [
+    `Server: ${serverLabel}`,
+    `Token: ${tokenLabel}`,
+    `CEX Volume: ${numericVolume.toFixed(2)}`,
+    `Threshold: ${rule.threshold.toFixed(2)}`,
+    `Delta: ${delta.toFixed(2)}`,
+  ];
+
+  const payload = {
+    title: `Low CEX Volume - ${tokenLabel}`,
+    message: messageLines.join('\n'),
+    cooldownMinutes: rule.cooldownMinutes,
+    uniqueKey: curId,
+    details: {
+      serverId,
+      server: serverLabel,
+      token: tokenLabel,
+      curId,
+      timestamp,
+      volume: numericVolume,
+      threshold: rule.threshold,
+      delta,
+      origin,
+    },
+  };
+  if (rule.channels.length) {
+    payload.channels = rule.channels;
+  }
+
+  try {
+    const result = await notifier.notify('lowCexVolume', payload);
+    if (result?.skipped === 'cooldown') {
+      return { triggered: false, reason: 'cooldown', result };
+    }
+    return { triggered: true, result };
+  } catch (err) {
+    console.error(`[notify:lowCexVolume:${origin}] error:`, err.message);
+    return { triggered: false, error: err };
+  }
+}
+
+function calculateTotals(snapshot) {
+  let totalUsdt = 0;
+  if (!snapshot || typeof snapshot !== 'object') {
+    return { totalUsdt: null, totalCoin: null };
+  }
+  for (const [name, ex] of Object.entries(snapshot)) {
+    if (!ex || typeof ex !== 'object') continue;
+    if (name === 'BinanceF') {
+      totalUsdt += Number(ex.usdtVal) || 0;
+    } else {
+      totalUsdt += Number(ex.coinVal) || 0;
+    }
+  }
+  return {
+    totalUsdt: Number.isFinite(totalUsdt) ? totalUsdt : null,
+    totalCoin: null,
+  };
+}
+
+function computeDexCex(snapshot) {
+  let dexTotal = 0;
+  let cexTotal = 0;
+  if (!snapshot || typeof snapshot !== 'object') {
+    return { dexTotal: 0, cexTotal: 0, combined: 0 };
+  }
+  for (const [name, ex] of Object.entries(snapshot)) {
+    if (!ex || typeof ex !== 'object') continue;
+    if (name === 'BinanceF') {
+      cexTotal += Number(ex.usdtVal) || 0;
+    } else {
+      dexTotal += Number(ex.coinVal) || 0;
+    }
+  }
+  return { dexTotal, cexTotal, combined: dexTotal + cexTotal };
 }
 
 async function fetchDiffDataAndStoreFor(server) {
@@ -298,7 +657,6 @@ async function fetchDiffDataAndStoreFor(server) {
     }).filter(Boolean);
 
     if (!rows.length) {
-      console.log('[diffdata:' + server.label + '] No diff data rows to store.');
       return;
     }
 
@@ -316,533 +674,29 @@ async function fetchDiffDataAndStoreFor(server) {
     db.transaction((items) => {
       for (const item of items) stmt.run(item);
     })(rows);
-    console.log('[diffdata:' + server.label + '] Stored ' + rows.length + ' diff data points.');
   } catch (err) {
     const status = err?.response?.status;
     const notifier = ensureNotifier(server.id);
     if (status === 404) {
-      console.log(`[diffdata:${server.label}] 404 (not found). Skipping.`);
       if (notifier) {
         notifier.notify('pollFailed', {
           title: `Poll Failed: ${server.label}`,
           message: `Failed to fetch diffdata (404 Not Found)`,
           details: { server: server.label, error: '404 Not Found' },
-          uniqueKey: 'diffdata-404'  // Add unique key to differentiate from other poll failures
+          uniqueKey: 'diffdata-404'
         }).catch(err => console.error('Notifier error:', err.message));
       }
     } else {
-      // Handle other types of errors, such as connection failures
       console.error(`[diffdata:${server.label}] Fetch/store error:`, err.message);
       if (notifier) {
         notifier.notify('pollFailed', {
           title: `Poll Failed: ${server.label}`,
           message: `Failed to fetch diffdata (${err.message})`,
           details: { server: server.label, error: err.message, type: 'connection-error' },
-          uniqueKey: `diffdata-conn-error-${err.code || 'unknown'}`  // Unique key based on error code
+          uniqueKey: `diffdata-conn-error-${err.code || 'unknown'}`
         }).catch(err => console.error('Notifier error:', err.message));
       }
     }
-  }
-}
-
-// Helpers
-function safeNumber(val) {
-  const n = Number(val);
-  return Number.isFinite(n) ? n : null;
-}
-
-function safeJsonParse(value, fallback = null) {
-  if (value == null) return fallback;
-  if (typeof value === 'object') return value;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
-}
-
-function getMlServiceBaseUrl() {
-  const base = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8100';
-  return (typeof base === 'string' ? base : '').replace(///$/, '');
-}
-
-function sanitizeMlPayload(payload) {
-  const clean = {};
-  if (!payload || typeof payload !== 'object') return clean;
-  for (const [key, value] of Object.entries(payload)) {
-    if (value === '' || value === undefined || value === null) {
-      clean[key] = null;
-      continue;
-    }
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (!trimmed) {
-        clean[key] = null;
-        continue;
-      }
-      const lowered = trimmed.toLowerCase();
-      if (lowered === 'true' || lowered === 'false') {
-        clean[key] = lowered === 'true';
-        continue;
-      }
-      const num = Number(trimmed);
-      if (Number.isFinite(num)) {
-        clean[key] = num;
-        continue;
-      }
-      clean[key] = trimmed;
-      continue;
-    }
-    if (typeof value === 'number') {
-      clean[key] = Number.isFinite(value) ? value : null;
-      continue;
-    }
-    if (typeof value === 'boolean') {
-      clean[key] = value;
-      continue;
-    }
-    clean[key] = value;
-  }
-  return clean;
-}
-
-
-async function proxyMlServicePredict(baseUrl, payloads, includeProbabilities, modelPath) {
-  if (!baseUrl) {
-    throw new Error('ML service base URL is not configured.');
-  }
-  const response = await axios.post(`${baseUrl}/predict`, {
-    payloads,
-    include_probabilities: includeProbabilities,
-    model_path: modelPath,
-  }, { timeout: 15000 });
-  const data = normalizePredictionResponse(response.data, payloads.length);
-  data.source = data.source || 'ml-service';
-  return data;
-}
-
-function normalizePredictionResponse(raw, payloadCount) {
-  const data = raw && typeof raw === 'object' ? { ...raw } : {};
-  if (payloadCount === 1 && data.success_probability == null) {
-    const probability = extractSuccessProbability(data.probabilities);
-    if (probability != null) data.success_probability = probability;
-  }
-  return data;
-}
-
-function extractSuccessProbability(probabilities) {
-  if (!Array.isArray(probabilities) || !probabilities.length) return null;
-  const first = probabilities[0];
-  if (Array.isArray(first) && first.length > 1 && Number.isFinite(first[1])) return Number(first[1]);
-  if (Number.isFinite(first)) return Number(first);
-  return null;
-}
-
-async function runLocalPredictBatch(payloads) {
-  const scriptPath = path.join(__dirname, 'predict.py');
-  if (!fs.existsSync(scriptPath)) {
-    throw new Error('predict.py script is missing; cannot run local predictions.');
-  }
-  const results = [];
-  for (const payload of payloads) {
-    results.push(await runPredictScriptOnce(scriptPath, payload));
-  }
-  return buildLocalPredictResponse(results, payloads.length);
-}
-
-function buildLocalPredictResponse(results, payloadCount) {
-  const probabilities = results.map((entry) => {
-    const prob = Number.isFinite(entry.success_probability) ? entry.success_probability : 0;
-    const clamped = prob < 0 ? 0 : prob > 1 ? 1 : prob;
-    return [Number((1 - clamped).toFixed(6)), Number(clamped.toFixed(6))];
-  });
-  const predictions = results.map((entry) => {
-    if (Number.isFinite(entry.prediction)) return entry.prediction;
-    const prob = Number.isFinite(entry.success_probability) ? entry.success_probability : 0;
-    return prob >= 0.5 ? 1 : 0;
-  });
-  const response = { predictions, probabilities, source: 'local-script' };
-  if (payloadCount === 1 && Number.isFinite(results[0]?.success_probability)) {
-    response.success_probability = results[0].success_probability;
-  }
-  return response;
-}
-
-function getPythonCommandCandidates() {
-  const candidates = [];
-  if (process.env.PYTHON_BIN) candidates.push(process.env.PYTHON_BIN);
-  if (process.platform === 'win32') {
-    candidates.push('python', 'python3');
-  } else {
-    candidates.push('python3', 'python');
-  }
-  const unique = [];
-  for (const cmd of candidates) {
-    if (cmd && !unique.includes(cmd)) unique.push(cmd);
-  }
-  return unique;
-}
-
-async function runPredictScriptOnce(scriptPath, payload) {
-  const values = [
-    payload.buyDiffBps,
-    payload.sellDiffBps,
-    payload.Diff,
-    payload.DexSlip,
-    payload.CexSlip,
-  ].map((value) => {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
-  });
-
-  const args = [scriptPath, ...values.map((value) => String(value))];
-  const candidates = getPythonCommandCandidates();
-  let lastErr = null;
-
-  for (const cmd of candidates) {
-    try {
-      const result = await spawnPredictProcess(cmd, args);
-      const successProbability = Number(result.success_probability);
-      if (!Number.isFinite(successProbability)) {
-        throw new Error('predict.py did not return a numeric success_probability');
-      }
-      return {
-        success_probability: successProbability,
-        prediction: Number.isFinite(result.prediction) ? Number(result.prediction) : undefined,
-      };
-    } catch (err) {
-      if (err.code === 'ENOENT') {
-        lastErr = err;
-        continue;
-      }
-      throw err;
-    }
-  }
-
-  throw lastErr || new Error('Unable to locate a usable Python interpreter for predict.py');
-}
-
-function spawnPredictProcess(command, args) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: __dirname });
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-    child.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-    child.on('error', (err) => {
-      reject(err);
-    });
-    child.on('close', (code) => {
-      if (code !== 0) {
-        const error = new Error(`predict.py exited with code ${code}`);
-        error.stdout = stdout;
-        error.stderr = stderr;
-        error.code = code;
-        return reject(error);
-      }
-      const trimmed = stdout.trim();
-      if (!trimmed) {
-        const error = new Error('predict.py returned empty output');
-        error.stdout = stdout;
-        error.stderr = stderr;
-        return reject(error);
-      }
-      try {
-        const parsed = JSON.parse(trimmed);
-        resolve(parsed);
-      } catch (err) {
-        err.stdout = stdout;
-        err.stderr = stderr;
-        reject(err);
-      }
-    });
-  });
-}
-
-function shouldFallbackToLocal(err) {
-  if (!err) return false;
-  if (err.code && ['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT'].includes(err.code)) return true;
-  if (err.response?.status >= 500) return true;
-  if (err.isAxiosError && !err.response) return true;
-  return false;
-}
-
-function propsHasCurId(rawProps, curId) {
-  if (!curId) return false;
-  try {
-    const parsed = typeof rawProps === 'string' ? JSON.parse(rawProps) : rawProps;
-    if (!parsed || typeof parsed !== 'object') return false;
-    return Object.prototype.hasOwnProperty.call(parsed, curId);
-  } catch {
-    return false;
-  }
-}
-
-function getTradeRawProps(trade) {
-  if (!trade) return null;
-  const raw = safeJsonParse(trade.raw_data, null);
-  if (!raw || raw.props == null) return null;
-  return raw.props;
-}
-
-function tradeHasCurId(trade, curId) {
-  if (!curId || !trade) return false;
-  if (propsHasCurId(trade.props, curId)) return true;
-  const rawProps = getTradeRawProps(trade);
-  return propsHasCurId(rawProps, curId);
-}
-
-function extractTokensFromPropsSource(source) {
-  const obj = safeJsonParse(source, null);
-  if (!obj || typeof obj !== 'object') return [];
-  const tokens = [];
-  for (const [key, value] of Object.entries(obj)) {
-    if (typeof value === 'string') {
-      const upper = value.toUpperCase();
-      if (upper === 'BUY' || upper === 'SELL') tokens.push(String(key));
-    }
-  }
-  return tokens;
-}
-
-function extractTokensFromTrade(trade) {
-  if (!trade) return [];
-  const tokens = new Set();
-  if (trade.props != null) {
-    for (const token of extractTokensFromPropsSource(trade.props)) tokens.add(token);
-  }
-  const raw = safeJsonParse(trade.raw_data, null);
-  if (raw && raw.props != null) {
-    for (const token of extractTokensFromPropsSource(raw.props)) tokens.add(token);
-  }
-  return Array.from(tokens);
-}
-
-function tokenSymbolFromCurId(curId) {
-  if (typeof curId !== 'string') return null;
-  const parts = curId.split('_').filter(Boolean);
-  if (parts.length >= 2) return parts[1];
-  return null;
-}
-
-function aggregateTokenMetrics(tradeRows) {
-  const metrics = new Map();
-  for (const trade of tradeRows) {
-    const tokens = extractTokensFromTrade(trade);
-    if (!tokens.length) continue;
-    const netProfit = (Number(trade.executedQtyDst) * Number(trade.executedDstPrice)) - (Number(trade.executedSrcPrice) * Number(trade.executedQtySrc)) - (0.0002 * Number(trade.executedQtyDst) * Number(trade.executedDstPrice));
-    const gp = Number(trade.executedGrossProfit) || 0;
-    const props = normalizePropsRaw(trade.props);
-
-    for (const token of tokens) {
-      let rec = metrics.get(token);
-      if (!rec) {
-        rec = {
-          token,
-          trades: 0,
-          wins: 0,
-          losses: 0,
-          totalGrossProfit: 0,
-          totalNetProfit: 0,
-          sumCexSlip: 0,
-          countCexSlip: 0,
-          sumDexSlip: 0,
-          countDexSlip: 0,
-          sumDiff: 0,
-          countDiff: 0,
-        };
-        metrics.set(token, rec);
-      }
-
-      rec.trades += 1;
-      rec.totalGrossProfit += gp;
-      if (Number.isFinite(netProfit)) rec.totalNetProfit += netProfit;
-      if (gp > 0) rec.wins += 1;
-      else if (gp < 0) rec.losses += 1;
-
-      if (Number.isFinite(props.CexSlip)) { rec.sumCexSlip += props.CexSlip; rec.countCexSlip++; }
-      if (Number.isFinite(props.DexSlip)) { rec.sumDexSlip += props.DexSlip; rec.countDexSlip++; }
-      if (Number.isFinite(props.Diff)) { rec.sumDiff += props.Diff; rec.countDiff++; }
-    }
-  }
-  return metrics;
-}
-
-function tokenNameFromCurId(curId) {
-  if (typeof curId !== 'string') return null;
-  const parts = curId.split('_').filter(Boolean);
-  if (parts.length >= 2) return parts[1];
-  return parts[0] || curId || null;
-}
-
-function resolveProfitRule(notifier) {
-  const fallback = {
-    threshold: -5,
-    cooldownMinutes: 30,
-    channels: [],
-  };
-  if (!notifier || typeof notifier.getRuleConfig !== 'function') return fallback;
-  const thresholdCfg = notifier.getRuleConfig('profit') || {};
-  const dispatchCfg = notifier.getRuleConfig('profit-trade') || {};
-  const thresholdRaw = dispatchCfg.thresholdAbsolute != null
-    ? dispatchCfg.thresholdAbsolute
-    : (thresholdCfg.thresholdAbsolute != null
-      ? thresholdCfg.thresholdAbsolute
-      : (thresholdCfg.thresholdPercent != null ? thresholdCfg.thresholdPercent : thresholdCfg.threshold));
-  const thresholdNum = Number(thresholdRaw);
-  const cooldownRaw = dispatchCfg.cooldownMinutes != null
-    ? dispatchCfg.cooldownMinutes
-    : (thresholdCfg.cooldownMinutes != null ? thresholdCfg.cooldownMinutes : thresholdCfg.cooldown);
-  const cooldownNum = Number(cooldownRaw);
-  const channelSource = Array.isArray(dispatchCfg.channels) && dispatchCfg.channels.length
-    ? dispatchCfg.channels
-    : (Array.isArray(thresholdCfg.channels) ? thresholdCfg.channels : []);
-  const channels = channelSource.filter((ch) => typeof ch === 'string' && ch.trim());
-  return {
-    threshold: Number.isFinite(thresholdNum) ? thresholdNum : fallback.threshold,
-    cooldownMinutes: Number.isFinite(cooldownNum) && cooldownNum > 0 ? cooldownNum : fallback.cooldownMinutes,
-    channels,
-  };
-}
-
-async function maybeNotifyLowProfitTrade({ server, notifier, trade, origin = 'store', ruleOverride }) {
-  if (!notifier || !trade) {
-    return { triggered: false, reason: 'missing_context' };
-  }
-  const serverId = server?.id || 'unknown';
-  const serverLabel = server?.label || serverId;
-  const rule = ruleOverride || resolveProfitRule(notifier);
-  const executedProfit = safeNumber(trade.executedProfit);
-  const profitValue = Number.isFinite(executedProfit) ? executedProfit : safeNumber(trade.estimatedProfit);
-  console.log(`[notify:profit:${origin}] evaluate trade=${trade.id ?? 'unknown'} server=${serverId} profit=${Number.isFinite(profitValue) ? profitValue : 'null'} threshold=${rule.threshold}`);
-  if (!Number.isFinite(profitValue)) {
-    return { triggered: false, reason: 'no_profit_value' };
-  }
-  if (profitValue >= rule.threshold) {
-    return { triggered: false, reason: 'above_threshold' };
-  }
-
-  const pair = trade.pair || trade.token || 'unknown';
-  const delta = profitValue - rule.threshold;
-  const payload = {
-    title: `Low profit trade: ${pair}`,
-    message: `Profit: ${profitValue.toFixed(2)}`,
-    cooldownMinutes: rule.cooldownMinutes,
-    uniqueKey: trade.id != null ? `low-profit-${trade.id}` : undefined,
-    details: {
-      tradeId: trade.id ?? null,
-      pair,
-      profit: profitValue,
-      server: serverLabel,
-      origin,
-      threshold: rule.threshold,
-      delta,
-    },
-  };
-  if (rule.channels.length) {
-    payload.channels = rule.channels;
-  }
-
-  try {
-    const result = await notifier.notify('profit-trade', payload);
-    if (result?.skipped === 'cooldown') {
-      console.log(`[notify:profit:${origin}] skipped by cooldown trade=${trade.id ?? 'unknown'} server=${serverLabel}`);
-      return { triggered: false, reason: 'cooldown', result };
-    }
-    console.log(`[notify:profit:${origin}] dispatched trade=${trade.id ?? 'unknown'} server=${serverLabel} profit=${profitValue}`);
-    return { triggered: true, result };
-  } catch (err) {
-    console.error(`[notify:profit:${origin}] notify error trade=${trade.id ?? 'unknown'} server=${serverLabel}:`, err?.message || err);
-    return { triggered: false, error: err };
-  }
-}
-
-function calculateTotals(snapshot) {
-  let totalUsdt = 0;
-
-  if (!snapshot || typeof snapshot !== 'object') {
-    return { totalUsdt: null, totalCoin: null };
-  }
-
-  for (const [name, ex] of Object.entries(snapshot)) {
-    if (!ex || typeof ex !== 'object') continue;
-
-    if (name === 'BinanceF') {
-      totalUsdt += Number(ex.usdtVal) || 0;
-    } else {
-      totalUsdt += Number(ex.coinVal) || 0;
-    }
-  }
-  // The meaning of totalCoin is now ambiguous, so we nullify it.
-  return {
-    totalUsdt: Number.isFinite(totalUsdt) ? totalUsdt : null,
-    totalCoin: null,
-  };
-}
-
-
-// Helper to compute per-snapshot DEX and CEX totals
-function computeDexCex(snapshot) {
-  let dexTotal = 0;
-  let cexTotal = 0;
-
-  if (!snapshot || typeof snapshot !== 'object') {
-    return { dexTotal: 0, cexTotal: 0, combined: 0 };
-  }
-
-  for (const [name, ex] of Object.entries(snapshot)) {
-    if (!ex || typeof ex !== 'object') continue;
-
-    if (name === 'BinanceF') {
-      cexTotal += Number(ex.usdtVal) || 0;
-    } else {
-      dexTotal += Number(ex.coinVal) || 0;
-    }
-  }
-
-  return { dexTotal, cexTotal, combined: dexTotal + cexTotal };
-}
-
-// Normalize various props encodings into a canonical shape
-function normalizePropsRaw(input) {
-  try {
-    const p = typeof input === 'string' ? JSON.parse(input) : (input || {});
-    const out = {};
-
-    // Direct keys
-    if (p && (p.Diff != null || p.DexSlip != null || p.CexSlip != null || p.Dex != null || p.Exec != null)) {
-      if (p.Diff != null) out.Diff = Number(p.Diff);
-      if (p.DexSlip != null) out.DexSlip = Number(p.DexSlip);
-      if (p.CexSlip != null) out.CexSlip = Number(p.CexSlip);
-      if (p.Dex != null) out.Dex = String(p.Dex);
-      if (p.Exec != null) out.Exec = String(p.Exec);
-    } else {
-      // Heuristic format: { 'SOME_link_xxxx': 'SELL', '0.14': '0.06', 'Market': '0.27' }
-      // Exec key is one of these, value is CexSlip
-      const execKey = ['Market','Limit','PostOnly','IOC','FOK'].find(k => Object.prototype.hasOwnProperty.call(p, k));
-      if (execKey) { out.Exec = execKey; const v = Number(p[execKey]); if (Number.isFinite(v)) out.CexSlip = v; }
-      // Find Dex as value of any key whose value is 'BUY' or 'SELL'
-      for (const [k, v] of Object.entries(p)) {
-        if (v === 'BUY' || v === 'SELL') {
-          out.Dex = String(v);
-          break;
-        }
-      }
-      // Find numeric key/value pair -> key = Diff, value = DexSlip
-      for (const [k, v] of Object.entries(p)) {
-        const nk = Number(k); const nv = Number(v);
-        if (Number.isFinite(nk) && Number.isFinite(nv)) { out.Diff = nk; out.DexSlip = nv; break; }
-      }
-    }
-    return out;
-  } catch (e) {
-    console.error('normalizePropsRaw - error:', e);
-    return {};
   }
 }
 
@@ -856,21 +710,20 @@ async function fetchBalancesAndStoreFor(server) {
     const row = { timestamp: new Date().toISOString(), total_usdt: totalUsdt, total_coin: totalCoin, raw_data: JSON.stringify(data) };
     const db = ensureDb(server.id);
     db.prepare(`INSERT INTO balances_history (timestamp, total_usdt, total_coin, raw_data) VALUES (@timestamp,@total_usdt,@total_coin,@raw_data)`).run(row);
-    console.log(`[balances:${server.label}] Stored @ ${row.timestamp} | total_usdt=${totalUsdt}${totalCoin != null ? ` total_coin=${totalCoin}` : ''}`);
+    console.log(`[balances:${server.label}] Stored @ ${row.timestamp}`);
   } catch (err) {
     const status = err?.response?.status;
     const notifier = ensureNotifier(server.id);
     if (status === 404) {
       console.log(`[balances:${server.label}] 404 (not found). Skipping.`);
     } else {
-      // Handle other types of errors, such as connection failures
       console.error(`[balances:${server.label}] Fetch/store error:`, err.message);
       if (notifier) {
         notifier.notify('pollFailed', {
           title: `Poll Failed: ${server.label}`,
           message: `Failed to fetch balances (${err.message})`,
           details: { server: server.label, error: err.message, type: 'connection-error' },
-          uniqueKey: `balances-conn-error-${err.code || 'unknown'}`  // Unique key based on error code
+          uniqueKey: `balances-conn-error-${err.code || 'unknown'}`
         }).catch(err => console.error('Notifier error:', err.message));
       }
     }
@@ -881,7 +734,6 @@ function storeCompletedTrades(server, trades, sourceLabel = 'recent') {
   if (!server) return 0;
   const arr = Array.isArray(trades) ? trades : [];
   if (!arr.length) {
-    if (sourceLabel) console.log(`[trades:${server.label}] No trades from ${sourceLabel}.`);
     return 0;
   }
 
@@ -957,13 +809,20 @@ function storeCompletedTrades(server, trades, sourceLabel = 'recent') {
             trade: t,
             origin: 'store',
           }).catch(err => console.error('[notify:profit:store] unhandled error:', err?.message || err));
+          
+           maybeNotifyHighProfitTrade({
+            server,
+            notifier,
+            trade: t,
+            origin: 'store',
+          }).catch(err => console.error('[notify:high-profit:store] unhandled error:', err?.message || err));
         }
       }
     }
   });
 
   insert(arr);
-  console.log(`[trades:${server.label}] Inserted new trades${sourceLabel ? ` (${sourceLabel})` : ''}: ${inserted}/${arr.length}`);
+  console.log(`[trades:${server.label}] Inserted ${inserted}/${arr.length} trades`);
   return inserted;
 }
 
@@ -982,7 +841,7 @@ async function fetchTradesAndStoreFor(server) {
         title: `Poll Failed: ${server.label}`,
         message: `Failed to fetch trades (${err.message})`,
         details: { server: server.label, error: err.message, type: 'connection-error' },
-        uniqueKey: `trades-conn-error-${err.code || 'unknown'}`  // Unique key based on error code
+        uniqueKey: `trades-conn-error-${err.code || 'unknown'}`
       }).catch(err => console.error('Notifier error:', err.message));
     }
   }
@@ -1013,7 +872,6 @@ async function fetchStatusAndStoreFor(server) {
     const timestamp = new Date().toISOString();
     const db = ensureDb(server.id);
 
-    // Parse and store tokens
     const sdiffLine = text.split(/\r?\n/).find(l => l.startsWith('SDIFF_Uniswap_ckhvar2'));
     if (sdiffLine) {
       const propsIndex = sdiffLine.indexOf('Mindiff:');
@@ -1029,11 +887,9 @@ async function fetchStatusAndStoreFor(server) {
         db.transaction((items) => {
           for (const item of items) stmt.run({ timestamp, ...item });
         })(tokens);
-        console.log(`[status:${server.label}] Stored ${tokens.length} tokens.`);
       }
     }
 
-    // Parse and store gas balances
     const blacklistLine = text.split(/\r?\n/).find(l => l.startsWith('SDIFF Uniswap BlackList:'));
     if (blacklistLine) {
       const str = blacklistLine.replace('SDIFF Uniswap BlackList:', '').trim();
@@ -1051,7 +907,6 @@ async function fetchStatusAndStoreFor(server) {
         db.transaction((items) => {
           for (const item of items) stmt.run({ timestamp, ...item });
         })(gasBalances);
-        console.log(`[status:${server.label}] Stored ${gasBalances.length} gas balances.`);
 
         const notifier = ensureNotifier(server.id);
         if (notifier) {
@@ -1076,7 +931,7 @@ async function fetchStatusAndStoreFor(server) {
         title: `Poll Failed: ${server.label}`,
         message: `Failed to fetch status (${err.message})`,
         details: { server: server.label, error: err.message, type: 'connection-error' },
-        uniqueKey: `status-conn-error-${err.code || 'unknown'}`  // Unique key based on error code
+        uniqueKey: `status-conn-error-${err.code || 'unknown'}`
       }).catch(err => console.error('Notifier error:', err.message));
     }
   }
@@ -1103,7 +958,7 @@ async function fetchContractTxsAndStoreFor(server) {
     const fetchLegacy = async () => {
       if (!explorerApiBase) return [];
       const legacyApi = explorerApiBase.replace(/\/?$/, '');
-      const legacyUrl = `${legacyApi}/api?module=account&action=txlist&address=${encodeURIComponent(contractAddress)}&sort=desc&page=1&offset=1000${explorerApiKey ? `&apikey=${encodeURIComponent(explorerApiKey)}` : ''}`; // Added apikey
+      const legacyUrl = `${legacyApi}/api?module=account&action=txlist&address=${encodeURIComponent(contractAddress)}&sort=desc&page=1&offset=1000${explorerApiKey ? `&apikey=${encodeURIComponent(explorerApiKey)}` : ''}`;
       const data = await fetchThrottledEtherscan(legacyUrl);
       if (typeof (data && data.result) === 'string' && data.result.toLowerCase().includes('max rate limit')) {
         throw new Error(data.result);
@@ -1166,7 +1021,6 @@ async function fetchContractTxsAndStoreFor(server) {
           });
         }
       })(txs);
-      console.log(`[contracts:${serverId}] Stored ${txs.length} transactions.`);
     }
 
   } catch (err) {
@@ -1177,7 +1031,7 @@ async function fetchContractTxsAndStoreFor(server) {
         title: `Poll Failed: ${serverId}`,
         message: `Failed to fetch contract transactions (${err.message})`,
         details: { server: serverId, error: err.message, type: 'connection-error' },
-        uniqueKey: `contracts-conn-error-${err.code || 'unknown'}`  // Unique key based on error code
+        uniqueKey: `contracts-conn-error-${err.code || 'unknown'}`
       }).catch(err => console.error('Notifier error:', err.message));
     }
   }
@@ -1190,67 +1044,61 @@ async function ensureInitialTradesSync(server) {
   if (ok) initialTradesSynced.add(server.id);
 }
 
+async function checkLowCexVolumeFor(server) {
+  if (!server) return;
+  const notifier = ensureNotifier(server.id);
+  if (!notifier) return;
+  try {
+    const db = ensureDb(server.id);
+    const latestRows = db.prepare(`
+      SELECT dh.curId, dh.cexVol, dh.ts
+      FROM diff_history dh
+      INNER JOIN (
+        SELECT curId, MAX(ts) AS maxTs
+        FROM diff_history
+        GROUP BY curId
+      ) latest ON latest.curId = dh.curId AND latest.maxTs = dh.ts
+    `).all();
+    const rule = resolveLowCexVolumeRule(notifier);
+    
+    for (const row of latestRows) {
+      await maybeNotifyLowCexVolume({
+        server,
+        notifier,
+        curId: row.curId,
+        volume: row.cexVol,
+        timestamp: row.ts,
+        origin: 'cron',
+        ruleOverride: rule,
+      });
+    }
+  } catch (err) {
+    console.error(`[notify:lowCexVolume:${server.label || server.id}] evaluation error:`, err?.message || err);
+  }
+}
+
+async function checkAllLowCexVolumes() {
+  const cfg = loadServers();
+  for (const server of cfg.servers) {
+    await checkLowCexVolumeFor(server);
+  }
+}
+
+
+
 async function sendHourlyDigest() {
   const cfg = loadServers();
-  const servers = cfg.servers;
-
-  // Process each server to send hourly digest
-  for (const server of servers) {
+  for (const server of cfg.servers) {
     const notifier = ensureNotifier(server.id);
     if (!notifier) continue;
-
     try {
       const serverIp = server.baseUrl.split(':')[1].substring(2);
       const resp = await axios.get(`http://${serverIp}:3001/`, { timeout: 10000 });
       const text = resp.data;
-
-      if (typeof text !== 'string') {
-        throw new Error('Invalid status response from server');
-      }
-
       let message = `📊 *Hourly Digest for ${server.label}*\n\n`;
-
-      const lines = text.split(/\r?\n/);
-      const sdiffLine = lines.find(l => l.startsWith('SDIFF_Uniswap_ckhvar2'));
-      if (sdiffLine) {
-        const parts = sdiffLine.split(/\s+/);
-        const propsIndex = sdiffLine.indexOf('Mindiff:');
-        const propsStr = propsIndex > -1 ? sdiffLine.substring(propsIndex) : '';
-        const up = parts.length > 4 ? parts[4] : 'N/A';
-        const mindiff = propsStr.match(/Mindiff:[\d.]+/)?.[
-1];
-        const maxOrderSize = propsStr.match(/MaxOrderSize: (\d+)/)?.[1];
-        const tokens = propsStr.match(/\w+\([\d.]+,[\d.]+\)/g) || [];
-        message += `🔄 *Server Status*\n`;
-        message += `⏱️ Uptime: ${up} | 🎯 Mindiff: ${mindiff} | 📦 MaxOrderSize: ${maxOrderSize}\n`;
-        message += `🪙 Tokens: ${tokens.join(', ')}\n\n`;
-      }
-
-      const gasStatusLine = lines.find(l => l.startsWith('SDIFF Uniswap BlackList:'));
-      if (gasStatusLine) {
-        const gasStr = gasStatusLine.replace('SDIFF Uniswap BlackList:', '').trim();
-        const gasEntries = gasStr.split(',').map(item => item.trim()).filter(Boolean);
-        
-        if (gasEntries.length > 0) {
-          message += `⛽ *Gas Status*\n`;
-          gasEntries.forEach(entry => {
-            const [key, value] = entry.split(':');
-            if (key && value !== undefined) {
-              const gasValue = parseFloat(value);
-              if (!isNaN(gasValue)) {
-                // Format gas values less than 2 in red (using a red indicator)
-                const gasDisplay = gasValue < 2 ? `🔴 ${key}:${gasValue}` : `🟢 ${key}:${gasValue}`;
-                message += `${gasDisplay}\n`;
-              } else {
-                message += `🟡 ${entry}\n`;
-              }
-            } else {
-              message += `🟡 ${entry}\n`;
-            }
-          });
-          message += `\n`;
-        }
-      }
+       if (typeof text === 'string') {
+         if (text.includes('SDIFF')) message += `Server online\n`;
+       }
 
       const db = ensureDb(server.id);
       const now = Date.now();
@@ -1261,20 +1109,9 @@ async function sendHourlyDigest() {
 
       message += `📈 *Last Hour Performance*\n`;
       message += `💼 Trades: ${tradesLast1h.length} | 💰 Profit: ${Number.isFinite(profitLast1h) ? profitLast1h.toFixed(2) : '0.00'}\n\n`;
-
-      const balanceRow = db.prepare('SELECT raw_data FROM balances_history ORDER BY id DESC LIMIT 1').get();
-      if (balanceRow) {
-        const snapshot = safeJsonParse(balanceRow.raw_data);
-        const { dexTotal, cexTotal, combined } = computeDexCex(snapshot);
-        message += `💰 *Balance*\n`;
-        message += `🪙 Total USDT (DEX + BinanceF): ${Number.isFinite(combined) ? combined.toFixed(2) : '0.00'}\n`;
-        message += `🏦 BinanceF Total USDT: ${Number.isFinite(cexTotal) ? cexTotal.toFixed(2) : '0.00'}\n`;
-        message += `🔗 DEX Total USDT: ${Number.isFinite(dexTotal) ? dexTotal.toFixed(2) : '0.00'}`;
-      }
-
-      // Use channels specified in the rule configuration
+      
       const ruleChannels = notifier.getRuleConfig('hourlyDigest')?.channels;
-      const channels = ruleChannels || ['slack']; // Default to slack only if not specified
+      const channels = ruleChannels || ['slack']; 
       
       await notifier.notify('hourlyDigest', {
         title: `Hourly Digest: ${server.label}`,
@@ -1287,66 +1124,110 @@ async function sendHourlyDigest() {
     }
   }
 }
+
 async function sendDailyDigest() {
-  const cfg = loadServers();
-  const servers = cfg.servers; // Iterate over all servers
-  
-  for (const server of servers) { // Loop through each server
+   const cfg = loadServers();
+   for (const server of cfg.servers) {
     const notifier = ensureNotifier(server.id);
     if (!notifier) continue;
-
     try {
-      const db = ensureDb(server.id);
-      const now = Date.now();
-      const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
-
-      const tradesLast24h = db.prepare('SELECT * FROM completed_trades WHERE lastUpdateTime >= ?').all(twentyFourHoursAgo);
-      const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
-      const profitLast24h = tradesLast24h.reduce((acc, t) => acc + netProfit(t), 0);
-
-      const txsLast24h = db.prepare('SELECT * FROM contract_transactions WHERE timestamp >= ?').all(twentyFourHoursAgo);
-      const successCount = txsLast24h.filter(t => !t.isError).length;
-      const errorCount = txsLast24h.length - successCount;
-      const successRate = txsLast24h.length > 0 ? (successCount / txsLast24h.length) * 100 : 100;
-
-      const topPairs = db.prepare('SELECT pair, COUNT(*) as count, SUM(executedGrossProfit) as totalProfit FROM completed_trades WHERE lastUpdateTime >= ? GROUP BY pair ORDER BY totalProfit DESC LIMIT 5').all(twentyFourHoursAgo);
-
-      const totalFeeSpend = tradesLast24h.reduce((acc, t) => acc + (t.executedFeeTotal || 0), 0);
-
-      const gasLowOccurrences = db.prepare('SELECT COUNT(*) as count FROM gas_balances WHERE timestamp >= ? AND is_low = 1').get(new Date(twentyFourHoursAgo).toISOString()).count;
-
-      let message = `Daily digest for ${server.label}:
-`;
-      message += `24h P&L: ${Number.isFinite(profitLast24h) ? profitLast24h.toFixed(2) : '0.00'}
-`;
-      message += `Success Rate: ${Number.isFinite(successRate) ? successRate.toFixed(2) : '0.00'}%
-`;
-      message += `Error Count: ${Number.isFinite(errorCount) ? errorCount : '0'}
-`;
-      message += `Top Pairs (by profit):
-`;
-      for (const pair of topPairs) {
-        message += `  - ${pair.pair}: ${Number.isFinite(pair.totalProfit) ? pair.totalProfit.toFixed(2) : '0.00'}
-`;
-      }
-      message += `Total Fee Spend: ${Number.isFinite(totalFeeSpend) ? totalFeeSpend.toFixed(2) : '0.00'}
-`;
-      message += `Low Gas Occurrences: ${Number.isFinite(gasLowOccurrences) ? gasLowOccurrences : '0'}
-`;
+       const db = ensureDb(server.id);
+       const now = Date.now();
+       const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+       const tradesLast24h = db.prepare('SELECT * FROM completed_trades WHERE lastUpdateTime >= ?').all(twentyFourHoursAgo);
+       const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
+       const profitLast24h = tradesLast24h.reduce((acc, t) => acc + netProfit(t), 0);
+       
+       let message = `Daily digest for ${server.label}:\n24h P&L: ${profitLast24h.toFixed(2)}`;
 
       notifier.notify('dailyDigest', {
         title: `Daily Digest: ${server.label}`,
         message: message,
         channels: notifier.getRuleConfig('dailyDigest')?.channels
       }).catch(err => console.error('Notifier error (daily digest): ', err.message));
-
     } catch (err) {
-      console.error('Failed to send daily digest:', err.message);
+       console.error('Failed to send daily digest:', err.message);
+    }
+   }
+}
+
+async function getBalanceUpdateData() {
+  const cfg = loadServers();
+  const result = [];
+  for (const server of cfg.servers) {
+    const db = ensureDb(server.id);
+    const balanceRow = db.prepare('SELECT raw_data FROM balances_history ORDER BY id DESC LIMIT 1').get();
+    let totalUSDT = null;
+    let binanceFUSDT = null;
+    let dexUSDT = null;
+    if (balanceRow) {
+      const snapshot = safeJsonParse(balanceRow.raw_data);
+      const { combined, cexTotal, dexTotal } = computeDexCex(snapshot);
+      totalUSDT = combined;
+      binanceFUSDT = cexTotal;
+      dexUSDT = dexTotal;
+    }
+    result.push({
+      server: server.label,
+      totalUSDT: totalUSDT,
+      binanceFUSDT: binanceFUSDT,
+      dexUSDT: dexUSDT,
+      periodData: {}
+    });
+  }
+  return result;
+}
+
+async function sendBalanceUpdate() {
+  const cfg = loadServers();
+  const data = await getBalanceUpdateData();
+  let message = '';
+  for (const serverData of data) {
+    message += `📊 *SERVER: ${serverData.server}*\n`;
+    message += `Total (USDT): ${serverData.totalUSDT?.toLocaleString() || 'N/A'}\n\n`;
+  }
+  if (cfg.servers.length > 0) {
+    const firstServerNotifier = ensureNotifier(cfg.servers[0].id);
+    if (firstServerNotifier) {
+      const ruleChannels = firstServerNotifier.getRuleConfig('balanceUpdate')?.channels;
+      const channels = ruleChannels || ['slack']; 
+      await firstServerNotifier.notify('balanceUpdate', {
+        title: `Balance Update for All Servers`,
+        message: message,
+        channels: channels
+      });
     }
   }
 }
 
-// Function to check notification conditions for a server
+const etherscanQueue = [];
+let isEtherscanProcessing = false;
+
+async function processEtherscanQueue() {
+  if (isEtherscanProcessing || etherscanQueue.length === 0) return;
+  isEtherscanProcessing = true;
+
+  const { url, resolve, reject } = etherscanQueue.shift();
+  try {
+    const resp = await axios.get(url, { timeout: 15000 });
+    resolve(resp.data);
+  } catch (error) {
+    reject(error);
+  }
+
+  setTimeout(() => {
+    isEtherscanProcessing = false;
+    processEtherscanQueue();
+  }, 1000);
+}
+
+function fetchThrottledEtherscan(url) {
+  return new Promise((resolve, reject) => {
+    etherscanQueue.push({ url, resolve, reject });
+    processEtherscanQueue();
+  });
+}
+
 async function checkNotificationConditions(server) {
   const notifier = ensureNotifier(server.id);
   if (!notifier) return;
@@ -1354,10 +1235,9 @@ async function checkNotificationConditions(server) {
   const db = ensureDb(server.id);
   
   try {
-    // Check for recent trades with low profit
     const recentTrades = db.prepare(
       'SELECT * FROM completed_trades WHERE lastUpdateTime >= ? ORDER BY lastUpdateTime DESC'
-    ).all(Date.now() - (2 * 60 * 1000)); // Last 2 minutes worth of trades
+    ).all(Date.now() - (2 * 60 * 1000)); 
 
     const profitRule = resolveProfitRule(notifier);
     for (const trade of recentTrades) {
@@ -1370,15 +1250,21 @@ async function checkNotificationConditions(server) {
       });
     }
 
-    // Check for low gas conditions (gas balance checks are already handled in fetchStatusAndStoreFor)
-    // Other potential checks could go here
-    
+    const highProfitRule = resolveHighProfitRule(notifier);
+    for (const trade of recentTrades) {
+      await maybeNotifyHighProfitTrade({
+        server,
+        notifier,
+        trade,
+        origin: 'cron',
+        ruleOverride: highProfitRule,
+      });
+    }
   } catch (err) {
     console.error(`[notifications:${server.label}] Error checking notification conditions:`, err.message);
   }
 }
 
-// Function to systematically check notifications for all servers
 async function checkAllNotifications() {
   const cfg = loadServers();
   for (const server of cfg.servers) {
@@ -1386,154 +1272,10 @@ async function checkAllNotifications() {
   }
 }
 
-// Function to get balance update data for all servers
-async function getBalanceUpdateData() {
-  const cfg = loadServers();
-  const result = [];
-  
-  for (const server of cfg.servers) {
-    const db = ensureDb(server.id);
-    
-    // Get latest balance snapshot
-    const balanceRow = db.prepare('SELECT raw_data FROM balances_history ORDER BY id DESC LIMIT 1').get();
-    let totalUSDT = null;
-    let binanceFUSDT = null;
-    let dexUSDT = null;
-    
-    if (balanceRow) {
-      const snapshot = safeJsonParse(balanceRow.raw_data);
-      const { combined, cexTotal, dexTotal } = computeDexCex(snapshot);
-      totalUSDT = combined;
-      binanceFUSDT = cexTotal;
-      dexUSDT = dexTotal;
-    }
-    
-    // Calculate profit and trade counts for different periods
-    const now = Date.now();
-    const periods = {
-      '1h': now - (1 * 60 * 60 * 1000),
-      '4h': now - (4 * 60 * 60 * 1000),
-      '8h': now - (8 * 60 * 60 * 1000),
-      '12h': now - (12 * 60 * 60 * 1000),
-      '24h': now - (24 * 60 * 60 * 1000)
-    };
-    
-    const periodData = {};
-    for (const [label, startTimestamp] of Object.entries(periods)) {
-      const trades = db.prepare('SELECT * FROM completed_trades WHERE lastUpdateTime >= ?').all(startTimestamp);
-      const netProfit = trades.reduce((sum, t) => {
-        const profit = (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
-        return sum + (Number.isFinite(profit) ? profit : 0);
-      }, 0);
-      
-      periodData[label] = {
-        profit: netProfit,
-        trades: trades.length
-      };
-    }
-    
-    result.push({
-      server: server.label,
-      totalUSDT: totalUSDT,
-      binanceFUSDT: binanceFUSDT,
-      dexUSDT: dexUSDT,
-      periodData: periodData
-    });
-  }
-  
-  return result;
-}
-
-// Function to send balance update notifications
-async function sendBalanceUpdate() {
-  const cfg = loadServers();
-  const data = await getBalanceUpdateData();
-  
-  // Format the message containing data for all servers
-  let message = '';
-  for (const serverData of data) {
-    message += `📊 *SERVER: ${serverData.server}*\n`;
-    message += `Total (USDT)    : ${serverData.totalUSDT?.toLocaleString() || 'N/A'}\n`;
-    message += `BinanceF (USDT) : ${serverData.binanceFUSDT?.toLocaleString() || 'N/A'}\n`;
-    message += `DEX (USDT)      : ${serverData.dexUSDT?.toLocaleString() || 'N/A'}\n\n`;
-    
-    message += `Period       Profit (USD)   Number of Trades\n`;
-    for (const [period, stats] of Object.entries(serverData.periodData)) {
-      message += `Last ${period.padEnd(2, ' ')}     ${stats.profit.toFixed(2).padStart(7, ' ')}      ${stats.trades.toString().padStart(3, ' ')}\n`;
-    }
-    message += '\n';
-  }
-  
-  // Since this is a global notification for all servers, we'll use the rule configuration
-  // from the first server's notifier, but the config is shared across all servers
-  if (cfg.servers.length > 0) {
-    // Get configuration from the first server's notifier
-    const firstServerNotifier = ensureNotifier(cfg.servers[0].id);
-    if (firstServerNotifier) {
-      // Use channels specified in the rule configuration
-      const ruleChannels = firstServerNotifier.getRuleConfig('balanceUpdate')?.channels;
-      const channels = ruleChannels || ['slack']; // Default to slack
-      
-      // Send notification once for all servers with data for all servers
-      await firstServerNotifier.notify('balanceUpdate', {
-        title: `Balance Update for All Servers`,
-        message: message,
-        channels: channels
-      });
-    }
-  }
-}
-
-// --- Throttled Etherscan Client ---
-function maskEtherscanUrl(url) {
-  try {
-    const u = new URL(url);
-    if (u.searchParams.has('apikey')) {
-      u.searchParams.set('apikey', '***');
-    }
-    return u.toString();
-  } catch {
-    return url;
-  }
-}
-
-const etherscanQueue = [];
-let isEtherscanProcessing = false;
-
-async function processEtherscanQueue() {
-  if (isEtherscanProcessing || etherscanQueue.length === 0) return;
-  isEtherscanProcessing = true;
-
-  const { url, resolve, reject } = etherscanQueue.shift();
-  const masked = maskEtherscanUrl(url);
-  try {
-    console.log('[etherscan] ->', masked);
-    const resp = await axios.get(url, { timeout: 15000 });
-    console.log('[etherscan] <-', masked, 'status', resp.status, 'keys', Object.keys(resp.data || {}))
-    resolve(resp.data);
-  } catch (error) {
-    console.error('[etherscan] x', masked, error.message);
-    reject(error);
-  }
-
-  setTimeout(() => {
-    isEtherscanProcessing = false;
-    processEtherscanQueue();
-  }, 1000); // 1 request per second
-}
-
-function fetchThrottledEtherscan(url) {
-  return new Promise((resolve, reject) => {
-    etherscanQueue.push({ url, resolve, reject });
-    processEtherscanQueue();
-  });
-}
-
 async function fetchAllAndStore() {
   const cfg = loadServers();
   for (const s of cfg.servers) {
     await ensureInitialTradesSync(s);
-    // Then fetch balances and trades in parallel
     await Promise.allSettled([fetchStatusAndStoreFor(s), fetchBalancesAndStoreFor(s), fetchTradesAndStoreFor(s), fetchDiffDataAndStoreFor(s), fetchContractTxsAndStoreFor(s)]);
   }
 }
@@ -1543,13 +1285,15 @@ parentPort.on('message', async (message) => {
     console.log('[worker] Starting initial fetch...');
     await fetchAllAndStore();
     console.log('[worker] Initial fetch complete.');
-    // Schedule subsequent fetches
+    
     cron.schedule('*/2 * * * *', async () => {
       console.log('[worker] Running scheduled fetch...');
       await fetchAllAndStore();
-      // Also check notification conditions for all servers
-      checkAllNotifications().catch(err => console.error('[worker] Error checking notifications:', err));
+      await checkAllNotifications();
+      await checkAllLowCexVolumes();
     });
+
+
     cron.schedule('0 * * * *', async () => {
       console.log('[worker] Running hourly digest...');
       await sendHourlyDigest();

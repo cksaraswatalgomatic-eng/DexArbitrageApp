@@ -282,6 +282,7 @@ function ensureDb(serverId) {
       UNIQUE(curId, ts)
     );
   `);
+  _db.exec(`CREATE INDEX IF NOT EXISTS idx_diff_history_curId_ts ON diff_history (curId, ts DESC);`);
   _db.exec(`
     CREATE TABLE IF NOT EXISTS contract_transactions (
       hash TEXT NOT NULL,

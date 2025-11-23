@@ -366,8 +366,8 @@ async function fetchDiffDataAndStoreFor(server) {
     if (!Array.isArray(data)) return;
 
     const db = ensureDb(server.id);
-    const lookupStmt = db.prepare('SELECT buy, sell FROM server_tokens WHERE name = ? ORDER BY timestamp DESC LIMIT 1');
-    const tokenCache = new Map();
+    // Query to find the server token settings effective at (or just before) the diff timestamp
+    const lookupStmt = db.prepare('SELECT buy, sell FROM server_tokens WHERE name = ? AND timestamp <= ? ORDER BY timestamp DESC LIMIT 1');
 
     const rows = data.map((raw) => {
       if (!raw || raw.curId == null || raw.ts == null) return null;
@@ -375,20 +375,19 @@ async function fetchDiffDataAndStoreFor(server) {
       const ts = parseInt(raw.ts, 10);
       if (!Number.isFinite(ts)) return null;
       const tokenName = tokenNameFromCurId(curId);
+      const isoTs = new Date(ts).toISOString();
 
-      const cacheKey = tokenName || '';
-      let tokenRow = tokenCache.get(cacheKey);
-      if (tokenRow === undefined) {
-        tokenRow = lookupStmt.get(tokenName);
-        if (!tokenRow && tokenName) {
+      let tokenRow = null;
+      if (tokenName) {
+        tokenRow = lookupStmt.get(tokenName, isoTs);
+        if (!tokenRow) {
           const upper = tokenName.toUpperCase();
-          if (upper !== tokenName) tokenRow = lookupStmt.get(upper);
+          if (upper !== tokenName) tokenRow = lookupStmt.get(upper, isoTs);
         }
-        if (!tokenRow && tokenName) {
+        if (!tokenRow) {
           const lower = tokenName.toLowerCase();
-          if (lower !== tokenName) tokenRow = lookupStmt.get(lower);
+          if (lower !== tokenName) tokenRow = lookupStmt.get(lower, isoTs);
         }
-        tokenCache.set(cacheKey, tokenRow || null);
       }
 
       return {
@@ -1361,28 +1360,56 @@ async function fetchStatusAndStoreFor(server) {
     const timestamp = new Date().toISOString();
     const db = ensureDb(server.id);
 
-    // Parse and store tokens
-    const sdiffLine = text.split(/\r?\n/).find(l => l.startsWith('SDIFF_Uniswap_ckhvar2'));
-    if (sdiffLine) {
-      const propsIndex = sdiffLine.indexOf('Mindiff:');
-      const propsStr = propsIndex > -1 ? sdiffLine.substring(propsIndex) : '';
-      const tokens = propsStr.match(/\w+\([\d.]+,[\d.]+\)/g)?.map(t => {
-        const [name, values] = t.split('(');
-        const [buy, sell] = values.slice(0, -1).split(',');
-        return { name, buy: safeNumber(buy), sell: safeNumber(sell) };
-      });
+    // Robust token parser (matching /status/server logic)
+    const parseTokens = (str) => {
+      const tokenMatches = [...str.matchAll(/\b([A-Za-z0-9_]+)\(([-+]?\d*\.?\d+)\s*,\s*([-+]?\d*\.?\d+)\)/g)];
+      return tokenMatches.map(match => ({
+        name: match[1],
+        buy: safeNumber(match[2]),
+        sell: safeNumber(match[3]),
+      }));
+    };
 
-      if (tokens && tokens.length) {
-        const stmt = db.prepare('INSERT INTO server_tokens (timestamp, name, buy, sell) VALUES (@timestamp, @name, @buy, @sell)');
-        db.transaction((items) => {
-          for (const item of items) stmt.run({ timestamp, ...item });
-        })(tokens);
-        console.log(`[status:${server.label}] Stored ${tokens.length} tokens.`);
+    const lines = text.split(/\r?\n/);
+    let tokens = [];
+
+    // Try to find SDIFF line
+    const sdiffDataLine = lines.find(l => l.trim().startsWith('SDIFF_'));
+    
+    if (sdiffDataLine) {
+      // Try to parse tokens from this line first
+      const propsIndex = sdiffDataLine.indexOf('Mindiff:');
+      if (propsIndex > -1) {
+        const propsStr = sdiffDataLine.substring(propsIndex);
+        tokens = parseTokens(propsStr);
       }
+      
+      // If multi-line format is suspected or tokens not found, try looking in adjacent lines or full text if needed
+      // But sticking to the /status/server logic, it primarily looks at the propsLine found via 'Mindiff:' check
+      if (!tokens.length) {
+         const propsLine = lines.find(l => l.includes('Mindiff:'));
+         if (propsLine) {
+             tokens = parseTokens(propsLine);
+         }
+      }
+    } else {
+        // Fallback: search for any line with Mindiff
+        const propsLine = lines.find(l => l.includes('Mindiff:'));
+        if (propsLine) {
+            tokens = parseTokens(propsLine);
+        }
+    }
+
+    if (tokens && tokens.length) {
+      const stmt = db.prepare('INSERT INTO server_tokens (timestamp, name, buy, sell) VALUES (@timestamp, @name, @buy, @sell)');
+      db.transaction((items) => {
+        for (const item of items) stmt.run({ timestamp, ...item });
+      })(tokens);
+      console.log(`[status:${server.label}] Stored ${tokens.length} tokens.`);
     }
 
     // Parse and store gas balances
-    const blacklistLine = text.split(/\r?\n/).find(l => l.startsWith('SDIFF Uniswap BlackList:'));
+    const blacklistLine = lines.find(l => l.startsWith('SDIFF Uniswap BlackList:'));
     if (blacklistLine) {
       const str = blacklistLine.replace('SDIFF Uniswap BlackList:', '').trim();
       const gasBalances = str.split(',').map(item => item.trim()).filter(Boolean).map(item => {
@@ -1572,8 +1599,10 @@ async function fetchAllAndStore() {
   const cfg = loadServers();
   for (const s of cfg.servers) {
     await ensureInitialTradesSync(s);
-    // Then fetch balances and trades in parallel
-    await Promise.allSettled([fetchStatusAndStoreFor(s), fetchBalancesAndStoreFor(s), fetchTradesAndStoreFor(s), fetchDiffDataAndStoreFor(s), fetchContractTxsAndStoreFor(s)]);
+    // Ensure server status (tokens) is updated first
+    await fetchStatusAndStoreFor(s);
+    // Then fetch balances, trades, diff data, etc. in parallel
+    await Promise.allSettled([fetchBalancesAndStoreFor(s), fetchTradesAndStoreFor(s), fetchDiffDataAndStoreFor(s), fetchContractTxsAndStoreFor(s)]);
   }
 }
 
@@ -2176,7 +2205,7 @@ app.get('/diffdata/history', (req, res) => {
       if (lower !== tokenName) serverToken = serverTokenStmt.get(lower);
     }
 
-    const normalizedRows = diffRows.reverse().map((row) => {
+    const normalizedRows = diffRows.map((row) => {
       const ts = Number(row.ts);
       const buy = row.serverBuy != null ? safeNumber(row.serverBuy) : null;
       const sell = row.serverSell != null ? safeNumber(row.serverSell) : null;

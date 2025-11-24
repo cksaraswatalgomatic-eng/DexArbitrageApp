@@ -5610,6 +5610,11 @@ function computeGasConsumptionSeries(db, hoursInput) {
       if (Number.isFinite(currDeposit) && currDeposit > 0) {
         bucket.deposit += currDeposit;
       }
+      // Reset the baseline to the new balance after deposit so next auto-total
+      // calculates consumption from this higher level instead of the old lower level.
+      if (Number.isFinite(currBalance)) {
+        previousAutoTotalBalance = currBalance;
+      }
     }
 
     bucket.latestTotal = currBalance;

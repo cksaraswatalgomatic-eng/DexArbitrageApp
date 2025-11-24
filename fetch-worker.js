@@ -904,8 +904,36 @@ async function fetchStatusAndStoreFor(server) {
 
       if (gasBalances && gasBalances.length) {
         const stmt = db.prepare('INSERT INTO gas_balances (timestamp, contract, gas, is_low) VALUES (@timestamp, @contract, @gas, @is_low)');
+        const insertTrackingStmt = db.prepare('INSERT INTO gas_balance_tracking (timestamp, contract, gas_balance, gas_deposit, source) VALUES (@timestamp, @contract, @gas_balance, @gas_deposit, @source)');
+        
+        let totalGas = 0;
+        let hasFiniteGas = false;
+        let explicitTotal = null;
+
         db.transaction((items) => {
-          for (const item of items) stmt.run({ timestamp, ...item });
+          let calculatedTotal = 0;
+          for (const item of items) {
+            stmt.run({ timestamp, ...item });
+            
+            const numericGas = Number(item.gas);
+            if (item.contract.toLowerCase() === 'total' || item.contract.toLowerCase() === 'total:') {
+                 if (Number.isFinite(numericGas)) explicitTotal = numericGas;
+            } else {
+                 if (Number.isFinite(numericGas)) calculatedTotal += numericGas;
+            }
+          }
+          
+          const finalTotal = (explicitTotal !== null && Number.isFinite(explicitTotal)) ? explicitTotal : calculatedTotal;
+          
+          if (Number.isFinite(finalTotal)) {
+             insertTrackingStmt.run({
+                 timestamp,
+                 contract: '__total__',
+                 gas_balance: finalTotal,
+                 gas_deposit: 0,
+                 source: 'auto-total'
+             });
+          }
         })(gasBalances);
 
         const notifier = ensureNotifier(server.id);

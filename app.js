@@ -5513,9 +5513,14 @@ app.get('/ml/explain', async (req, res) => {
 
 // Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  console.log(`Server running on port ${PORT} (http://localhost:${PORT})`);
+  const cfg = loadServers();
+  console.log(`Active server ID: ${cfg.activeId}`);
 });
-server.timeout = 1800000; // 30 minutes timeout for large uploads
+// Set timeouts to 30 minutes for large file uploads
+server.timeout = 1800000; 
+server.keepAliveTimeout = 1800000;
+server.headersTimeout = 1801000; // Must be greater than keepAliveTimeout
 
 // Graceful shutdown
 process.on('SIGINT', () => {

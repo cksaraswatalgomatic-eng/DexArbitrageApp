@@ -1522,7 +1522,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (err) {
           console.error('Upload error:', err);
           if (statusEl) {
-            statusEl.textContent = `Error: ${err.message}`;
+            let msg = err.message;
+            if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+              msg = 'Upload failed. Connection interrupted. Check your network or server limits.';
+            }
+            statusEl.textContent = `Error: ${msg}`;
             statusEl.className = 'text-neg';
           }
         } finally {

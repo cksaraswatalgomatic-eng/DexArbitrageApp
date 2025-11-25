@@ -1479,6 +1479,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const file = fileInput.files[0];
+        
+        // Client-side size check (10GB)
+        const MAX_SIZE = 10 * 1024 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+          if (statusEl) {
+            statusEl.textContent = 'File size exceeds the 10GB limit.';
+            statusEl.className = 'text-neg';
+          }
+          return;
+        }
+
         const formData = new FormData();
         formData.append('file', file);
 

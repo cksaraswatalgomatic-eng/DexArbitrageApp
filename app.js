@@ -14,6 +14,7 @@ import compression from 'compression';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { Worker } from 'worker_threads';
+import multer from 'multer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,6 +80,25 @@ if (etherscanBase) {
 const ETHERSCAN_API_URL = etherscanBase;
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || '';
 
+// Ensure video directory exists
+const VIDEO_DIR = path.join(__dirname, 'video');
+if (!fs.existsSync(VIDEO_DIR)) {
+  fs.mkdirSync(VIDEO_DIR, { recursive: true });
+}
+
+// Configure Multer storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, VIDEO_DIR);
+  },
+  filename: (req, file, cb) => {
+    // Keep original filename
+    cb(null, file.originalname);
+  }
+});
+
+const upload = multer({ storage: storage });
+
 // App setup
 const app = express();
 app.use(cors()); // Allow all origins
@@ -89,6 +109,20 @@ app.use(expressStaticGzip(path.join(__dirname, 'public'), {
   enableBrotli: false, // Only use gzip
   orderPreference: ['gzip'],
 }));
+
+// File upload endpoint
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    console.log(`[upload] File saved: ${req.file.originalname} (${req.file.size} bytes)`);
+    res.json({ success: true, filename: req.file.originalname, path: req.file.path });
+  } catch (err) {
+    console.error('[upload] Error:', err.message);
+    res.status(500).json({ error: 'File upload failed', details: err.message });
+  }
+});
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

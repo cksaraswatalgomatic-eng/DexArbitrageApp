@@ -1462,4 +1462,58 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
     }
+
+    // Video Upload Logic
+    const uploadBtn = document.getElementById('uploadBtn');
+    if (uploadBtn) {
+      uploadBtn.addEventListener('click', async () => {
+        const fileInput = document.getElementById('videoInput');
+        const statusEl = document.getElementById('uploadStatus');
+        
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+          if (statusEl) {
+            statusEl.textContent = 'Please select a file.';
+            statusEl.className = 'text-neg';
+          }
+          return;
+        }
+
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        if (statusEl) {
+          statusEl.textContent = 'Uploading...';
+          statusEl.className = 'muted';
+        }
+        uploadBtn.disabled = true;
+
+        try {
+          const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            if (statusEl) {
+              statusEl.textContent = `Success! Saved as ${result.filename}`;
+              statusEl.className = 'text-pos';
+            }
+            fileInput.value = ''; // Clear input
+          } else {
+            throw new Error(result.error || 'Upload failed');
+          }
+        } catch (err) {
+          console.error('Upload error:', err);
+          if (statusEl) {
+            statusEl.textContent = `Error: ${err.message}`;
+            statusEl.className = 'text-neg';
+          }
+        } finally {
+          uploadBtn.disabled = false;
+        }
+      });
+    }
 });

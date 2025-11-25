@@ -1182,6 +1182,15 @@ async function sendDailyDigest() {
 async function getBalanceUpdateData() {
   const cfg = loadServers();
   const result = [];
+  const now = Date.now();
+  const periods = {
+    '1h': 1 * 60 * 60 * 1000,
+    '4h': 4 * 60 * 60 * 1000,
+    '8h': 8 * 60 * 60 * 1000,
+    '12h': 12 * 60 * 60 * 1000,
+    '24h': 24 * 60 * 60 * 1000
+  };
+
   for (const server of cfg.servers) {
     const db = ensureDb(server.id);
     const balanceRow = db.prepare('SELECT raw_data FROM balances_history ORDER BY id DESC LIMIT 1').get();
@@ -1195,12 +1204,27 @@ async function getBalanceUpdateData() {
       binanceFUSDT = cexTotal;
       dexUSDT = dexTotal;
     }
+
+    const profits = {};
+    const netProfit = (t) => (t.executedQtyDst * t.executedDstPrice) - (t.executedSrcPrice * t.executedQtySrc) - (0.0002 * t.executedQtyDst * t.executedDstPrice);
+
+    for (const [label, duration] of Object.entries(periods)) {
+      const startTime = now - duration;
+      try {
+        const trades = db.prepare('SELECT * FROM completed_trades WHERE lastUpdateTime >= ?').all(startTime);
+        profits[label] = trades.reduce((acc, t) => acc + netProfit(t), 0);
+      } catch (e) {
+        // table might not exist or other error
+        profits[label] = 0;
+      }
+    }
+
     result.push({
       server: server.label,
       totalUSDT: totalUSDT,
       binanceFUSDT: binanceFUSDT,
       dexUSDT: dexUSDT,
-      periodData: {}
+      periodData: profits
     });
   }
   return result;
@@ -1209,10 +1233,24 @@ async function getBalanceUpdateData() {
 async function sendBalanceUpdate() {
   const cfg = loadServers();
   const data = await getBalanceUpdateData();
-  let message = '';
+  
+  let grandTotal = 0;
+  data.forEach(d => {
+      if (d.totalUSDT) grandTotal += d.totalUSDT;
+  });
+
+  let message = `💰 *TOTAL BALANCE: ${grandTotal.toLocaleString()} USDT*\n\n`;
+
   for (const serverData of data) {
     message += `📊 *SERVER: ${serverData.server}*\n`;
-    message += `Total (USDT): ${serverData.totalUSDT?.toLocaleString() || 'N/A'}\n\n`;
+    message += `Total (USDT): ${serverData.totalUSDT?.toLocaleString() || 'N/A'}\n`;
+    
+    const profits = serverData.periodData || {};
+    message += `Profit 1h: ${profits['1h']?.toFixed(2) || '0.00'}\n`;
+    message += `Profit 4h: ${profits['4h']?.toFixed(2) || '0.00'}\n`;
+    message += `Profit 8h: ${profits['8h']?.toFixed(2) || '0.00'}\n`;
+    message += `Profit 12h: ${profits['12h']?.toFixed(2) || '0.00'}\n`;
+    message += `Profit 24h: ${profits['24h']?.toFixed(2) || '0.00'}\n\n`;
   }
   if (cfg.servers.length > 0) {
     const firstServerNotifier = ensureNotifier(cfg.servers[0].id);

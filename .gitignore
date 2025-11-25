@@ -36,3 +36,6 @@ data_exports/**/*.parquet
 # Python Cache
 __pycache__/
 *.pyc
+
+# Uploaded videos
+video/

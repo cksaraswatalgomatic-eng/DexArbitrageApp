@@ -5512,9 +5512,10 @@ app.get('/ml/explain', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
+server.timeout = 1800000; // 30 minutes timeout for large uploads
 
 // Graceful shutdown
 process.on('SIGINT', () => {

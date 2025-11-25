@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let gasConsumptionChart = null;
     let gasConsumptionHours = 4;
     let userZoomedGas = false;
+    let isUploading = false;
 
 
     let chart;
@@ -622,6 +623,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         async function refreshAll() {
+          if (isUploading) return;
           try {
             console.log('Refreshing all data...');
             // When refreshing all, reset allBalanceData and fetch initial set
@@ -1498,6 +1500,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           statusEl.className = 'muted';
         }
         uploadBtn.disabled = true;
+        isUploading = true;
 
         try {
           const response = await fetch('/api/upload', {
@@ -1524,6 +1527,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         } finally {
           uploadBtn.disabled = false;
+          isUploading = false;
         }
       });
     }
